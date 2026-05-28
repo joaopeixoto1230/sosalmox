@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function hasRole(roles) {
+      return isAuthenticated() && getUserData().perfil in roles;
+    }
+
+    function isActive() {
+      return getUserData().ativo != false;
+    }
+
+    match /usuarios/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || hasRole(['admin']));
+      allow write: if hasRole(['admin']) && isActive();
+    }
+
+    match /eventos/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente']) && isActive();
+    }
+
+    match /geradores/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
+
+    match /materiais/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /ordens_saida/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow update: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /devolucoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /transferencias/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /contadores/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if isAuthenticated() && isActive();
+    }
+  }
+}
