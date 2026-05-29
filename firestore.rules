@@ -59,5 +59,28 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isActive();
       allow write: if isAuthenticated() && isActive();
     }
+
+    // Fase 2 — Filtros
+    match /filtros/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /entradas_filtro/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /baixas_filtro/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
+
+    // Fase 2 — Manutenção
+    match /ordens_servico/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+      allow update: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
   }
 }

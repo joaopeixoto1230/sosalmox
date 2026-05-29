@@ -7,4 +7,13 @@ export default defineConfig({
     environment: 'node',
     globals: true,
   },
+  server: {
+    proxy: {
+      '/api/anthropic': {
+        target: 'https://api.anthropic.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
+      },
+    },
+  },
 })
