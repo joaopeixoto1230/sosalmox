@@ -125,7 +125,7 @@ export default function AgenteChat({ compact = false }) {
   }
 
   return (
-    <div className={`flex flex-col min-h-0 ${compact ? 'h-full' : 'h-[calc(100vh-180px)]'}`}>
+    <div className={`flex flex-col min-h-0 ${compact ? 'flex-1' : 'h-[calc(100vh-180px)]'}`}>
       {!compact && (
         <div className="flex gap-2 flex-wrap mb-3">
           {ATALHOS.map(a => (

@@ -27,7 +27,7 @@ export default function AgenteFlutuante() {
                 </svg>
               </button>
             </div>
-            <div className="flex-1 p-4 overflow-hidden min-h-0">
+            <div className="flex-1 min-h-0 flex flex-col p-4">
               <AgenteChat compact={true} />
             </div>
           </div>
