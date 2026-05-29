@@ -606,6 +606,124 @@ export async function seedMateriaisReais() {
   console.log(`Materiais reais: ${MATERIAIS_REAIS.length} inseridos`)
   return MATERIAIS_REAIS.length
 }
+const GERADORES_REAIS = [
+  { n: 'G01', kva: 180, local: 'JJA 3373' },
+  { n: 'G03', kva: 450, local: '***' },
+  { n: 'G06', kva: 300, local: '***' },
+  { n: 'G10', kva: 115, local: '***' },
+  { n: 'G12', kva: 110, local: '***' },
+  { n: 'G13', kva: 33, local: '***' },
+  { n: 'G14', kva: 33, local: '***' },
+  { n: 'G15', kva: 120, local: '***' },
+  { n: 'G18', kva: 300, local: '***' },
+  { n: 'G19', kva: 300, local: 'JGG 1130' },
+  { n: 'G20', kva: 300, local: '***' },
+  { n: 'G21', kva: 300, local: '***' },
+  { n: 'G23', kva: 165, local: '***' },
+  { n: 'G25', kva: 500, local: '***' },
+  { n: 'G26', kva: 500, local: '***' },
+  { n: 'G27', kva: 300, local: '***' },
+  { n: 'G28', kva: 300, local: '***' },
+  { n: 'G31', kva: 500, local: '***' },
+  { n: 'G32', kva: 500, local: '***' },
+  { n: 'G35', kva: 110, local: '***' },
+  { n: 'G38', kva: 500, local: '***' },
+  { n: 'G39', kva: 500, local: '***' },
+  { n: 'G40', kva: 750, local: '***' },
+  { n: 'G41', kva: 750, local: '***' },
+  { n: 'G42', kva: 500, local: '***' },
+  { n: 'G43', kva: 500, local: '***' },
+  { n: 'G44', kva: 500, local: '***' },
+  { n: 'G45', kva: 500, local: '***' },
+  { n: 'G46', kva: 500, local: '***' },
+  { n: 'G47', kva: 500, local: '***' },
+  { n: 'G48', kva: 500, local: '***' },
+  { n: 'G49', kva: 500, local: '***' },
+  { n: 'G50', kva: 300, local: '***' },
+  { n: 'G51', kva: 120, local: '***' },
+  { n: 'G52', kva: 100, local: '***' },
+  { n: 'G54', kva: 120, local: '***' },
+  { n: 'G55', kva: 220, local: '***' },
+  { n: 'G56', kva: 220, local: '***' },
+  { n: 'G57', kva: 220, local: '***' },
+  { n: 'G58', kva: 170, local: '***' },
+  { n: 'G59', kva: 170, local: '***' },
+  { n: 'G60', kva: 170, local: '***' },
+  { n: 'G61', kva: 81, local: '***' },
+  { n: 'G62', kva: 81, local: '***' },
+  { n: 'G63', kva: 170, local: '***' },
+  { n: 'G64', kva: 220, local: '***' },
+  { n: 'G66', kva: 50, local: '***' },
+  { n: 'G67', kva: 220, local: '***' },
+  { n: 'G69', kva: 180, local: '***' },
+  { n: 'G70', kva: 550, local: 'PARÁ' },
+  { n: 'G71', kva: 550, local: '***' },
+  { n: 'G72', kva: 550, local: '***' },
+  { n: 'G73', kva: 550, local: 'PARÁ' },
+  { n: 'G74', kva: 550, local: 'PARÁ' },
+  { n: 'G75', kva: 550, local: 'PARÁ' },
+  { n: 'G76', kva: 250, local: 'JGS 4626' },
+  { n: 'G77', kva: 250, local: '***' },
+  { n: 'G78', kva: 250, local: '***' },
+  { n: 'G79', kva: 250, local: '***' },
+  { n: 'G80', kva: 320, local: '***' },
+  { n: 'G81', kva: 700, local: '***' },
+  { n: 'G82', kva: 700, local: '***' },
+  { n: 'G83', kva: 700, local: 'NA PRAIA' },
+  { n: 'G84', kva: 120, local: '***' },
+  { n: 'G85', kva: 300, local: '***' },
+  { n: 'G86', kva: 300, local: '***' },
+  { n: 'G87', kva: 300, local: '***' },
+  { n: 'G88', kva: 300, local: '***' },
+  { n: 'G89', kva: 300, local: 'PARÁ' },
+  { n: 'G90', kva: 300, local: '***' },
+  { n: 'G91', kva: 300, local: 'PARÁ' },
+  { n: 'G92', kva: 300, local: '***' },
+  { n: 'G93', kva: 300, local: '***' },
+  { n: 'G94', kva: 300, local: '***' },
+  { n: 'G95', kva: 125, local: '***' },
+  { n: 'G96', kva: 125, local: '***' },
+  { n: 'G97', kva: 125, local: '***' },
+  { n: 'G98', kva: 360, local: '***' },
+  { n: 'G99', kva: 360, local: '***' },
+  { n: 'G100', kva: 360, local: '***' },
+  { n: 'G101', kva: 360, local: '***' },
+  { n: 'G102', kva: 360, local: '***' },
+  { n: 'G103', kva: 360, local: '***' },
+  { n: 'G104', kva: 360, local: '***' },
+  { n: 'G105', kva: 360, local: '***' },
+  { n: 'G106', kva: 360, local: '***' },
+  { n: 'G107', kva: 360, local: '***' },
+  { n: 'G108', kva: 360, local: '***' },
+  { n: 'G109', kva: 360, local: '***' },
+]
+
+export async function seedGeradoresReais() {
+  const batch = writeBatch(db)
+  for (const entry of GERADORES_REAIS) {
+    const num = parseInt(entry.n.replace(/\D/g, ''), 10)
+    const id = `gg${String(num).padStart(3, '0')}`
+    const codigo = `GG-${String(num).padStart(3, '0')}`
+    const potencia = `${entry.kva}kVA`
+    const localStr = (entry.local || '').trim()
+    const isPlaca = /^[A-Z]{3}\s\d{4}$/.test(localStr)
+    const placa = isPlaca ? localStr : null
+    let localizacao = 'Pátio SOS'
+    if (localStr === 'PARÁ') localizacao = 'Pará'
+    else if (localStr === 'NA PRAIA') localizacao = 'Na Praia'
+    batch.set(doc(db, 'geradores', id), {
+      codigo, potencia, placa, localizacao,
+      marca: '', modelo: '', ano: null,
+      status: 'disponivel', horimetroAtual: 0,
+      temDefeito: false, defeito: '', eventoAtual: null,
+      ativo: true, criadoEm: serverTimestamp(),
+    })
+  }
+  await batch.commit()
+  console.log(`Geradores reais: ${GERADORES_REAIS.length} inseridos`)
+  return GERADORES_REAIS.length
+}
+
 const CAT_PARA_OUTROS = ['Caixas de Passagem', 'Caixas de Desconexão', 'Chaves Reversoras', 'QTAs']
 
 export async function fixCategoriasReais() {
