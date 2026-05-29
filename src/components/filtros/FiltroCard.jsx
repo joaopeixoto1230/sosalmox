@@ -1,6 +1,12 @@
+import { useState } from 'react'
+import { db } from '../../firebase/config'
+import { doc, deleteDoc } from 'firebase/firestore'
 import { statusFiltroLabel, statusFiltroCor, formatarData } from '../../utils/formatters'
 
 export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
+  const [menuAberto, setMenuAberto] = useState(false)
+  const [excluindo, setExcluindo] = useState(false)
+
   const { quantidadeAtual = 0, estoqueMin = 0, validade } = filtro
   const pct = estoqueMin > 0 ? Math.min(100, (quantidadeAtual / estoqueMin) * 100) : 100
   const critico = quantidadeAtual <= 0
@@ -12,8 +18,19 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
   const vencendo = diasVal !== null && diasVal <= 30 && diasVal > 0
   const vencido = diasVal !== null && diasVal <= 0
 
+  async function excluir() {
+    setMenuAberto(false)
+    if (!window.confirm(`Excluir "${filtro.nome}"? Esta ação não pode ser desfeita.`)) return
+    setExcluindo(true)
+    try {
+      await deleteDoc(doc(db, 'filtros', filtro.id))
+    } finally {
+      setExcluindo(false)
+    }
+  }
+
   return (
-    <div className={`card border-l-4 ${critico ? 'border-red-500' : baixo ? 'border-yellow-500' : 'border-green-500'}`}>
+    <div className={`card border-l-4 ${critico ? 'border-red-500' : baixo ? 'border-yellow-500' : 'border-green-500'} relative`}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-brand-black text-sm leading-tight">{filtro.nome}</p>
@@ -24,9 +41,49 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
             <p className="text-xs text-gray-400">{filtro.fornecedor}</p>
           )}
         </div>
-        <span className={`badge flex-shrink-0 ${statusFiltroCor(quantidadeAtual, estoqueMin)}`}>
-          {statusFiltroLabel(quantidadeAtual, estoqueMin)}
-        </span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <span className={`badge ${statusFiltroCor(quantidadeAtual, estoqueMin)}`}>
+            {statusFiltroLabel(quantidadeAtual, estoqueMin)}
+          </span>
+          <div className="relative">
+            <button
+              onClick={() => setMenuAberto(v => !v)}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zM12 10a2 2 0 11-4 0 2 2 0 014 0zM16 12a2 2 0 100-4 2 2 0 000 4z" />
+              </svg>
+            </button>
+            {menuAberto && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuAberto(false)} />
+                <div className="absolute right-0 top-7 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-44 py-1 overflow-hidden">
+                  <button
+                    onClick={() => { setMenuAberto(false); onEntrada(filtro) }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    + Registrar Entrada
+                  </button>
+                  <button
+                    onClick={() => { setMenuAberto(false); onBaixa(filtro) }}
+                    disabled={quantidadeAtual <= 0}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Dar Baixa
+                  </button>
+                  <div className="border-t border-gray-100 mt-1 pt-1">
+                    <button
+                      onClick={excluir}
+                      className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      Excluir filtro
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {estoqueMin > 0 && (
@@ -57,6 +114,12 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
           Baixa
         </button>
       </div>
+
+      {excluindo && (
+        <div className="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center">
+          <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
     </div>
   )
 }
