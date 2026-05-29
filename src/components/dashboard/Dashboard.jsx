@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS } from '../../utils/permissions'
-import { seedFiltrosReais, seedMateriaisReais } from '../../firebase/seed'
+import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais } from '../../firebase/seed'
 
 function CardResumo({ titulo, valor, cor, icone, to }) {
   const conteudo = (
@@ -24,7 +24,7 @@ function CardResumo({ titulo, valor, cor, icone, to }) {
 export default function Dashboard() {
   const { nome, tipoPerfil } = useAuth()
   const [importando, setImportando] = useState(null)
-  const [importOk, setImportOk] = useState({ filtros: false, materiais: false })
+  const [importOk, setImportOk] = useState({ filtros: false, materiais: false, fix: false })
 
   async function importarFiltros() {
     if (!window.confirm('Importar 181 filtros reais da planilha para o Firestore?')) return
@@ -195,7 +195,7 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-      {tipoPerfil === PERFIS.ADMIN && (!importOk.filtros || !importOk.materiais) && (
+      {tipoPerfil === PERFIS.ADMIN && (!importOk.filtros || !importOk.materiais || !importOk.fix) && (
         <div className="space-y-2">
           {!importOk.filtros && (
             <div className="card border-l-4 border-brand-red p-4 flex items-center justify-between gap-4">
@@ -218,6 +218,26 @@ export default function Dashboard() {
               <button onClick={importarMateriais} disabled={importando !== null}
                 className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
                 {importando === 'materiais' ? 'Importando...' : 'Importar'}
+              </button>
+            </div>
+          )}
+          {!importOk.fix && (
+            <div className="card border-l-4 border-blue-500 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-brand-black text-sm">Corrigir categorias das caixas</p>
+                <p className="text-xs text-gray-500 mt-0.5">Move caixas, chaves reversoras e QTAs para "Outros Materiais"</p>
+              </div>
+              <button onClick={async () => {
+                setImportando('fix')
+                try {
+                  const n = await fixCategoriasReais()
+                  setImportOk(prev => ({ ...prev, fix: true }))
+                  window.alert(`✅ ${n} documentos corrigidos!`)
+                } catch(e) { window.alert('Erro: ' + e.message) }
+                finally { setImportando(null) }
+              }} disabled={importando !== null}
+                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
+                {importando === 'fix' ? 'Corrigindo...' : 'Corrigir'}
               </button>
             </div>
           )}
