@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useCollection } from '../../hooks/useFirestore'
 import MaterialCard from './MaterialCard'
+import NovoMaterialModal from './NovoMaterialModal'
 
 const CATEGORIAS = ['Todos', 'Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 const STATUS_FILTROS = ['Todos', 'Disponível', 'Em Evento', 'Manutenção', 'Perdido']
@@ -12,6 +13,7 @@ export default function Estoque() {
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [busca, setBusca] = useState('')
   const [apenasEstoqueBaixo, setApenasEstoqueBaixo] = useState(false)
+  const [novoMaterialAberto, setNovoMaterialAberto] = useState(false)
 
   const filtrados = useMemo(() => {
     return materiais.filter(m => {
@@ -35,10 +37,25 @@ export default function Estoque() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-brand-black">Estoque</h1>
-        <p className="text-gray-500 text-sm mt-1">Visão geral de todos os materiais do almoxarifado.</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-brand-black">Estoque</h1>
+          <p className="text-gray-500 text-sm mt-1">Visão geral de todos os materiais do almoxarifado.</p>
+        </div>
+        <button onClick={() => setNovoMaterialAberto(true)} className="btn-primary flex items-center gap-2 flex-shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Novo
+        </button>
       </div>
+
+      {novoMaterialAberto && (
+        <NovoMaterialModal
+          onFechar={() => setNovoMaterialAberto(false)}
+          onSalvo={() => setNovoMaterialAberto(false)}
+        />
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
