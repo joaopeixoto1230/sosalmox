@@ -67,7 +67,7 @@ export default function StepEvento({ onSelecionar }) {
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Local *</label>
             <input value={form.local} onChange={e => setForm(p => ({ ...p, local: e.target.value }))}
-              placeholder="Ex: Rio de Janeiro - RJ" className="input" />
+              placeholder="Ex: Brasília - DF" className="input" />
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Data *</label>
