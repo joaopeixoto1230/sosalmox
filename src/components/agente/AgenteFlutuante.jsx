@@ -12,12 +12,14 @@ export default function AgenteFlutuante() {
 
       <div className={`fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3`}>
         {aberto && (
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-[min(380px,calc(100vw-3rem))] flex flex-col overflow-hidden"
-            style={{ height: 'min(520px, calc(100vh-120px))' }}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-[min(380px,calc(100vw-3rem))] flex flex-col overflow-hidden"
+            style={{ height: 'min(540px, calc(100vh - 100px))' }}
+          >
             <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 bg-brand-red text-white">
               <div className="flex items-center gap-2">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
                 </svg>
                 <span className="font-semibold text-sm">Chat SOS</span>
               </div>
@@ -27,7 +29,10 @@ export default function AgenteFlutuante() {
                 </svg>
               </button>
             </div>
-            <div className="flex-1 min-h-0 flex flex-col p-4 overflow-hidden">
+            <div
+              className="flex flex-col overflow-hidden"
+              style={{ flex: '1 1 0', minHeight: 0, padding: '16px', gap: '8px' }}
+            >
               <AgenteChat compact={true} />
             </div>
           </div>
@@ -36,7 +41,7 @@ export default function AgenteFlutuante() {
         <button
           onClick={() => setAberto(prev => !prev)}
           className={`w-14 h-14 bg-brand-red text-white rounded-full shadow-lg hover:bg-brand-red-dark transition-all hover:scale-105 flex items-center justify-center ${aberto ? 'scale-95' : ''}`}
-          title="Agente IA"
+          title="Chat SOS"
         >
           {aberto ? (
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

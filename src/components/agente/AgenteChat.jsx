@@ -125,7 +125,8 @@ export default function AgenteChat({ compact = false }) {
   }
 
   return (
-    <div className={`flex flex-col min-h-0 ${compact ? 'flex-1' : 'h-[calc(100vh-180px)]'}`}>
+    <div style={compact ? { display: 'flex', flexDirection: 'column', flex: '1 1 0', minHeight: 0 } : undefined}
+      className={compact ? '' : 'flex flex-col h-[calc(100vh-180px)]'}>
       {!compact && (
         <div className="flex gap-2 flex-wrap mb-3">
           {ATALHOS.map(a => (
@@ -137,7 +138,7 @@ export default function AgenteChat({ compact = false }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 pb-2">
+      <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }} className="space-y-3 pr-1 pb-2">
         {mensagens.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] ${m.role === 'user' ? 'bg-brand-red text-white' : 'bg-white border border-gray-100 text-brand-black'} rounded-2xl px-4 py-3 text-sm shadow-sm`}>
