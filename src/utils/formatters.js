@@ -78,3 +78,40 @@ export function statusGeradorCor(status) {
   }
   return map[status] || 'bg-gray-100 text-gray-600'
 }
+
+export function statusOsLabel(status) {
+  const map = {
+    pendente: 'Pendente',
+    em_andamento: 'Em Andamento',
+    concluida: 'Concluída',
+    cancelada: 'Cancelada',
+  }
+  return map[status] || status
+}
+
+export function statusOsCor(status) {
+  const map = {
+    pendente: 'bg-yellow-100 text-yellow-700',
+    em_andamento: 'bg-blue-100 text-blue-700',
+    concluida: 'bg-green-100 text-green-700',
+    cancelada: 'bg-gray-100 text-gray-600',
+  }
+  return map[status] || 'bg-gray-100 text-gray-600'
+}
+
+export function formatarNumeroOS(numero) {
+  const ano = new Date().getFullYear()
+  return `OS-${ano}-${String(numero).padStart(3, '0')}`
+}
+
+export function statusFiltroLabel(qtd, min) {
+  if (qtd <= 0) return 'Crítico'
+  if (qtd <= min) return 'Baixo'
+  return 'OK'
+}
+
+export function statusFiltroCor(qtd, min) {
+  if (qtd <= 0) return 'bg-red-100 text-red-700'
+  if (qtd <= min) return 'bg-yellow-100 text-yellow-700'
+  return 'bg-green-100 text-green-700'
+}

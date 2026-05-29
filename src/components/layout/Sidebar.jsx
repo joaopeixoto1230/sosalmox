@@ -136,7 +136,7 @@ export default function Sidebar({ aberto, onFechar }) {
         </nav>
 
         <div className="px-3 pb-4 border-t border-gray-800 pt-3">
-          <p className="text-gray-600 text-xs text-center">v1.0 — Fase 1</p>
+          <p className="text-gray-600 text-xs text-center">v2.0 — Fase 2</p>
         </div>
       </aside>
     </>

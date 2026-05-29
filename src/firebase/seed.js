@@ -20,32 +20,77 @@ const eventos = [
   { id: 'evt010', nome: 'São João de Caruaru', data: '2026-06-24', local: 'Pátio de Eventos, Caruaru/PE', status: 'ativo', operador: 'Sidney' },
 ]
 
-const geradores = [
-  { id: 'gg001', codigo: 'GG-001', potencia: '275 kVA', marca: 'Stemac', modelo: 'ST-275', ano: 2018, status: 'disponivel', eventoAtual: null, horimetro: 3420, ultimaManutencao: '2026-05-10' },
-  { id: 'gg002', codigo: 'GG-002', potencia: '150 kVA', marca: 'Stemac', modelo: 'ST-150', ano: 2020, status: 'em_evento', eventoAtual: 'evt001', horimetro: 1850, ultimaManutencao: '2026-04-22' },
-  { id: 'gg003', codigo: 'GG-003', potencia: '500 kVA', marca: 'Cummins', modelo: 'C500D5', ano: 2019, status: 'manutencao', eventoAtual: null, horimetro: 5100, ultimaManutencao: '2026-05-20' },
-  { id: 'gg004', codigo: 'GG-004', potencia: '110 kVA', marca: 'Perkins', modelo: '1100A', ano: 2021, status: 'disponivel', eventoAtual: null, horimetro: 920, ultimaManutencao: '2026-05-18' },
-  { id: 'gg005', codigo: 'GG-005', potencia: '350 kVA', marca: 'Caterpillar', modelo: 'C15', ano: 2017, status: 'disponivel', eventoAtual: null, horimetro: 6700, ultimaManutencao: '2026-05-01' },
-]
+const MARCAS = ['Stemac', 'Cummins', 'Perkins', 'Caterpillar', 'Volvo', 'MWM', 'Scania']
+const POTENCIAS = ['30kVA', '40kVA', '60kVA', '75kVA', '100kVA', '125kVA', '150kVA', '180kVA', '200kVA', '250kVA', '275kVA', '300kVA', '350kVA', '400kVA', '500kVA']
+const STATUS_GG = ['disponivel', 'disponivel', 'disponivel', 'disponivel', 'em_evento', 'em_evento', 'manutencao', 'defeito']
 
-const categorias = [
-  { id: 'cabo4x', nome: 'Cabos 4x', subcategoria: 'cabo_unico' },
-  { id: 'caboterra', nome: 'Cabos Terra', subcategoria: 'cabo_unico' },
-  { id: 'jogocabo', nome: 'Jogos de Cabo', subcategoria: 'jogo_3f' },
-  { id: 'rabicho', nome: 'Rabichos', subcategoria: 'jogo_curto' },
-  { id: 'outros', nome: 'Outros Materiais', subcategoria: 'geral' },
-]
+const buildGeradores = () => {
+  const lista = []
+  for (let i = 1; i <= 107; i++) {
+    const codigo = `GG-${String(i).padStart(3, '0')}`
+    const potencia = POTENCIAS[i % POTENCIAS.length]
+    const marca = MARCAS[i % MARCAS.length]
+    const status = STATUS_GG[i % STATUS_GG.length]
+    const temDefeito = status === 'defeito'
+    lista.push({
+      id: `gg${String(i).padStart(3, '0')}`,
+      codigo,
+      potencia,
+      marca,
+      modelo: `${marca.slice(0, 2).toUpperCase()}-${potencia.replace('kVA', '')}`,
+      ano: 2015 + (i % 10),
+      status: temDefeito ? 'defeito' : status,
+      localizacao: status === 'em_evento' ? 'Evento externo' : status === 'manutencao' ? 'Em manutenção' : 'Pátio SOS',
+      horimetroAtual: Math.floor(Math.random() * 8000) + 500,
+      temDefeito,
+      defeito: temDefeito ? 'Verificar sistema de arrefecimento' : '',
+      eventoAtual: status === 'em_evento' ? 'evt001' : null,
+      ativo: true,
+    })
+  }
+  return lista
+}
+
+const buildFiltros = () => {
+  const potencias = ['30kVA', '60kVA', '100kVA', '150kVA', '200kVA', '275kVA', '350kVA', '500kVA']
+  const tipos = [
+    { tipo: 'Filtro de Combustível 1', ref: 'FS1006', un: 'un' },
+    { tipo: 'Filtro de Combustível 2', ref: 'FS1212', un: 'un' },
+    { tipo: 'Filtro Separador de Água', ref: 'FS1232', un: 'un' },
+    { tipo: 'Filtro de Óleo 1', ref: 'LF3349', un: 'un' },
+    { tipo: 'Filtro de Óleo 2', ref: 'LF9009', un: 'un' },
+    { tipo: 'Filtro de Ar', ref: 'AF25557', un: 'un' },
+  ]
+  const filtros = []
+  let idx = 0
+  for (const pot of potencias) {
+    for (const t of tipos) {
+      idx++
+      const qtd = idx % 5 === 0 ? 0 : idx % 4 === 0 ? 1 : Math.floor(Math.random() * 6) + 2
+      filtros.push({
+        id: `flt_${pot.replace('kVA', '')}_${t.ref}`,
+        potenciaGG: pot,
+        tipo: t.tipo,
+        nome: `${t.tipo} ${pot} — ${t.ref}`,
+        referencia: t.ref,
+        fornecedor: ['Cummins Distribuidora', 'Fleetguard', 'Mann Filter'][idx % 3],
+        quantidadeAtual: qtd,
+        estoqueMin: 2,
+        unidade: t.un,
+        ativo: true,
+      })
+    }
+  }
+  return filtros
+}
 
 const buildMateriais = () => {
   const items = []
 
   const cabo4x = [
-    { bitola: '4x6', metragem: '25m' },
-    { bitola: '4x10', metragem: '30m' },
-    { bitola: '4x16', metragem: '50m' },
-    { bitola: '4x25', metragem: '50m' },
-    { bitola: '4x35', metragem: '50m' },
-    { bitola: '4x50', metragem: '50m' },
+    { bitola: '4x6', metragem: '25m' }, { bitola: '4x10', metragem: '30m' },
+    { bitola: '4x16', metragem: '50m' }, { bitola: '4x25', metragem: '50m' },
+    { bitola: '4x35', metragem: '50m' }, { bitola: '4x50', metragem: '50m' },
   ]
   cabo4x.forEach((c, i) => {
     const num = String(i + 1).padStart(2, '0')
@@ -53,24 +98,17 @@ const buildMateriais = () => {
       id: `mat_c4x_${c.bitola.replace('x', '')}${num}`,
       nome: `${c.bitola}/${num}/${c.metragem}`,
       codigo: `CAB-4X-${c.bitola.replace('x', '')}-${num}`,
-      categoria: 'Cabos 4x',
-      subcategoria: 'cabo_unico',
-      bitola: c.bitola,
-      numero: parseInt(num),
-      metragem: c.metragem,
-      tipo: 'Cabo único',
+      categoria: 'Cabos 4x', subcategoria: 'cabo_unico',
+      bitola: c.bitola, numero: parseInt(num), metragem: c.metragem, tipo: 'Cabo único',
       status: i % 3 === 1 ? 'em_evento' : 'disponivel',
       eventoAtual: i % 3 === 1 ? 'evt001' : null,
-      estoqueMin: 1,
-      estoqueAtual: i % 3 === 1 ? 0 : 1,
+      estoqueMin: 1, estoqueAtual: i % 3 === 1 ? 0 : 1,
     })
   })
 
   const caboTerra = [
-    { bitola: '1x10', metragem: '30m' },
-    { bitola: '1x16', metragem: '30m' },
-    { bitola: '70mm²', metragem: '50m' },
-    { bitola: '95mm²', metragem: '50m' },
+    { bitola: '1x10', metragem: '30m' }, { bitola: '1x16', metragem: '30m' },
+    { bitola: '70mm²', metragem: '50m' }, { bitola: '95mm²', metragem: '50m' },
     { bitola: '120mm²', metragem: '50m' },
   ]
   caboTerra.forEach((c, i) => {
@@ -79,16 +117,9 @@ const buildMateriais = () => {
       id: `mat_ct_${i}`,
       nome: `Terra ${c.bitola}/${num}/${c.metragem}`,
       codigo: `CAB-T-${i + 1}`,
-      categoria: 'Cabos Terra',
-      subcategoria: 'cabo_unico',
-      bitola: c.bitola,
-      numero: parseInt(num),
-      metragem: c.metragem,
-      tipo: 'Cabo terra',
-      status: 'disponivel',
-      eventoAtual: null,
-      estoqueMin: 1,
-      estoqueAtual: 1,
+      categoria: 'Cabos Terra', subcategoria: 'cabo_unico',
+      bitola: c.bitola, numero: parseInt(num), metragem: c.metragem, tipo: 'Cabo terra',
+      status: 'disponivel', eventoAtual: null, estoqueMin: 1, estoqueAtual: 1,
     })
   })
 
@@ -97,18 +128,12 @@ const buildMateriais = () => {
     const num = String(i + 1).padStart(2, '0')
     items.push({
       id: `mat_jc_${i}`,
-      nome: `Jogo ${b}/${num}`,
-      codigo: `JOG-${b.replace('²', '2')}-${num}`,
-      categoria: 'Jogos de Cabo',
-      subcategoria: 'jogo_3f',
-      bitola: b,
-      numero: parseInt(num),
-      metragem: '50m',
-      tipo: 'Jogo 3F+N',
+      nome: `Jogo ${b}/${num}`, codigo: `JOG-${b.replace('²', '2')}-${num}`,
+      categoria: 'Jogos de Cabo', subcategoria: 'jogo_3f',
+      bitola: b, numero: parseInt(num), metragem: '50m', tipo: 'Jogo 3F+N',
       status: i % 4 === 0 ? 'em_evento' : 'disponivel',
       eventoAtual: i % 4 === 0 ? 'evt002' : null,
-      estoqueMin: 1,
-      estoqueAtual: i % 4 === 0 ? 0 : 1,
+      estoqueMin: 1, estoqueAtual: i % 4 === 0 ? 0 : 1,
     })
   })
 
@@ -117,18 +142,10 @@ const buildMateriais = () => {
     const num = String(i + 1).padStart(2, '0')
     items.push({
       id: `mat_rb_${i}`,
-      nome: `Rabicho ${b}/${num}`,
-      codigo: `RAB-${b.replace('²', '2')}-${num}`,
-      categoria: 'Rabichos',
-      subcategoria: 'jogo_curto',
-      bitola: b,
-      numero: parseInt(num),
-      metragem: '10m',
-      tipo: 'Rabicho 3F+N',
-      status: 'disponivel',
-      eventoAtual: null,
-      estoqueMin: 1,
-      estoqueAtual: 1,
+      nome: `Rabicho ${b}/${num}`, codigo: `RAB-${b.replace('²', '2')}-${num}`,
+      categoria: 'Rabichos', subcategoria: 'jogo_curto',
+      bitola: b, numero: parseInt(num), metragem: '10m', tipo: 'Rabicho 3F+N',
+      status: 'disponivel', eventoAtual: null, estoqueMin: 1, estoqueAtual: 1,
     })
   })
 
@@ -143,18 +160,10 @@ const buildMateriais = () => {
   ]
   outros.forEach((o, i) => {
     items.push({
-      id: `mat_ot_${i}`,
-      nome: o.nome,
-      codigo: o.codigo,
-      categoria: 'Outros Materiais',
-      subcategoria: 'geral',
-      bitola: null,
-      numero: null,
-      metragem: null,
-      tipo: o.tipo,
-      status: 'disponivel',
-      eventoAtual: null,
-      estoqueMin: 2,
+      id: `mat_ot_${i}`, nome: o.nome, codigo: o.codigo,
+      categoria: 'Outros Materiais', subcategoria: 'geral',
+      bitola: null, numero: null, metragem: null, tipo: o.tipo,
+      status: 'disponivel', eventoAtual: null, estoqueMin: 2,
       estoqueAtual: Math.floor(Math.random() * 4) + 1,
     })
   })
@@ -166,25 +175,28 @@ export async function seedDatabase() {
   const batch = writeBatch(db)
 
   for (const evt of eventos) {
-    const ref = doc(db, 'eventos', evt.id)
-    batch.set(ref, { ...evt, criadoEm: serverTimestamp() })
+    batch.set(doc(db, 'eventos', evt.id), { ...evt, criadoEm: serverTimestamp() })
   }
 
+  const geradores = buildGeradores()
   for (const gg of geradores) {
-    const ref = doc(db, 'geradores', gg.id)
-    batch.set(ref, { ...gg, criadoEm: serverTimestamp() })
+    batch.set(doc(db, 'geradores', gg.id), { ...gg, criadoEm: serverTimestamp() })
+  }
+
+  const filtros = buildFiltros()
+  for (const f of filtros) {
+    batch.set(doc(db, 'filtros', f.id), { ...f, criadoEm: serverTimestamp() })
   }
 
   const materiais = buildMateriais()
   for (const mat of materiais) {
-    const ref = doc(db, 'materiais', mat.id)
-    batch.set(ref, { ...mat, criadoEm: serverTimestamp() })
+    batch.set(doc(db, 'materiais', mat.id), { ...mat, criadoEm: serverTimestamp() })
   }
 
-  const counterRef = doc(db, 'contadores', 'ordens_saida')
-  batch.set(counterRef, { ultimo: 0 })
+  batch.set(doc(db, 'contadores', 'ordens_saida'), { ultimo: 0 })
+  batch.set(doc(db, 'contadores', 'ordens_servico'), { ultimo: 0 })
 
   await batch.commit()
-  console.log('Seed concluído:', eventos.length, 'eventos,', geradores.length, 'geradores,', materiais.length, 'materiais')
-  return { eventos: eventos.length, geradores: geradores.length, materiais: materiais.length }
+  console.log(`Seed: ${eventos.length} eventos, ${geradores.length} geradores, ${filtros.length} filtros, ${materiais.length} materiais`)
+  return { eventos: eventos.length, geradores: geradores.length, filtros: filtros.length, materiais: materiais.length }
 }
