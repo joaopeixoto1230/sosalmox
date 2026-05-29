@@ -13,6 +13,12 @@ export default defineConfig({
         target: 'https://api.anthropic.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin')
+            proxyReq.removeHeader('referer')
+          })
+        },
       },
     },
   },
