@@ -17,6 +17,7 @@ export default function GGCard({ gg }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [subMenu, setSubMenu] = useState(null)
   const [editLocal, setEditLocal] = useState(gg.localizacao || '')
+  const [motivoDefeito, setMotivoDefeito] = useState('')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -26,7 +27,7 @@ export default function GGCard({ gg }) {
   })() : null
 
   const alertaParado = diasParado !== null && diasParado >= 15 && gg.status === 'disponivel'
-  const alertaDefeito = gg.temDefeito && gg.status !== 'em_evento'
+  const alertaDefeito = gg.status === 'defeito'
 
   function fecharMenu() {
     setMenuAberto(false)
@@ -34,8 +35,26 @@ export default function GGCard({ gg }) {
   }
 
   async function trocarStatus(novoStatus) {
+    if (novoStatus === 'defeito') {
+      setSubMenu('defeito')
+      setMotivoDefeito('')
+      return
+    }
     fecharMenu()
-    await updateDoc(doc(db, 'geradores', gg.id), { status: novoStatus })
+    await updateDoc(doc(db, 'geradores', gg.id), {
+      status: novoStatus,
+      temDefeito: false,
+      defeito: '',
+    })
+  }
+
+  async function confirmarDefeito() {
+    fecharMenu()
+    await updateDoc(doc(db, 'geradores', gg.id), {
+      status: 'defeito',
+      temDefeito: true,
+      defeito: motivoDefeito.trim() || 'Com defeito',
+    })
   }
 
   async function salvarLocal() {
@@ -123,6 +142,22 @@ export default function GGCard({ gg }) {
                           {s.label}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {subMenu === 'defeito' && (
+                    <div className="bg-red-50 border-t border-b border-red-100 px-3 py-2 space-y-2">
+                      <p className="text-xs font-medium text-red-700">Qual o defeito?</p>
+                      <input
+                        className="input text-sm w-full"
+                        value={motivoDefeito}
+                        onChange={e => setMotivoDefeito(e.target.value)}
+                        placeholder="Ex: Falha no motor, vazamento..."
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && confirmarDefeito()}
+                      />
+                      <button onClick={confirmarDefeito} className="btn-primary text-xs w-full py-1.5 bg-red-600 hover:bg-red-700">
+                        Confirmar defeito
+                      </button>
                     </div>
                   )}
 
