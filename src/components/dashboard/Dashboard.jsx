@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS } from '../../utils/permissions'
-import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais } from '../../firebase/seed'
+import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
 
 function CardResumo({ titulo, valor, cor, icone, to }) {
   const conteudo = (
@@ -24,7 +24,7 @@ function CardResumo({ titulo, valor, cor, icone, to }) {
 export default function Dashboard() {
   const { nome, tipoPerfil } = useAuth()
   const [importando, setImportando] = useState(null)
-  const [importOk, setImportOk] = useState({ filtros: false, materiais: false, fix: false, geradores: false })
+  const [importOk, setImportOk] = useState({ filtros: false, materiais: false, fix: false, geradores: false, fixGeradores: false })
 
   async function importarFiltros() {
     if (!window.confirm('Importar 181 filtros reais da planilha para o Firestore?')) return
@@ -195,7 +195,7 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-      {tipoPerfil === PERFIS.ADMIN && (!importOk.filtros || !importOk.materiais || !importOk.fix || !importOk.geradores) && (
+      {tipoPerfil === PERFIS.ADMIN && (!importOk.filtros || !importOk.materiais || !importOk.fix || !importOk.geradores || !importOk.fixGeradores) && (
         <div className="space-y-2">
           {!importOk.filtros && (
             <div className="card border-l-4 border-brand-red p-4 flex items-center justify-between gap-4">
@@ -218,6 +218,27 @@ export default function Dashboard() {
               <button onClick={importarMateriais} disabled={importando !== null}
                 className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
                 {importando === 'materiais' ? 'Importando...' : 'Importar'}
+              </button>
+            </div>
+          )}
+          {!importOk.fixGeradores && (
+            <div className="card border-l-4 border-orange-500 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-brand-black text-sm">Remover geradores fora da planilha</p>
+                <p className="text-xs text-gray-500 mt-0.5">Exclui GGs que não constam na Potência_dos_geradores_SOS_2024</p>
+              </div>
+              <button onClick={async () => {
+                if (!window.confirm('Remover do Firestore todos os geradores que não estão na planilha 2024?')) return
+                setImportando('fixGeradores')
+                try {
+                  const n = await fixGeradoresReais()
+                  setImportOk(prev => ({ ...prev, fixGeradores: true }))
+                  window.alert(`✅ ${n} geradores removidos!`)
+                } catch(e) { window.alert('Erro: ' + e.message) }
+                finally { setImportando(null) }
+              }} disabled={importando !== null}
+                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
+                {importando === 'fixGeradores' ? 'Removendo...' : 'Remover'}
               </button>
             </div>
           )}

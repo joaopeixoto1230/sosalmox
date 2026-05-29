@@ -7,6 +7,7 @@ import {
   serverTimestamp,
   getDocs,
   updateDoc,
+  deleteDoc,
 } from 'firebase/firestore'
 
 const eventos = [
@@ -803,5 +804,25 @@ export async function fixCategoriasReais() {
   })
   if (count > 0) await batch.commit()
   console.log(`Categorias corrigidas: ${count} documentos`)
+  return count
+}
+
+const IDS_VALIDOS = new Set(
+  GERADORES_REAIS.map(entry => {
+    const num = parseInt(entry.n.replace(/\D/g, ''), 10)
+    return `gg${String(num).padStart(3, '0')}`
+  })
+)
+
+export async function fixGeradoresReais() {
+  const snap = await getDocs(collection(db, 'geradores'))
+  let count = 0
+  for (const d of snap.docs) {
+    if (!IDS_VALIDOS.has(d.id)) {
+      await deleteDoc(d.ref)
+      count++
+    }
+  }
+  console.log(`Geradores removidos: ${count}`)
   return count
 }
