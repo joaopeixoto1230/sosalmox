@@ -169,7 +169,7 @@ export default function AgenteChat({ compact = false }) {
       </div>
 
       {compact && (
-        <div className="flex gap-1.5 mt-2 flex-wrap">
+        <div className="flex-shrink-0 flex gap-1.5 mt-2 flex-wrap">
           {ATALHOS.map(a => (
             <button key={a.label} onClick={() => enviar(a.prompt)}
               className="px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-medium rounded-full hover:bg-brand-red hover:text-white transition-colors">
@@ -179,7 +179,7 @@ export default function AgenteChat({ compact = false }) {
         </div>
       )}
 
-      <div className="flex gap-2 mt-3">
+      <div className="flex-shrink-0 flex gap-2 mt-3">
         <button onClick={toggleVoz}
           className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center transition-colors ${ouvindo ? 'bg-brand-red text-white animate-pulse' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
