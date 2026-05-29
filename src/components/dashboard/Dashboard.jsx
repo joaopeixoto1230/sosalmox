@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS } from '../../utils/permissions'
+import { seedFiltrosReais } from '../../firebase/seed'
 
 function CardResumo({ titulo, valor, cor, icone, to }) {
   const conteudo = (
@@ -22,6 +23,22 @@ function CardResumo({ titulo, valor, cor, icone, to }) {
 
 export default function Dashboard() {
   const { nome, tipoPerfil } = useAuth()
+  const [importando, setImportando] = useState(false)
+  const [importOk, setImportOk] = useState(false)
+
+  async function importarFiltros() {
+    if (!window.confirm('Importar 181 filtros reais da planilha para o Firestore?')) return
+    setImportando(true)
+    try {
+      const total = await seedFiltrosReais()
+      setImportOk(true)
+      window.alert(`✅ ${total} filtros importados com sucesso!`)
+    } catch (e) {
+      window.alert('Erro ao importar: ' + e.message)
+    } finally {
+      setImportando(false)
+    }
+  }
   const { dados: eventos, carregando: carregandoEvt } = useCollection('eventos')
   const { dados: materiais, carregando: carregandoMat } = useCollection('materiais')
   const { dados: ordensAberto } = useCollection('devolucoes')
@@ -162,6 +179,18 @@ export default function Dashboard() {
               {a.label}
             </Link>
           ))}
+        </div>
+      )}
+      {tipoPerfil === PERFIS.ADMIN && !importOk && (
+        <div className="card border-l-4 border-brand-red p-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-semibold text-brand-black text-sm">Importar filtros reais da planilha</p>
+            <p className="text-xs text-gray-500 mt-0.5">181 filtros de 50 GGs — Geradores_SOS_2021.xlsx</p>
+          </div>
+          <button onClick={importarFiltros} disabled={importando}
+            className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
+            {importando ? 'Importando...' : 'Importar'}
+          </button>
         </div>
       )}
     </div>
