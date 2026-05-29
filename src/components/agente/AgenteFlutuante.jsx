@@ -19,7 +19,7 @@ export default function AgenteFlutuante() {
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
-                <span className="font-semibold text-sm">Agente IA — SOS Energia</span>
+                <span className="font-semibold text-sm">Chat SOS</span>
               </div>
               <button onClick={() => setAberto(false)} className="text-white/80 hover:text-white transition-colors">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -27,7 +27,7 @@ export default function AgenteFlutuante() {
                 </svg>
               </button>
             </div>
-            <div className="flex-1 p-4 overflow-hidden">
+            <div className="flex-1 p-4 overflow-hidden min-h-0">
               <AgenteChat compact={true} />
             </div>
           </div>
