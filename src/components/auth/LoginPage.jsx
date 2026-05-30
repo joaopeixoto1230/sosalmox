@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
-const DOMAIN = '@sosalmox.app'
+const DOMAIN = '@sosenergia.com'
 
 export default function LoginPage() {
   const { login } = useAuth()

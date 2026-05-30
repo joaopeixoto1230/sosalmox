@@ -5,7 +5,7 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { PERFIS, PERFIL_LABELS } from '../../utils/permissions'
 
-const DOMAIN = '@sosalmox.app'
+const DOMAIN = '@sosenergia.com'
 
 function getSecondaryAuth() {
   const config = {
