@@ -22,7 +22,7 @@ function getSecondaryAuth() {
 }
 
 export default function NovoUsuarioModal({ onFechar }) {
-  const [form, setForm] = useState({ nome: '', username: '', senha: 'Sos@2025', perfil: PERFIS.ALMOXARIFE })
+  const [form, setForm] = useState({ nome: '', username: '', senha: '', perfil: PERFIS.ALMOXARIFE })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
