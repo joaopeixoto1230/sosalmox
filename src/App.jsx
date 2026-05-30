@@ -15,6 +15,7 @@ import Manutencao from './components/manutencao/Manutencao'
 import NovaOS from './components/manutencao/NovaOS'
 import DetalheOS from './components/manutencao/DetalheOS'
 import AgenteIA from './components/agente/AgenteIA'
+import Usuarios from './components/usuarios/Usuarios'
 import EmBreve from './components/shared/EmBreve'
 import RootRedirect from './components/shared/RootRedirect'
 import { MODULOS } from './utils/permissions'
@@ -88,9 +89,7 @@ export default function App() {
               </ProtectedRoute>
             } />
             <Route path="usuarios" element={
-              <ProtectedRoute modulo={MODULOS.GESTAO_USUARIOS}>
-                <EmBreve titulo="Gestão de Usuários" descricao="Cadastro e gerenciamento de usuários do sistema." fase="2" />
-              </ProtectedRoute>
+              <ProtectedRoute modulo={MODULOS.GESTAO_USUARIOS}><Usuarios /></ProtectedRoute>
             } />
           </Route>
 
