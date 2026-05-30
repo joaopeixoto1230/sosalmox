@@ -34,11 +34,21 @@ export default function Manutencao() {
       })
   }, [ordens, statusFiltro, tipoFiltro, busca])
 
-  const stats = useMemo(() => ({
-    abertas: ordens.filter(o => o.status === 'pendente' || o.status === 'em_andamento').length,
-    urgentes: ordens.filter(o => o.prioridade === 'maxima' && o.status !== 'concluida').length,
-    concluidas: ordens.filter(o => o.status === 'concluida').length,
-  }), [ordens])
+  const stats = useMemo(() => {
+    const agora = new Date()
+    const limiteAtrasada = 2 * 24 * 60 * 60 * 1000
+    const atrasadas = ordens.filter(o => {
+      if (o.status === 'concluida') return false
+      const d = o.dataAbertura?.toDate ? o.dataAbertura.toDate() : new Date(o.dataAbertura || 0)
+      return (agora - d) >= limiteAtrasada
+    })
+    return {
+      abertas: ordens.filter(o => o.status === 'pendente' || o.status === 'em_andamento').length,
+      urgentes: ordens.filter(o => o.prioridade === 'maxima' && o.status !== 'concluida').length,
+      concluidas: ordens.filter(o => o.status === 'concluida').length,
+      atrasadas,
+    }
+  }, [ordens])
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -51,6 +61,22 @@ export default function Manutencao() {
           + Nova OS
         </button>
       </div>
+
+      {stats.atrasadas.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex items-start gap-3">
+          <svg className="w-5 h-5 text-brand-red flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-brand-red">
+              {stats.atrasadas.length} {stats.atrasadas.length === 1 ? 'OS sem conclusão' : 'OS sem conclusão'} há mais de 2 dias
+            </p>
+            <p className="text-xs text-red-600 mt-0.5">
+              {stats.atrasadas.map(o => o.numero).join(', ')}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         {[

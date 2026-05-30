@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useCollection } from '../../hooks/useFirestore'
-import { formatarData, formatarDataHora, statusEventoLabel, statusOsLabel, statusOsCor } from '../../utils/formatters'
+import { formatarData, statusOsLabel, statusOsCor } from '../../utils/formatters'
 
-const ABAS = ['Saídas', 'Manutenções', 'Filtros', 'Estoque']
+const ABAS = ['Saídas', 'Devoluções', 'Manutenções', 'Filtros', 'Estoque']
 
 function dataFiltro(item, campo, de, ate) {
   if (!de && !ate) return true
@@ -18,26 +18,31 @@ export default function Relatorios() {
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
 
-  const { dados: ordens } = useCollection('ordens_material')
+  const { dados: ordens } = useCollection('ordens_saida')
+  const { dados: devolucoes } = useCollection('devolucoes')
   const { dados: os } = useCollection('ordens_servico')
   const { dados: baixasFiltro } = useCollection('baixas_filtro')
-  const { dados: entradasFiltro } = useCollection('entradas_filtro')
   const { dados: materiais } = useCollection('materiais')
   const { dados: filtros } = useCollection('filtros')
 
   const ordensFiltradas = useMemo(() =>
     ordens.filter(o => dataFiltro(o, 'criadoEm', de, ate))
-      .sort((a, b) => (b.criadoEm?.toDate?.() || 0) - (a.criadoEm?.toDate?.() || 0)),
+      .sort((a, b) => (b.criadoEm?.toDate?.()?.getTime() || 0) - (a.criadoEm?.toDate?.()?.getTime() || 0)),
     [ordens, de, ate])
+
+  const devolucoesFiltradas = useMemo(() =>
+    devolucoes.filter(d => dataFiltro(d, 'criadoEm', de, ate))
+      .sort((a, b) => (b.criadoEm?.toDate?.()?.getTime() || 0) - (a.criadoEm?.toDate?.()?.getTime() || 0)),
+    [devolucoes, de, ate])
 
   const osFiltradas = useMemo(() =>
     os.filter(o => dataFiltro(o, 'criadoEm', de, ate))
-      .sort((a, b) => (b.criadoEm?.toDate?.() || 0) - (a.criadoEm?.toDate?.() || 0)),
+      .sort((a, b) => (b.criadoEm?.toDate?.()?.getTime() || 0) - (a.criadoEm?.toDate?.()?.getTime() || 0)),
     [os, de, ate])
 
   const baixasFiltradas = useMemo(() =>
     baixasFiltro.filter(b => dataFiltro(b, 'criadoEm', de, ate))
-      .sort((a, b) => (b.criadoEm?.toDate?.() || 0) - (a.criadoEm?.toDate?.() || 0)),
+      .sort((a, b) => (b.criadoEm?.toDate?.()?.getTime() || 0) - (a.criadoEm?.toDate?.()?.getTime() || 0)),
     [baixasFiltro, de, ate])
 
   const estoqueBaixo = useMemo(() =>
@@ -50,7 +55,15 @@ export default function Relatorios() {
       .sort((a, b) => (a.quantidadeAtual / (a.estoqueMin || 1)) - (b.quantidadeAtual / (b.estoqueMin || 1))),
     [filtros])
 
-  function imprimir() { window.print() }
+  const devStats = useMemo(() => {
+    const itens = devolucoesFiltradas.flatMap(d => d.itens || [])
+    return {
+      ok: itens.filter(i => i.statusDevolucao === 'ok').length,
+      problema: itens.filter(i => i.statusDevolucao === 'problema').length,
+      perdido: itens.filter(i => i.statusDevolucao === 'perdido').length,
+      cortado: itens.filter(i => i.statusDevolucao === 'cortado').length,
+    }
+  }, [devolucoesFiltradas])
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 print:space-y-4">
@@ -59,7 +72,7 @@ export default function Relatorios() {
           <h1 className="text-2xl font-bold text-brand-black">Relatórios</h1>
           <p className="text-gray-500 text-sm mt-1">Visão operacional por período.</p>
         </div>
-        <button onClick={imprimir} className="btn-secondary flex items-center gap-2">
+        <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
           </svg>
@@ -68,29 +81,27 @@ export default function Relatorios() {
       </div>
 
       <div className="flex gap-3 flex-wrap print:hidden">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 flex-wrap">
           {ABAS.map(a => (
-            <button
-              key={a}
-              onClick={() => setAba(a)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${aba === a ? 'bg-white shadow-sm text-brand-black' : 'text-gray-500 hover:text-gray-700'}`}
-            >
+            <button key={a} onClick={() => setAba(a)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${aba === a ? 'bg-white shadow-sm text-brand-black' : 'text-gray-500 hover:text-gray-700'}`}>
               {a}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className="flex items-center gap-2">
           <input type="date" className="input text-sm" value={de} onChange={e => setDe(e.target.value)} />
           <span className="text-gray-400 text-sm">até</span>
           <input type="date" className="input text-sm" value={ate} onChange={e => setAte(e.target.value)} />
           {(de || ate) && (
-            <button onClick={() => { setDe(''); setAte('') }} className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0">
+            <button onClick={() => { setDe(''); setAte('') }} className="text-xs text-gray-400 hover:text-gray-600">
               Limpar
             </button>
           )}
         </div>
       </div>
 
+      {/* SAÍDAS */}
       {aba === 'Saídas' && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
@@ -98,7 +109,7 @@ export default function Relatorios() {
             <span className="text-sm text-gray-400">{ordensFiltradas.length} registros</span>
           </div>
           {ordensFiltradas.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">Nenhuma ordem no período selecionado.</p>
+            <p className="text-gray-400 text-sm text-center py-8">Nenhuma saída no período.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -118,8 +129,8 @@ export default function Relatorios() {
                       <td className="py-2 font-medium text-brand-black">{o.eventoNome || '—'}</td>
                       <td className="py-2 text-gray-500 hidden sm:table-cell">{o.operadorNome || '—'}</td>
                       <td className="py-2">
-                        <span className={`badge ${o.status === 'concluida' ? 'bg-green-100 text-green-700' : o.status === 'cancelada' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                          {o.status === 'concluida' ? 'Concluída' : o.status === 'cancelada' ? 'Cancelada' : 'Em aberto'}
+                        <span className={`badge ${o.status === 'devolvida' ? 'bg-green-100 text-green-700' : o.status === 'cancelada' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                          {o.status === 'devolvida' ? 'Devolvida' : o.status === 'cancelada' ? 'Cancelada' : 'Em aberto'}
                         </span>
                       </td>
                       <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{formatarData(o.criadoEm)}</td>
@@ -132,6 +143,63 @@ export default function Relatorios() {
         </div>
       )}
 
+      {/* DEVOLUÇÕES */}
+      {aba === 'Devoluções' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[['OK', devStats.ok, 'text-green-600'], ['Com problema', devStats.problema, 'text-orange-600'], ['Perdido', devStats.perdido, 'text-red-600'], ['Cortado', devStats.cortado, 'text-gray-600']].map(([l, v, cls]) => (
+              <div key={l} className="card text-center py-3">
+                <p className={`text-2xl font-bold ${cls}`}>{v}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{l}</p>
+              </div>
+            ))}
+          </div>
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-brand-black">Registros de Devolução</h2>
+              <span className="text-sm text-gray-400">{devolucoesFiltradas.length} registros</span>
+            </div>
+            {devolucoesFiltradas.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-8">Nenhuma devolução no período.</p>
+            ) : (
+              <div className="space-y-3">
+                {devolucoesFiltradas.map(d => {
+                  const itens = d.itens || []
+                  const problemas = itens.filter(i => ['problema', 'perdido', 'cortado'].includes(i.statusDevolucao))
+                  return (
+                    <div key={d.id} className={`border rounded-xl p-4 ${problemas.length > 0 ? 'border-orange-200 bg-orange-50' : 'border-gray-100'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-brand-black text-sm">{d.eventoNome || '—'}</p>
+                          <p className="text-xs text-gray-400">{d.operadorNome} · {formatarData(d.criadoEm)}</p>
+                        </div>
+                        <div className="flex gap-2 text-xs">
+                          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{itens.filter(i => i.statusDevolucao === 'ok').length} OK</span>
+                          {problemas.length > 0 && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{problemas.length} problema{problemas.length > 1 ? 's' : ''}</span>}
+                        </div>
+                      </div>
+                      {problemas.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {problemas.map((item, i) => (
+                            <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.statusDevolucao === 'perdido' ? 'bg-red-500' : item.statusDevolucao === 'problema' ? 'bg-orange-500' : 'bg-gray-400'}`} />
+                              <span className="font-medium">{item.nome}</span>
+                              <span className="text-gray-400">— {item.statusDevolucao}</span>
+                              {item.descricao && <span className="text-gray-400 truncate">({item.descricao})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MANUTENÇÕES */}
       {aba === 'Manutenções' && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
@@ -139,51 +207,52 @@ export default function Relatorios() {
             <span className="text-sm text-gray-400">{osFiltradas.length} registros</span>
           </div>
           {osFiltradas.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">Nenhuma OS no período selecionado.</p>
+            <p className="text-gray-400 text-sm text-center py-8">Nenhuma OS no período.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 text-gray-500 font-medium">OS</th>
-                    <th className="text-left py-2 text-gray-500 font-medium">Equipamento</th>
-                    <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Tipo</th>
-                    <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Mecânico</th>
-                    <th className="text-left py-2 text-gray-500 font-medium">Status</th>
-                    <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Abertura</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {osFiltradas.map(o => (
-                    <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 font-mono text-xs text-brand-red">{o.numero || '—'}</td>
-                      <td className="py-2 font-medium text-brand-black">{o.equipamentoLabel || '—'}</td>
-                      <td className="py-2 text-gray-500 hidden sm:table-cell capitalize">{o.tipo || '—'}</td>
-                      <td className="py-2 text-gray-500 hidden sm:table-cell">{o.mecanicoNome || '—'}</td>
-                      <td className="py-2">
-                        <span className={`badge ${statusOsCor(o.status)}`}>{statusOsLabel(o.status)}</span>
-                      </td>
-                      <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{formatarData(o.criadoEm)}</td>
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-2 text-gray-500 font-medium">OS</th>
+                      <th className="text-left py-2 text-gray-500 font-medium">Equipamento</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Tipo</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Mecânico</th>
+                      <th className="text-left py-2 text-gray-500 font-medium">Status</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Data</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-3 gap-4 text-center">
-            {[['Pendentes', osFiltradas.filter(o => o.status === 'pendente').length, 'text-yellow-600'],
-              ['Em andamento', osFiltradas.filter(o => o.status === 'em_andamento').length, 'text-blue-600'],
-              ['Concluídas', osFiltradas.filter(o => o.status === 'concluida').length, 'text-green-600'],
-            ].map(([l, v, cls]) => (
-              <div key={l}>
-                <p className={`text-xl font-bold ${cls}`}>{v}</p>
-                <p className="text-xs text-gray-400">{l}</p>
+                  </thead>
+                  <tbody>
+                    {osFiltradas.map(o => (
+                      <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2 font-mono text-xs text-brand-red">{o.numero || '—'}</td>
+                        <td className="py-2 font-medium text-brand-black">{o.equipamentoLabel || '—'}</td>
+                        <td className="py-2 text-gray-500 hidden sm:table-cell capitalize">{o.tipo || '—'}</td>
+                        <td className="py-2 text-gray-500 hidden sm:table-cell">{o.mecanicoNome || '—'}</td>
+                        <td className="py-2"><span className={`badge ${statusOsCor(o.status)}`}>{statusOsLabel(o.status)}</span></td>
+                        <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{formatarData(o.criadoEm)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
-          </div>
+              <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-3 gap-4 text-center">
+                {[['Pendentes', osFiltradas.filter(o => o.status === 'pendente').length, 'text-yellow-600'],
+                  ['Em andamento', osFiltradas.filter(o => o.status === 'em_andamento').length, 'text-blue-600'],
+                  ['Concluídas', osFiltradas.filter(o => o.status === 'concluida').length, 'text-green-600'],
+                ].map(([l, v, cls]) => (
+                  <div key={l}>
+                    <p className={`text-xl font-bold ${cls}`}>{v}</p>
+                    <p className="text-xs text-gray-400">{l}</p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
+      {/* FILTROS */}
       {aba === 'Filtros' && (
         <div className="space-y-4">
           <div className="card">
@@ -222,7 +291,7 @@ export default function Relatorios() {
           </div>
           {filtrosBaixo.length > 0 && (
             <div className="card border-l-4 border-yellow-400">
-              <h3 className="font-semibold text-brand-black mb-3">Filtros abaixo do mínimo</h3>
+              <h3 className="font-semibold text-brand-black mb-3">Filtros abaixo do mínimo agora</h3>
               <div className="space-y-2">
                 {filtrosBaixo.map(f => (
                   <div key={f.id} className="flex items-center justify-between text-sm">
@@ -238,6 +307,7 @@ export default function Relatorios() {
         </div>
       )}
 
+      {/* ESTOQUE */}
       {aba === 'Estoque' && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -253,7 +323,6 @@ export default function Relatorios() {
               </div>
             ))}
           </div>
-
           {estoqueBaixo.length > 0 && (
             <div className="card">
               <h2 className="font-semibold text-brand-black mb-4">Itens com estoque baixo</h2>
@@ -272,11 +341,7 @@ export default function Relatorios() {
                       <tr key={m.id} className="border-b border-gray-50">
                         <td className="py-2 font-medium text-brand-black">{m.nome}</td>
                         <td className="py-2 text-gray-500">{m.categoria || '—'}</td>
-                        <td className="py-2">
-                          <span className={`font-semibold ${m.estoqueAtual <= 0 ? 'text-red-600' : 'text-yellow-600'}`}>
-                            {m.estoqueAtual}
-                          </span>
-                        </td>
+                        <td className="py-2"><span className={`font-semibold ${m.estoqueAtual <= 0 ? 'text-red-600' : 'text-yellow-600'}`}>{m.estoqueAtual}</span></td>
                         <td className="py-2 text-gray-500">{m.estoqueMin}</td>
                       </tr>
                     ))}
@@ -285,7 +350,6 @@ export default function Relatorios() {
               </div>
             </div>
           )}
-
           <div className="card">
             <h2 className="font-semibold text-brand-black mb-4">Todos os materiais</h2>
             <div className="overflow-x-auto">

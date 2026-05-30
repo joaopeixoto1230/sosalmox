@@ -39,8 +39,24 @@ export default function ComprasDashboard() {
       return d >= mesAnteriorInicio && d <= mesAnteriorFim
     })
 
-    const gastoMes = entreguesMes.reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeSugerida || 1)), 0)
-    const gastoAnterior = entreguesMesAnterior.reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeSugerida || 1)), 0)
+    const gastoMes = entreguesMes.reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)), 0)
+    const gastoAnterior = entreguesMesAnterior.reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)), 0)
+
+    const gastos6Meses = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(agora.getFullYear(), agora.getMonth() - (5 - i), 1)
+      const fim = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+      const total = solicitacoes
+        .filter(s => {
+          if (s.status !== 'entregue') return false
+          const sd = s.entregueEm?.toDate ? s.entregueEm.toDate() : s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm)
+          return sd >= d && sd <= fim
+        })
+        .reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)), 0)
+      return {
+        label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
+        total,
+      }
+    })
 
     return {
       pendentes: solicitacoes.filter(s => s.status === 'pendente').length,
@@ -49,6 +65,7 @@ export default function ComprasDashboard() {
       gastoMes,
       gastoAnterior,
       variacaoGasto: gastoAnterior > 0 ? ((gastoMes - gastoAnterior) / gastoAnterior * 100).toFixed(0) : null,
+      gastos6Meses,
       recentes: [...solicitacoes]
         .sort((a, b) => {
           const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm || 0)
@@ -117,6 +134,13 @@ export default function ComprasDashboard() {
             </div>
           </div>
 
+          {stats.gastos6Meses.some(m => m.total > 0) && (
+            <div className="card">
+              <h2 className="font-semibold text-brand-black mb-4">Gasto mensal — últimos 6 meses</h2>
+              <GraficoGastos dados={stats.gastos6Meses} />
+            </div>
+          )}
+
           <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-brand-black">Solicitações recentes</h2>
@@ -167,6 +191,34 @@ export default function ComprasDashboard() {
       )}
 
       {aba === 'fornecedores' && <Fornecedores />}
+    </div>
+  )
+}
+
+function GraficoGastos({ dados }) {
+  const max = Math.max(...dados.map(d => d.total), 1)
+  return (
+    <div className="flex items-end gap-2 h-32">
+      {dados.map((m, i) => {
+        const pct = (m.total / max) * 100
+        const isLast = i === dados.length - 1
+        return (
+          <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+            <span className="text-[10px] text-gray-500 leading-none">
+              {m.total > 0 ? `R$${m.total >= 1000 ? (m.total / 1000).toFixed(1) + 'k' : m.total.toFixed(0)}` : ''}
+            </span>
+            <div className="w-full relative flex items-end" style={{ height: '80px' }}>
+              <div
+                className={`w-full rounded-t-md transition-all ${isLast ? 'bg-brand-red' : 'bg-gray-200'}`}
+                style={{ height: `${Math.max(pct, m.total > 0 ? 4 : 0)}%` }}
+              />
+            </div>
+            <span className={`text-[11px] font-medium capitalize ${isLast ? 'text-brand-red' : 'text-gray-400'}`}>
+              {m.label}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }

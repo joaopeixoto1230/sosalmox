@@ -41,6 +41,9 @@ export default function FilaSolicitacoes() {
         return s.itemNome?.toLowerCase().includes(q) || s.referencia?.toLowerCase().includes(q) || s.potenciaGG?.toLowerCase().includes(q)
       })
       .sort((a, b) => {
+        const urgA = a.quantidadeAtual <= 0 && a.status !== 'entregue' ? 0 : 1
+        const urgB = b.quantidadeAtual <= 0 && b.status !== 'entregue' ? 0 : 1
+        if (urgA !== urgB) return urgA - urgB
         const ordemStatus = { pendente: 0, em_cotacao: 1, comprado: 2, entregue: 3 }
         if (ordemStatus[a.status] !== ordemStatus[b.status]) return ordemStatus[a.status] - ordemStatus[b.status]
         const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm || 0)
@@ -155,12 +158,15 @@ export default function FilaSolicitacoes() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtradas.map(s => (
-            <div key={s.id} className="card flex items-center gap-4">
+          {filtradas.map(s => {
+            const urgente = s.quantidadeAtual <= 0 && s.status !== 'entregue'
+            return (
+            <div key={s.id} className={`card flex items-center gap-4 ${urgente ? 'border border-red-200 bg-red-50/40' : ''}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-brand-black text-sm">{s.itemNome}</p>
                   {s.potenciaGG && <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">{s.potenciaGG}</span>}
+                  {urgente && <span className="badge bg-red-100 text-brand-red text-xs">Estoque zerado</span>}
                   <span className={`badge ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>
                     {STATUS_LABEL[s.status] || s.status}
                   </span>
@@ -186,7 +192,8 @@ export default function FilaSolicitacoes() {
                 </button>
               )}
             </div>
-          ))}
+          )
+          })}
         </div>
       )}
 
