@@ -66,7 +66,7 @@ export default function Usuarios() {
                     <span className="text-xs bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-md">inativo</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                <p className="text-xs text-gray-400 truncate">{u.username || u.email}</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <span className={`badge ${PERFIL_CORES[u.perfil] || 'bg-gray-200 text-gray-600'}`}>

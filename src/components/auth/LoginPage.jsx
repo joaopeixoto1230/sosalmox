@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 
+const DOMAIN = '@sosalmox.app'
+
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const [usuario, setUsuario] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
@@ -15,13 +17,14 @@ export default function LoginPage() {
     setErro('')
     setCarregando(true)
     try {
+      const email = usuario.trim().toLowerCase() + DOMAIN
       await login(email, senha)
       navigate('/dashboard')
     } catch (err) {
       const msgs = {
-        'auth/user-not-found': 'Email não encontrado.',
+        'auth/user-not-found': 'Usuário não encontrado.',
         'auth/wrong-password': 'Senha incorreta.',
-        'auth/invalid-credential': 'Email ou senha inválidos.',
+        'auth/invalid-credential': 'Usuário ou senha inválidos.',
         'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde.',
       }
       setErro(msgs[err.code] || err.message || 'Erro ao entrar.')
@@ -46,15 +49,17 @@ export default function LoginPage() {
         <div className="bg-white rounded-2xl p-6 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome de usuário</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={usuario}
+                onChange={(e) => setUsuario(e.target.value)}
                 className="input"
-                placeholder="seu@email.com"
+                placeholder="Ex: joao.silva"
                 required
                 autoFocus
+                autoCapitalize="none"
+                autoCorrect="off"
               />
             </div>
             <div>

@@ -24,14 +24,27 @@ function CardResumo({ titulo, valor, cor, icone, to }) {
 export default function Dashboard() {
   const { nome, tipoPerfil } = useAuth()
   const [importando, setImportando] = useState(null)
-  const [importOk, setImportOk] = useState({ filtros: false, materiais: false, fix: false, geradores: false, fixGeradores: false })
+  const [importForced, setImportForced] = useState({ filtros: false, materiais: false, fix: false, geradores: false, fixGeradores: false })
+
+  const { dados: eventos, carregando: carregandoEvt } = useCollection('eventos')
+  const { dados: materiais, carregando: carregandoMat } = useCollection('materiais')
+  const { dados: filtros } = useCollection('filtros')
+  const { dados: geradores } = useCollection('geradores')
+
+  const importOk = {
+    filtros: importForced.filtros || filtros.length >= 100,
+    materiais: importForced.materiais || materiais.filter(m => m.categoria !== 'gerador').length >= 150,
+    fix: importForced.fix || true,
+    geradores: importForced.geradores || geradores.length >= 80,
+    fixGeradores: importForced.fixGeradores || geradores.length >= 80,
+  }
 
   async function importarFiltros() {
     if (!window.confirm('Importar 181 filtros reais da planilha para o Firestore?')) return
     setImportando('filtros')
     try {
       const total = await seedFiltrosReais()
-      setImportOk(prev => ({ ...prev, filtros: true }))
+      setImportForced(prev => ({ ...prev, filtros: true }))
       window.alert(`✅ ${total} filtros importados com sucesso!`)
     } catch (e) {
       window.alert('Erro ao importar: ' + e.message)
@@ -45,7 +58,7 @@ export default function Dashboard() {
     setImportando('materiais')
     try {
       const total = await seedMateriaisReais()
-      setImportOk(prev => ({ ...prev, materiais: true }))
+      setImportForced(prev => ({ ...prev, materiais: true }))
       window.alert(`✅ ${total} itens importados com sucesso!`)
     } catch (e) {
       window.alert('Erro ao importar: ' + e.message)
@@ -53,17 +66,8 @@ export default function Dashboard() {
       setImportando(null)
     }
   }
-  const { dados: eventos, carregando: carregandoEvt } = useCollection('eventos')
-  const { dados: materiais, carregando: carregandoMat } = useCollection('materiais')
-  const { dados: ordensAberto } = useCollection('devolucoes')
 
   const stats = useMemo(() => {
-    const hoje = new Date()
-    const inicioSemana = new Date(hoje)
-    inicioSemana.setDate(hoje.getDate() - hoje.getDay())
-    const fimSemana = new Date(inicioSemana)
-    fimSemana.setDate(inicioSemana.getDate() + 6)
-
     const eventosAtivos = eventos.filter(e => e.status === 'ativo').length
     const itensEmCampo = materiais.filter(m => m.status === 'em_evento').length
     const estoquesBaixo = materiais.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length
@@ -89,6 +93,8 @@ export default function Dashboard() {
       </div>
     )
   }
+
+  const temPendente = tipoPerfil === PERFIS.ADMIN && (!importOk.filtros || !importOk.materiais || !importOk.geradores || !importOk.fixGeradores)
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -195,8 +201,52 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-      {tipoPerfil === PERFIS.ADMIN && (!importOk.filtros || !importOk.materiais || !importOk.fix || !importOk.geradores || !importOk.fixGeradores) && (
+
+      {temPendente && (
         <div className="space-y-2">
+          <p className="text-xs text-gray-400 font-medium uppercase tracking-wide px-1">Configuração inicial de dados</p>
+          {!importOk.fixGeradores && (
+            <div className="card border-l-4 border-orange-500 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-brand-black text-sm">Remover geradores fora da planilha</p>
+                <p className="text-xs text-gray-500 mt-0.5">Exclui GGs que não constam na Potência_dos_geradores_SOS_2024</p>
+              </div>
+              <button onClick={async () => {
+                if (!window.confirm('Remover do Firestore todos os geradores que não estão na planilha 2024?')) return
+                setImportando('fixGeradores')
+                try {
+                  const n = await fixGeradoresReais()
+                  setImportForced(prev => ({ ...prev, fixGeradores: true }))
+                  window.alert(`✅ ${n} geradores removidos!`)
+                } catch(e) { window.alert('Erro: ' + e.message) }
+                finally { setImportando(null) }
+              }} disabled={importando !== null}
+                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
+                {importando === 'fixGeradores' ? 'Removendo...' : 'Remover'}
+              </button>
+            </div>
+          )}
+          {!importOk.geradores && (
+            <div className="card border-l-4 border-green-500 p-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-brand-black text-sm">Importar geradores da planilha</p>
+                <p className="text-xs text-gray-500 mt-0.5">83 GGs reais — Potência_dos_geradores_SOS_2024.xlsx</p>
+              </div>
+              <button onClick={async () => {
+                if (!window.confirm('Importar 83 geradores reais para o Firestore?')) return
+                setImportando('geradores')
+                try {
+                  const total = await seedGeradoresReais()
+                  setImportForced(prev => ({ ...prev, geradores: true }))
+                  window.alert(`✅ ${total} geradores importados com sucesso!`)
+                } catch(e) { window.alert('Erro: ' + e.message) }
+                finally { setImportando(null) }
+              }} disabled={importando !== null}
+                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
+                {importando === 'geradores' ? 'Importando...' : 'Importar'}
+              </button>
+            </div>
+          )}
           {!importOk.filtros && (
             <div className="card border-l-4 border-brand-red p-4 flex items-center justify-between gap-4">
               <div>
@@ -218,68 +268,6 @@ export default function Dashboard() {
               <button onClick={importarMateriais} disabled={importando !== null}
                 className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
                 {importando === 'materiais' ? 'Importando...' : 'Importar'}
-              </button>
-            </div>
-          )}
-          {!importOk.fixGeradores && (
-            <div className="card border-l-4 border-orange-500 p-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-semibold text-brand-black text-sm">Remover geradores fora da planilha</p>
-                <p className="text-xs text-gray-500 mt-0.5">Exclui GGs que não constam na Potência_dos_geradores_SOS_2024</p>
-              </div>
-              <button onClick={async () => {
-                if (!window.confirm('Remover do Firestore todos os geradores que não estão na planilha 2024?')) return
-                setImportando('fixGeradores')
-                try {
-                  const n = await fixGeradoresReais()
-                  setImportOk(prev => ({ ...prev, fixGeradores: true }))
-                  window.alert(`✅ ${n} geradores removidos!`)
-                } catch(e) { window.alert('Erro: ' + e.message) }
-                finally { setImportando(null) }
-              }} disabled={importando !== null}
-                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
-                {importando === 'fixGeradores' ? 'Removendo...' : 'Remover'}
-              </button>
-            </div>
-          )}
-          {!importOk.geradores && (
-            <div className="card border-l-4 border-green-500 p-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-semibold text-brand-black text-sm">Importar geradores da planilha</p>
-                <p className="text-xs text-gray-500 mt-0.5">83 GGs reais — Potência_dos_geradores_SOS_2024.xlsx</p>
-              </div>
-              <button onClick={async () => {
-                if (!window.confirm('Importar 83 geradores reais para o Firestore?')) return
-                setImportando('geradores')
-                try {
-                  const total = await seedGeradoresReais()
-                  setImportOk(prev => ({ ...prev, geradores: true }))
-                  window.alert(`✅ ${total} geradores importados com sucesso!`)
-                } catch(e) { window.alert('Erro: ' + e.message) }
-                finally { setImportando(null) }
-              }} disabled={importando !== null}
-                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
-                {importando === 'geradores' ? 'Importando...' : 'Importar'}
-              </button>
-            </div>
-          )}
-          {!importOk.fix && (
-            <div className="card border-l-4 border-blue-500 p-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-semibold text-brand-black text-sm">Corrigir categorias das caixas</p>
-                <p className="text-xs text-gray-500 mt-0.5">Move caixas, chaves reversoras e QTAs para "Outros Materiais"</p>
-              </div>
-              <button onClick={async () => {
-                setImportando('fix')
-                try {
-                  const n = await fixCategoriasReais()
-                  setImportOk(prev => ({ ...prev, fix: true }))
-                  window.alert(`✅ ${n} documentos corrigidos!`)
-                } catch(e) { window.alert('Erro: ' + e.message) }
-                finally { setImportando(null) }
-              }} disabled={importando !== null}
-                className="btn-primary text-sm px-4 py-2 flex-shrink-0 disabled:opacity-50">
-                {importando === 'fix' ? 'Corrigindo...' : 'Corrigir'}
               </button>
             </div>
           )}

@@ -5,6 +5,8 @@ import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { PERFIS, PERFIL_LABELS } from '../../utils/permissions'
 
+const DOMAIN = '@sosalmox.app'
+
 function getSecondaryAuth() {
   const config = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -20,7 +22,7 @@ function getSecondaryAuth() {
 }
 
 export default function NovoUsuarioModal({ onFechar }) {
-  const [form, setForm] = useState({ nome: '', email: '', senha: '', perfil: PERFIS.ALMOXARIFE })
+  const [form, setForm] = useState({ nome: '', username: '', senha: '', perfil: PERFIS.ALMOXARIFE })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -29,22 +31,28 @@ export default function NovoUsuarioModal({ onFechar }) {
     setErro('')
   }
 
+  function normalizeUsername(v) {
+    return v.toLowerCase().replace(/[^a-z0-9._-]/g, '')
+  }
+
   async function salvar(e) {
     e.preventDefault()
     if (!form.nome.trim()) return setErro('Informe o nome completo.')
-    if (!form.email.trim()) return setErro('Informe o e-mail.')
+    if (!form.username.trim()) return setErro('Informe o nome de usuário.')
     if (form.senha.length < 6) return setErro('A senha deve ter ao menos 6 caracteres.')
 
     setSalvando(true)
     setErro('')
     try {
+      const email = form.username.trim() + DOMAIN
       const secondaryAuth = getSecondaryAuth()
-      const cred = await createUserWithEmailAndPassword(secondaryAuth, form.email.trim(), form.senha)
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, form.senha)
       await secondaryAuth.signOut()
 
       await setDoc(doc(db, 'usuarios', cred.user.uid), {
         nome: form.nome.trim(),
-        email: form.email.trim(),
+        username: form.username.trim(),
+        email,
         perfil: form.perfil,
         ativo: true,
         criadoEm: serverTimestamp(),
@@ -52,8 +60,7 @@ export default function NovoUsuarioModal({ onFechar }) {
 
       onFechar()
     } catch (e) {
-      if (e.code === 'auth/email-already-in-use') setErro('Este e-mail já está em uso.')
-      else if (e.code === 'auth/invalid-email') setErro('E-mail inválido.')
+      if (e.code === 'auth/email-already-in-use') setErro('Este nome de usuário já está em uso.')
       else setErro('Erro ao criar usuário: ' + e.message)
     } finally {
       setSalvando(false)
@@ -85,14 +92,21 @@ export default function NovoUsuarioModal({ onFechar }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
-            <input
-              className="input w-full"
-              type="email"
-              value={form.email}
-              onChange={e => set('email', e.target.value)}
-              placeholder="email@sosenergia.com.br"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nome de usuário</label>
+            <div className="flex items-center gap-0">
+              <input
+                className="input w-full rounded-r-none"
+                value={form.username}
+                onChange={e => set('username', normalizeUsername(e.target.value))}
+                placeholder="joao.silva"
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+              <span className="bg-gray-100 border border-l-0 border-gray-300 px-3 h-10 flex items-center text-gray-400 text-sm rounded-r-lg whitespace-nowrap">
+                {DOMAIN}
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Apenas letras minúsculas, números, ponto e hífen.</p>
           </div>
 
           <div>
