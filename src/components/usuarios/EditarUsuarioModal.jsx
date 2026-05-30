@@ -3,7 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { PERFIS, PERFIL_LABELS } from '../../utils/permissions'
 
-export default function EditarUsuarioModal({ usuario, onFechar }) {
+export default function EditarUsuarioModal({ usuario, isSelf, onFechar }) {
   const [form, setForm] = useState({
     nome: usuario.nome || '',
     perfil: usuario.perfil || PERFIS.ALMOXARIFE,
@@ -63,37 +63,42 @@ export default function EditarUsuarioModal({ usuario, onFechar }) {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Perfil de acesso</label>
-            <select
-              className="input w-full"
-              value={form.perfil}
-              onChange={e => set('perfil', e.target.value)}
-            >
-              {Object.values(PERFIS).map(p => (
-                <option key={p} value={p}>{PERFIL_LABELS[p]}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+          {!isSelf && (
             <div>
-              <p className="text-sm font-medium text-brand-black">Acesso ativo</p>
-              <p className="text-xs text-gray-500">Usuário desativado não consegue entrar</p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Perfil de acesso</label>
+              <select
+                className="input w-full"
+                value={form.perfil}
+                onChange={e => set('perfil', e.target.value)}
+              >
+                {Object.values(PERFIS).map(p => (
+                  <option key={p} value={p}>{PERFIL_LABELS[p]}</option>
+                ))}
+              </select>
             </div>
-            <button
-              type="button"
-              onClick={() => set('ativo', !form.ativo)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.ativo ? 'bg-green-500' : 'bg-gray-300'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.ativo ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
+          )}
 
-          {!form.ativo && (
-            <p className="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded-lg">
-              Este usuário não conseguirá acessar o sistema enquanto estiver desativado.
-            </p>
+          {!isSelf && (
+            <>
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-brand-black">Acesso ativo</p>
+                  <p className="text-xs text-gray-500">Usuário desativado não consegue entrar</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('ativo', !form.ativo)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.ativo ? 'bg-green-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${form.ativo ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+              {!form.ativo && (
+                <p className="text-xs text-orange-600 bg-orange-50 px-3 py-2 rounded-lg">
+                  Este usuário não conseguirá acessar o sistema enquanto estiver desativado.
+                </p>
+              )}
+            </>
           )}
 
           {erro && (
