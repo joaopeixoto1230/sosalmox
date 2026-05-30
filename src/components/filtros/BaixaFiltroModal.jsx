@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { doc, runTransaction, collection, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
+import { criarSolicitacaoCompra } from '../../utils/notificacoes'
 
 export default function BaixaFiltroModal({ filtro, onFechar }) {
   const { uid, nome } = useAuth()
@@ -16,11 +17,13 @@ export default function BaixaFiltroModal({ filtro, onFechar }) {
     if (!qtd || qtd <= 0) { setErro('Informe uma quantidade válida.'); return }
     setSalvando(true); setErro('')
     try {
+      let novaQtd = 0
       await runTransaction(db, async (tx) => {
         const filtroRef = doc(db, 'filtros', filtro.id)
         const snap = await tx.get(filtroRef)
         const atual = snap.data()?.quantidadeAtual || 0
-        tx.update(filtroRef, { quantidadeAtual: atual - qtd })
+        novaQtd = atual - qtd
+        tx.update(filtroRef, { quantidadeAtual: novaQtd })
         const baixaRef = doc(collection(db, 'baixas_filtro'))
         tx.set(baixaRef, {
           filtroId: filtro.id,
@@ -32,6 +35,9 @@ export default function BaixaFiltroModal({ filtro, onFechar }) {
           criadoEm: serverTimestamp(),
         })
       })
+      if (novaQtd <= (filtro.estoqueMin || 0) && filtro.estoqueMin > 0) {
+        await criarSolicitacaoCompra({ ...filtro, quantidadeAtual: novaQtd })
+      }
       onFechar()
     } catch (e) {
       setErro(e.message || 'Erro ao registrar baixa.')

@@ -16,6 +16,9 @@ import NovaOS from './components/manutencao/NovaOS'
 import DetalheOS from './components/manutencao/DetalheOS'
 import AgenteIA from './components/agente/AgenteIA'
 import Usuarios from './components/usuarios/Usuarios'
+import ComprasDashboard from './components/compras/ComprasDashboard'
+import FilaSolicitacoes from './components/compras/FilaSolicitacoes'
+import Relatorios from './components/relatorios/Relatorios'
 import EmBreve from './components/shared/EmBreve'
 import RootRedirect from './components/shared/RootRedirect'
 import { MODULOS } from './utils/permissions'
@@ -74,19 +77,13 @@ export default function App() {
               <ProtectedRoute modulo={MODULOS.AGENTE_IA}><AgenteIA /></ProtectedRoute>
             } />
             <Route path="relatorios" element={
-              <ProtectedRoute modulo={MODULOS.RELATORIOS}>
-                <EmBreve titulo="Relatórios" descricao="Relatórios operacionais completos. Disponível na Fase 3." fase="3" />
-              </ProtectedRoute>
+              <ProtectedRoute modulo={MODULOS.RELATORIOS}><Relatorios /></ProtectedRoute>
             } />
             <Route path="compras" element={
-              <ProtectedRoute modulo={MODULOS.DASHBOARD_COMPRAS}>
-                <EmBreve titulo="Dashboard de Compras" descricao="Painel de solicitações, fornecedores e gastos. Disponível na Fase 3." fase="3" />
-              </ProtectedRoute>
+              <ProtectedRoute modulo={MODULOS.DASHBOARD_COMPRAS}><ComprasDashboard /></ProtectedRoute>
             } />
             <Route path="solicitacoes" element={
-              <ProtectedRoute modulo={MODULOS.FILA_SOLICITACOES}>
-                <EmBreve titulo="Fila de Solicitações" descricao="Gestão de solicitações de compra. Disponível na Fase 3." fase="3" />
-              </ProtectedRoute>
+              <ProtectedRoute modulo={MODULOS.FILA_SOLICITACOES}><FilaSolicitacoes /></ProtectedRoute>
             } />
             <Route path="usuarios" element={
               <ProtectedRoute modulo={MODULOS.GESTAO_USUARIOS}><Usuarios /></ProtectedRoute>
