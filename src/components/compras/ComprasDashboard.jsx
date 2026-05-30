@@ -58,6 +58,13 @@ export default function ComprasDashboard() {
       }
     })
 
+    const statusDist = [
+      { key: 'pendente',   label: 'Pendente',    cor: '#FBBF24', count: solicitacoes.filter(s => s.status === 'pendente').length },
+      { key: 'em_cotacao', label: 'Em Cotação',  cor: '#3B82F6', count: solicitacoes.filter(s => s.status === 'em_cotacao').length },
+      { key: 'comprado',   label: 'Comprado',    cor: '#8B5CF6', count: solicitacoes.filter(s => s.status === 'comprado').length },
+      { key: 'entregue',   label: 'Entregue',    cor: '#22C55E', count: solicitacoes.filter(s => s.status === 'entregue').length },
+    ]
+
     return {
       pendentes: solicitacoes.filter(s => s.status === 'pendente').length,
       criticos: solicitacoes.filter(s => s.status === 'pendente' && s.quantidadeAtual <= 0).length,
@@ -66,6 +73,8 @@ export default function ComprasDashboard() {
       gastoAnterior,
       variacaoGasto: gastoAnterior > 0 ? ((gastoMes - gastoAnterior) / gastoAnterior * 100).toFixed(0) : null,
       gastos6Meses,
+      statusDist,
+      total: solicitacoes.length,
       recentes: [...solicitacoes]
         .sort((a, b) => {
           const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm || 0)
@@ -134,12 +143,24 @@ export default function ComprasDashboard() {
             </div>
           </div>
 
-          {stats.gastos6Meses.some(m => m.total > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="card">
-              <h2 className="font-semibold text-brand-black mb-4">Gasto mensal — últimos 6 meses</h2>
-              <GraficoGastos dados={stats.gastos6Meses} />
+              <h2 className="font-semibold text-brand-black mb-4">Distribuição por status</h2>
+              <GraficoPizza dados={stats.statusDist} total={stats.total} />
             </div>
-          )}
+
+            {stats.gastos6Meses.some(m => m.total > 0) ? (
+              <div className="card">
+                <h2 className="font-semibold text-brand-black mb-4">Gasto mensal — últimos 6 meses</h2>
+                <GraficoGastos dados={stats.gastos6Meses} />
+              </div>
+            ) : (
+              <div className="card flex flex-col items-center justify-center text-center py-6">
+                <p className="text-gray-400 text-sm">Nenhuma entrega registrada ainda.</p>
+                <p className="text-gray-300 text-xs mt-1">O gráfico de gastos aparecerá aqui após as primeiras compras concluídas.</p>
+              </div>
+            )}
+          </div>
 
           <div className="card">
             <div className="flex items-center justify-between mb-4">
@@ -191,6 +212,65 @@ export default function ComprasDashboard() {
       )}
 
       {aba === 'fornecedores' && <Fornecedores />}
+    </div>
+  )
+}
+
+function GraficoPizza({ dados, total }) {
+  if (total === 0) {
+    return <p className="text-center text-gray-400 text-sm py-8">Nenhuma solicitação ainda.</p>
+  }
+
+  let acumulado = 0
+  const fatias = dados
+    .filter(d => d.count > 0)
+    .map(d => {
+      const pct = (d.count / total) * 100
+      const inicio = acumulado
+      acumulado += pct
+      return { ...d, pct, inicio, fim: acumulado }
+    })
+
+  const gradiente = fatias
+    .map(f => `${f.cor} ${f.inicio.toFixed(1)}% ${f.fim.toFixed(1)}%`)
+    .join(', ')
+
+  return (
+    <div className="flex items-center gap-6">
+      <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+        <div
+          className="w-full h-full rounded-full"
+          style={{ background: `conic-gradient(${gradiente})` }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div
+            className="bg-white rounded-full flex flex-col items-center justify-center"
+            style={{ width: 60, height: 60 }}
+          >
+            <span className="text-lg font-bold text-brand-black leading-none">{total}</span>
+            <span className="text-[10px] text-gray-400">total</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-2">
+        {dados.map(d => (
+          <div key={d.key} className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.cor }} />
+              <span className="text-xs text-gray-600 truncate">{d.label}</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <span className="text-xs font-semibold text-brand-black">{d.count}</span>
+              {total > 0 && (
+                <span className="text-[10px] text-gray-400">
+                  {((d.count / total) * 100).toFixed(0)}%
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
