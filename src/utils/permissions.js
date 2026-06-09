@@ -20,6 +20,7 @@ export const MODULOS = {
   DASHBOARD_COMPRAS: 'dashboard_compras',
   FILA_SOLICITACOES: 'fila_solicitacoes',
   GESTAO_USUARIOS: 'gestao_usuarios',
+  EVENTOS: 'eventos',
 }
 
 const permissoes = {
@@ -37,6 +38,7 @@ const permissoes = {
     MODULOS.RELATORIOS,
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
+    MODULOS.EVENTOS,
   ],
   [PERFIS.ALMOXARIFE]: [
     MODULOS.DASHBOARD,
@@ -47,6 +49,7 @@ const permissoes = {
     MODULOS.FILTROS,
     MODULOS.AGENTE_IA,
     MODULOS.RELATORIOS,
+    MODULOS.EVENTOS,
   ],
   [PERFIS.FRANCA]: [
     MODULOS.FILTROS,
@@ -70,6 +73,7 @@ export function getMenuItems(perfil) {
   const todos = [
     { label: 'Dashboard', path: '/dashboard', modulo: MODULOS.DASHBOARD, icon: 'grid' },
     { label: 'Saída de Material', path: '/saida', modulo: MODULOS.SAIDA, icon: 'arrow-up-right' },
+    { label: 'Eventos', path: '/eventos', modulo: MODULOS.EVENTOS, icon: 'calendar' },
     { label: 'Devolução', path: '/devolucao', modulo: MODULOS.DEVOLUCAO, icon: 'arrow-down-left' },
     { label: 'Transferência', path: '/transferencia', modulo: MODULOS.TRANSFERENCIA, icon: 'repeat' },
     { label: 'Estoque', path: '/estoque', modulo: MODULOS.ESTOQUE, icon: 'package' },

@@ -19,6 +19,7 @@ import Usuarios from './components/usuarios/Usuarios'
 import ComprasDashboard from './components/compras/ComprasDashboard'
 import FilaSolicitacoes from './components/compras/FilaSolicitacoes'
 import Relatorios from './components/relatorios/Relatorios'
+import Eventos from './components/eventos/Eventos'
 import EmBreve from './components/shared/EmBreve'
 import RootRedirect from './components/shared/RootRedirect'
 import { MODULOS } from './utils/permissions'
@@ -45,6 +46,9 @@ export default function App() {
             } />
             <Route path="saida" element={
               <ProtectedRoute modulo={MODULOS.SAIDA}><SaidaMaterial /></ProtectedRoute>
+            } />
+            <Route path="eventos" element={
+              <ProtectedRoute modulo={MODULOS.EVENTOS}><Eventos /></ProtectedRoute>
             } />
             <Route path="devolucao" element={
               <ProtectedRoute modulo={MODULOS.DEVOLUCAO}><DevolucaoMaterial /></ProtectedRoute>
