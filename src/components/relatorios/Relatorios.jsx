@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore'
+import { collection, query, where, getDocs, writeBatch, deleteDoc, updateDoc, doc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData, statusOsLabel, statusOsCor, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
@@ -97,16 +97,15 @@ export default function Relatorios() {
     if (!excluindoOrdem) return
     setExcluindoOrd(true)
     try {
-      const batch = writeBatch(db)
+      await deleteDoc(doc(db, 'ordens_saida', excluindoOrdem.id))
 
       for (const item of excluindoOrdem.itens || []) {
         if (item.id) {
-          batch.update(doc(db, 'materiais', item.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+          updateDoc(doc(db, 'materiais', item.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+            .catch(() => {})
         }
       }
 
-      batch.delete(doc(db, 'ordens_saida', excluindoOrdem.id))
-      await batch.commit()
       setExcluindoOrdem(null)
     } catch (e) {
       console.error(e)
