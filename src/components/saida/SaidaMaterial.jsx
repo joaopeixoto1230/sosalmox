@@ -63,6 +63,7 @@ export default function SaidaMaterial() {
   const [passo, setPasso] = useState(0)
   const [evento, setEvento] = useState(null)
   const [geradores, setGeradores] = useState([])
+  const [geradorConfirmado, setGeradorConfirmado] = useState(false)
   const [itensSelecionados, setItensSelecionados] = useState([])
   const [observacoes, setObservacoes] = useState('')
   const [responsavel, setResponsavel] = useState('')
@@ -83,6 +84,7 @@ export default function SaidaMaterial() {
     setPasso(0)
     setEvento(null)
     setGeradores([])
+    setGeradorConfirmado(false)
     setItensSelecionados([])
     setObservacoes('')
     setResponsavel('')
@@ -90,7 +92,7 @@ export default function SaidaMaterial() {
 
   const podeProsseguir = [
     evento !== null,
-    true,
+    geradorConfirmado,
     itensSelecionados.length > 0,
     itensSelecionados.length > 0,
     false,
@@ -124,7 +126,7 @@ export default function SaidaMaterial() {
 
       {passo === 1 && (
         <StepGerador
-          onSelecionar={(ggs) => { setGeradores(ggs); setPasso(2) }}
+          onSelecionar={(ggs) => { setGeradores(ggs); setGeradorConfirmado(true); setPasso(2) }}
           onVoltar={() => setPasso(0)}
         />
       )}
