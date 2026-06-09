@@ -21,6 +21,8 @@ export default function Relatorios() {
   const [ate, setAte] = useState('')
   const [excluindoEvento, setExcluindoEvento] = useState(null)
   const [excluindo, setExcluindo] = useState(false)
+  const [excluindoOrdem, setExcluindoOrdem] = useState(null)
+  const [excluindoOrd, setExcluindoOrd] = useState(false)
 
   const { dados: ordens } = useCollection('ordens_saida')
   const { dados: devolucoes } = useCollection('devolucoes')
@@ -91,6 +93,28 @@ export default function Relatorios() {
     }
   }
 
+  async function confirmarExcluirOrdem() {
+    if (!excluindoOrdem) return
+    setExcluindoOrd(true)
+    try {
+      const batch = writeBatch(db)
+
+      for (const item of excluindoOrdem.itens || []) {
+        if (item.id) {
+          batch.update(doc(db, 'materiais', item.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+        }
+      }
+
+      batch.delete(doc(db, 'ordens_saida', excluindoOrdem.id))
+      await batch.commit()
+      setExcluindoOrdem(null)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setExcluindoOrd(false)
+    }
+  }
+
   const devStats = useMemo(() => {
     const itens = devolucoesFiltradas.flatMap(d => d.itens || [])
     return {
@@ -156,6 +180,7 @@ export default function Relatorios() {
                     <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Operador</th>
                     <th className="text-left py-2 text-gray-500 font-medium">Status</th>
                     <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Data</th>
+                    <th className="py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -170,6 +195,16 @@ export default function Relatorios() {
                         </span>
                       </td>
                       <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{formatarData(o.criadoEm)}</td>
+                      <td className="py-2 text-right">
+                        <button
+                          onClick={() => setExcluindoOrdem(o)}
+                          className="p-1.5 text-gray-300 hover:text-brand-red hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -390,6 +425,37 @@ export default function Relatorios() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {excluindoOrdem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-brand-black">Apagar saída</p>
+                <p className="text-sm text-gray-500">Os materiais da ordem voltam ao estoque.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <strong>Ordem {excluindoOrdem.numero || excluindoOrdem.id.slice(0, 6).toUpperCase()}</strong> — {excluindoOrdem.eventoNome || '—'}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setExcluindoOrdem(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button
+                onClick={confirmarExcluirOrdem}
+                disabled={excluindoOrd}
+                className="flex-1 px-4 py-2 bg-brand-red text-white rounded-xl font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {excluindoOrd ? 'Apagando...' : 'Apagar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
