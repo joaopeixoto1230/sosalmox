@@ -372,16 +372,29 @@ function ModalDetalheEvento({ evento, onFechar }) {
             ) : (
               <div className="space-y-3">
                 {ordens.map(ordem => (
-                  <div key={ordem.id} className="border border-gray-100 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
+                  <div key={ordem.id} className="border border-gray-100 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between">
                       <span className="font-bold text-brand-red text-sm">{ordem.numeroFormatado}</span>
-                      <div className="flex items-center gap-2">
-                        {ordem.geradorCodigo && (
-                          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{ordem.geradorCodigo}</span>
-                        )}
-                        <span className="text-xs text-gray-400">{ordem.operadorNome}</span>
-                      </div>
+                      {ordem.geradorCodigo && (
+                        <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{ordem.geradorCodigo}</span>
+                      )}
                     </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {ordem.operadorNome && (
+                        <div className="bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <p className="text-xs text-gray-400 mb-0.5">Entregou</p>
+                          <p className="text-xs font-semibold text-brand-black">{ordem.operadorNome}</p>
+                        </div>
+                      )}
+                      {ordem.responsavelNome && (
+                        <div className="bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <p className="text-xs text-gray-400 mb-0.5">Recebeu</p>
+                          <p className="text-xs font-semibold text-brand-black">{ordem.responsavelNome}</p>
+                        </div>
+                      )}
+                    </div>
+
                     {ordem.itens?.length > 0 && (
                       <div className="space-y-1">
                         {ordem.itens.map((item, i) => (
@@ -393,8 +406,9 @@ function ModalDetalheEvento({ evento, onFechar }) {
                         ))}
                       </div>
                     )}
+
                     {ordem.observacoes && (
-                      <p className="text-xs text-gray-500 mt-2 italic">"{ordem.observacoes}"</p>
+                      <p className="text-xs text-gray-500 italic">"{ordem.observacoes}"</p>
                     )}
                   </div>
                 ))}
