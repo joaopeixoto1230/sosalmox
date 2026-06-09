@@ -38,6 +38,8 @@ export default function Relatorios() {
   const [excluindo, setExcluindo] = useState(false)
   const [excluindoOrdem, setExcluindoOrdem] = useState(null)
   const [excluindoOrd, setExcluindoOrd] = useState(false)
+  const [excluindoDevolucao, setExcluindoDevolucao] = useState(null)
+  const [excluindoDev, setExcluindoDev] = useState(false)
   const [filtroCondicao, setFiltroCondicao] = useState(null)
 
   const { dados: ordens } = useCollection('ordens_saida')
@@ -129,6 +131,19 @@ export default function Relatorios() {
       console.error(e)
     } finally {
       setExcluindo(false)
+    }
+  }
+
+  async function confirmarExcluirDevolucao() {
+    if (!excluindoDevolucao) return
+    setExcluindoDev(true)
+    try {
+      await deleteDoc(doc(db, 'devolucoes', excluindoDevolucao.id))
+      setExcluindoDevolucao(null)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setExcluindoDev(false)
     }
   }
 
@@ -282,9 +297,17 @@ export default function Relatorios() {
                           <p className="font-semibold text-brand-black text-sm">{d.eventoNome || '—'}</p>
                           <p className="text-xs text-gray-400">{d.operadorNome} · {formatarData(d.criadoEm)}</p>
                         </div>
-                        <div className="flex gap-2 text-xs">
+                        <div className="flex items-center gap-2 text-xs">
                           <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{itens.filter(i => i.statusDevolucao === 'ok').length} OK</span>
                           {problemas.length > 0 && <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{problemas.length} problema{problemas.length > 1 ? 's' : ''}</span>}
+                          <button
+                            onClick={() => setExcluindoDevolucao(d)}
+                            className="p-1 text-gray-300 hover:text-brand-red hover:bg-red-50 rounded-lg transition-colors ml-1"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
                       {problemas.length > 0 && (
@@ -541,6 +564,37 @@ export default function Relatorios() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {excluindoDevolucao && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-brand-black">Apagar devolução</p>
+                <p className="text-sm text-gray-500">O registro histórico será removido.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <strong>{excluindoDevolucao.eventoNome || '—'}</strong> · {excluindoDevolucao.operadorNome} · {formatarData(excluindoDevolucao.criadoEm)}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setExcluindoDevolucao(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button
+                onClick={confirmarExcluirDevolucao}
+                disabled={excluindoDev}
+                className="flex-1 px-4 py-2 bg-brand-red text-white rounded-xl font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {excluindoDev ? 'Apagando...' : 'Apagar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
