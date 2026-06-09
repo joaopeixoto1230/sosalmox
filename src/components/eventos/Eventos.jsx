@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
@@ -14,11 +15,11 @@ const STATUS_FILTROS = [
 
 export default function Eventos() {
   const { tipoPerfil } = useAuth()
+  const navigate = useNavigate()
   const { dados: eventos, carregando } = useCollection('eventos')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const [detalheEvento, setDetalheEvento] = useState(null)
-  const [criando, setCriando] = useState(false)
   const [editando, setEditando] = useState(null)
   const [excluindo, setExcluindo] = useState(null)
 
@@ -73,7 +74,7 @@ export default function Eventos() {
           <p className="text-gray-500 text-sm mt-1">Histórico completo de todos os eventos.</p>
         </div>
         {podeGerenciar && (
-          <button onClick={() => setCriando(true)} className="btn-primary flex-shrink-0">
+          <button onClick={() => navigate('/saida')} className="btn-primary flex-shrink-0">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
@@ -146,13 +147,6 @@ export default function Eventos() {
         <ModalDetalheEvento
           evento={detalheEvento}
           onFechar={() => setDetalheEvento(null)}
-        />
-      )}
-
-      {criando && (
-        <ModalFormEvento
-          onFechar={() => setCriando(false)}
-          onSalvar={() => setCriando(false)}
         />
       )}
 
