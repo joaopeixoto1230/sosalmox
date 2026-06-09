@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { formatarData } from '../../../utils/formatters'
 
-export default function StepRomaneio({ evento, gerador, itens, observacoes, onObservacoes, onRemover, onAvancar, onVoltar }) {
+export default function StepRomaneio({ gerador, itens, observacoes, onObservacoes, onRemover, onAvancar, onVoltar }) {
   return (
     <div className="space-y-4">
       <div>
@@ -13,20 +13,12 @@ export default function StepRomaneio({ evento, gerador, itens, observacoes, onOb
         <h3 className="font-semibold text-sm text-gray-700 mb-3">Dados da Ordem</h3>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>
-            <p className="text-gray-500 text-xs">Evento</p>
-            <p className="font-medium text-brand-black">{evento?.nome}</p>
+            <p className="text-gray-500 text-xs">Gerador</p>
+            <p className="font-medium text-brand-black">{gerador?.codigo || '—'}</p>
           </div>
           <div>
             <p className="text-gray-500 text-xs">Data</p>
-            <p className="font-medium text-brand-black">{formatarData(evento?.data)}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs">Local</p>
-            <p className="font-medium text-brand-black">{evento?.local}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs">Gerador</p>
-            <p className="font-medium text-brand-black">{gerador?.codigo || '—'}</p>
+            <p className="font-medium text-brand-black">{formatarData(new Date().toISOString().split('T')[0])}</p>
           </div>
         </div>
       </div>

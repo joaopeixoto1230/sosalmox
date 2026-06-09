@@ -1,12 +1,10 @@
 import { useCollection } from '../../../hooks/useFirestore'
 import { statusGeradorCor, statusGeradorLabel } from '../../../utils/formatters'
 
-export default function StepGerador({ evento, onSelecionar, onVoltar }) {
+export default function StepGerador({ onSelecionar, onVoltar }) {
   const { dados: geradores, carregando } = useCollection('geradores')
 
-  const disponiveis = geradores.filter(g =>
-    g.status === 'disponivel' || (g.status === 'em_evento' && g.eventoAtual === evento?.id)
-  )
+  const disponiveis = geradores.filter(g => g.status === 'disponivel')
 
   if (carregando) {
     return (
@@ -20,9 +18,7 @@ export default function StepGerador({ evento, onSelecionar, onVoltar }) {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-brand-black">Selecionar Gerador</h2>
-        <p className="text-sm text-gray-500">
-          Gerador que irá atender o evento <span className="font-medium text-gray-700">{evento?.nome}</span>
-        </p>
+        <p className="text-sm text-gray-500">Selecione o gerador vinculado a esta saída (opcional).</p>
       </div>
 
       <button
@@ -83,9 +79,11 @@ export default function StepGerador({ evento, onSelecionar, onVoltar }) {
         </div>
       )}
 
-      <button onClick={onVoltar} className="btn-ghost w-full justify-center">
-        ← Voltar
-      </button>
+      {onVoltar && (
+        <button onClick={onVoltar} className="btn-ghost w-full justify-center">
+          ← Voltar
+        </button>
+      )}
     </div>
   )
 }

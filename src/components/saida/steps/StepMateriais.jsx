@@ -5,7 +5,7 @@ import { formatarData } from '../../../utils/formatters'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
-export default function StepMateriais({ evento, itensSelecionados, onToggle, onAvancar, onVoltar }) {
+export default function StepMateriais({ itensSelecionados, onToggle, onAvancar, onVoltar }) {
   const { dados: materiais, carregando } = useCollection('materiais')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Cabos 4x')
   const [busca, setBusca] = useState('')
@@ -41,7 +41,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
       <html lang="pt-BR">
       <head>
         <meta charset="UTF-8"/>
-        <title>Romaneio — ${evento?.nome || ''}</title>
+        <title>Romaneio de Saída</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 30px; color: #111; }
           h1 { color: #CC0000; margin: 0 0 4px; }
@@ -59,8 +59,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
       <body>
         <div class="header">
           <h1>SOS Energia — Romaneio de Saída</h1>
-          <p><strong>Evento:</strong> ${evento?.nome || '—'}</p>
-          <p><strong>Local:</strong> ${evento?.local || '—'} &nbsp;|&nbsp; <strong>Data:</strong> ${evento?.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
+          <p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
         </div>
         <table>
           <thead>
@@ -144,7 +143,6 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
             <ItemCard
               key={mat.id}
               material={mat}
-              evento={evento}
               selecionado={itensSelecionados.some(i => i.id === mat.id)}
               onAdicionar={() => onToggle(mat, 'add')}
               onRemover={() => onToggle(mat, 'remove')}

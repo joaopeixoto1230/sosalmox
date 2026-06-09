@@ -10,7 +10,7 @@ import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem } from '../../../utils/formatters'
 
-export default function StepConfirmacao({ evento, gerador, itens, observacoes, onNovaSaida }) {
+export default function StepConfirmacao({ gerador, itens, observacoes, onNovaSaida }) {
   const { uid, nome } = useAuth()
   const [status, setStatus] = useState('idle')
   const [numeroOrdem, setNumeroOrdem] = useState(null)
@@ -43,8 +43,8 @@ export default function StepConfirmacao({ evento, gerador, itens, observacoes, o
         tx.set(ordemRef, {
           numero: novoNumero,
           numeroFormatado: formatarNumeroOrdem(novoNumero),
-          eventoId: evento.id,
-          eventoNome: evento.nome,
+          eventoId: null,
+          eventoNome: null,
           geradorId: gerador?.id || null,
           geradorCodigo: gerador?.codigo || null,
           itens: itens.map(i => ({
@@ -66,7 +66,7 @@ export default function StepConfirmacao({ evento, gerador, itens, observacoes, o
           const matRef = doc(db, 'materiais', item.id)
           tx.update(matRef, {
             status: 'em_evento',
-            eventoAtual: evento.id,
+            eventoAtual: null,
             estoqueAtual: 0,
           })
         }
@@ -75,7 +75,7 @@ export default function StepConfirmacao({ evento, gerador, itens, observacoes, o
           const ggRef = doc(db, 'geradores', gerador.id)
           tx.update(ggRef, {
             status: 'em_evento',
-            eventoAtual: evento.id,
+            eventoAtual: null,
           })
         }
       })
@@ -105,7 +105,7 @@ export default function StepConfirmacao({ evento, gerador, itens, observacoes, o
             <div>
               <p className="text-sm font-semibold text-amber-800">Atenção</p>
               <p className="text-sm text-amber-700 mt-0.5">
-                Você está saindo com <strong>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</strong> para o evento <strong>{evento?.nome}</strong>.
+                Você está saindo com <strong>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</strong>{gerador ? ` vinculados ao gerador ${gerador.codigo}` : ''}.
                 Esta ação atualizará o estoque em tempo real.
               </p>
             </div>
