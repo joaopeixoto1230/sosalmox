@@ -622,14 +622,18 @@ function ModalFormEvento({ evento, onFechar, onSalvar }) {
   )
 }
 
+const CATEGORIAS_MAT = ['Todos', 'Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
+
 function ModalEditarMaterialEvento({ evento, onFechar }) {
   const { dados: todosMateriais, carregando } = useCollection('materiais')
   const [busca, setBusca] = useState('')
+  const [categoria, setCategoria] = useState('Todos')
   const [processando, setProcessando] = useState(null)
 
   const materiaisDoEvento = todosMateriais.filter(m => m.eventoAtual === evento.id)
   const disponiveisFiltrados = todosMateriais.filter(m => {
     if (m.status !== 'disponivel') return false
+    if (categoria !== 'Todos' && m.categoria !== categoria) return false
     if (!busca) return true
     const q = busca.toLowerCase()
     return m.nome.toLowerCase().includes(q) || m.codigo.toLowerCase().includes(q)
@@ -707,8 +711,20 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
               placeholder="Buscar por nome ou código..."
               value={busca}
               onChange={e => setBusca(e.target.value)}
-              className="input w-full mb-3"
+              className="input w-full mb-2"
             />
+            <div className="flex gap-1.5 overflow-x-auto pb-2">
+              {CATEGORIAS_MAT.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoria(cat)}
+                  className={`flex-shrink-0 px-3 py-1 rounded-xl text-xs font-medium transition-colors
+                    ${categoria === cat ? 'bg-brand-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
             {carregando ? (
               <div className="flex justify-center py-4">
                 <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
