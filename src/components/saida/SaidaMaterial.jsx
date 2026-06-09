@@ -79,6 +79,7 @@ export default function SaidaMaterial() {
       {passo === 0 && (
         <StepEvento
           onSelecionar={(evt) => { setEvento(evt); setPasso(1) }}
+          onResponsavel={setResponsavel}
         />
       )}
 

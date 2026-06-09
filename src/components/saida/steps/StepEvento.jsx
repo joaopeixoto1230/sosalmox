@@ -2,15 +2,41 @@ import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 
-export default function StepEvento({ onSelecionar }) {
+const OPERADORES = [
+  'Adjaiton',
+  'Adriano',
+  'Bruno',
+  'Fabio',
+  'Francisco Chaguas',
+  'França',
+  'Gerson',
+  'Igor',
+  'João Felipe',
+  'Laercio',
+  'Marcio',
+  'Maycon Souza',
+  'Maycon Teixeira',
+  'Nilton',
+  'Ricardo',
+  'Robson',
+  'Ronaldo',
+]
+
+export default function StepEvento({ onSelecionar, onResponsavel }) {
   const [form, setForm] = useState({ nome: '', local: '', data: '' })
+  const [operador, setOperador] = useState('')
+  const [outroNome, setOutroNome] = useState('')
+  const [mostrarOutro, setMostrarOutro] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
+  const responsavelFinal = mostrarOutro ? outroNome.trim() : operador
+
   async function criarEvento() {
-    if (!form.nome.trim()) { setErro('Nome é obrigatório'); return }
+    if (!form.nome.trim()) { setErro('Nome do evento é obrigatório'); return }
     if (!form.local.trim()) { setErro('Local é obrigatório'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
+    if (!responsavelFinal) { setErro('Selecione o responsável pelo material'); return }
     setSalvando(true)
     setErro('')
     try {
@@ -21,6 +47,7 @@ export default function StepEvento({ onSelecionar }) {
         status: 'ativo',
         criadoEm: serverTimestamp(),
       })
+      onResponsavel(responsavelFinal)
       onSelecionar({ id: ref.id, nome: form.nome.trim(), local: form.local.trim(), data: form.data, status: 'ativo' })
     } catch (e) {
       setErro('Erro ao criar evento: ' + e.message)
@@ -63,6 +90,46 @@ export default function StepEvento({ onSelecionar }) {
             onChange={e => setForm(p => ({ ...p, data: e.target.value }))}
             className="input"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Responsável pelo material *</label>
+          <div className="flex flex-wrap gap-2">
+            {OPERADORES.map(nome => (
+              <button
+                key={nome}
+                type="button"
+                onClick={() => { setOperador(nome); setMostrarOutro(false) }}
+                className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors border ${
+                  operador === nome && !mostrarOutro
+                    ? 'bg-brand-red text-white border-brand-red'
+                    : 'bg-white text-gray-700 border-gray-200 hover:border-brand-red hover:text-brand-red'
+                }`}
+              >
+                {nome}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => { setMostrarOutro(true); setOperador('') }}
+              className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-colors border ${
+                mostrarOutro
+                  ? 'bg-brand-red text-white border-brand-red'
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-brand-red hover:text-brand-red'
+              }`}
+            >
+              + Outro
+            </button>
+          </div>
+          {mostrarOutro && (
+            <input
+              value={outroNome}
+              onChange={e => setOutroNome(e.target.value)}
+              placeholder="Digite o nome..."
+              className="input mt-2"
+              autoFocus
+            />
+          )}
         </div>
 
         {erro && <p className="text-sm text-brand-red">{erro}</p>}

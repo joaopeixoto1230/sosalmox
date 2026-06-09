@@ -63,16 +63,6 @@ export default function StepRomaneio({ evento, geradores, itens, observacoes, re
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Responsável pela retirada *</label>
-        <input
-          value={responsavel}
-          onChange={e => onResponsavel(e.target.value)}
-          placeholder="Nome de quem está retirando o material..."
-          className="input"
-        />
-      </div>
-
-      <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
         <textarea
           value={observacoes}
@@ -89,7 +79,7 @@ export default function StepRomaneio({ evento, geradores, itens, observacoes, re
         </button>
         <button
           onClick={onAvancar}
-          disabled={itens.length === 0 || !responsavel.trim()}
+          disabled={itens.length === 0}
           className="btn-primary flex-1 justify-center disabled:opacity-50"
         >
           Confirmar Saída →
