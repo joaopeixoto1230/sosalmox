@@ -1,7 +1,10 @@
-import { useState } from 'react'
 import { formatarData } from '../../../utils/formatters'
 
-export default function StepRomaneio({ gerador, itens, observacoes, onObservacoes, onRemover, onAvancar, onVoltar }) {
+export default function StepRomaneio({ evento, geradores, itens, observacoes, onObservacoes, onRemover, onAvancar, onVoltar }) {
+  const codigosGeradores = geradores?.length > 0
+    ? geradores.map(g => g.codigo).join(', ')
+    : '—'
+
   return (
     <div className="space-y-4">
       <div>
@@ -13,12 +16,22 @@ export default function StepRomaneio({ gerador, itens, observacoes, onObservacoe
         <h3 className="font-semibold text-sm text-gray-700 mb-3">Dados da Ordem</h3>
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div>
-            <p className="text-gray-500 text-xs">Gerador</p>
-            <p className="font-medium text-brand-black">{gerador?.codigo || '—'}</p>
+            <p className="text-gray-500 text-xs">Evento</p>
+            <p className="font-medium text-brand-black">{evento?.nome || '—'}</p>
           </div>
           <div>
             <p className="text-gray-500 text-xs">Data</p>
-            <p className="font-medium text-brand-black">{formatarData(new Date().toISOString().split('T')[0])}</p>
+            <p className="font-medium text-brand-black">{formatarData(evento?.data)}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs">Local</p>
+            <p className="font-medium text-brand-black">{evento?.local || '—'}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs">
+              {geradores?.length > 1 ? 'Geradores' : 'Gerador'}
+            </p>
+            <p className="font-medium text-brand-black">{codigosGeradores}</p>
           </div>
         </div>
       </div>
@@ -39,7 +52,6 @@ export default function StepRomaneio({ gerador, itens, observacoes, onObservacoe
               <button
                 onClick={() => onRemover(item.id)}
                 className="p-1.5 rounded-lg hover:bg-red-50 hover:text-brand-red transition-colors text-gray-300 flex-shrink-0"
-                title="Remover item"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

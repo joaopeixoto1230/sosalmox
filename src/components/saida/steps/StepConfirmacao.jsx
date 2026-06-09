@@ -10,11 +10,15 @@ import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem } from '../../../utils/formatters'
 
-export default function StepConfirmacao({ gerador, itens, observacoes, onNovaSaida }) {
+export default function StepConfirmacao({ evento, geradores, itens, observacoes, onNovaSaida }) {
   const { uid, nome } = useAuth()
   const [status, setStatus] = useState('idle')
   const [numeroOrdem, setNumeroOrdem] = useState(null)
   const [erro, setErro] = useState('')
+
+  const codigosGeradores = geradores?.length > 0
+    ? geradores.map(g => g.codigo).join(', ')
+    : null
 
   async function confirmarSaida() {
     setStatus('carregando')
@@ -43,10 +47,10 @@ export default function StepConfirmacao({ gerador, itens, observacoes, onNovaSai
         tx.set(ordemRef, {
           numero: novoNumero,
           numeroFormatado: formatarNumeroOrdem(novoNumero),
-          eventoId: null,
-          eventoNome: null,
-          geradorId: gerador?.id || null,
-          geradorCodigo: gerador?.codigo || null,
+          eventoId: evento?.id || null,
+          eventoNome: evento?.nome || null,
+          geradores: (geradores || []).map(g => ({ id: g.id, codigo: g.codigo })),
+          geradorCodigo: geradores?.length > 0 ? geradores[0].codigo : null,
           itens: itens.map(i => ({
             id: i.id,
             nome: i.nome,
@@ -66,16 +70,16 @@ export default function StepConfirmacao({ gerador, itens, observacoes, onNovaSai
           const matRef = doc(db, 'materiais', item.id)
           tx.update(matRef, {
             status: 'em_evento',
-            eventoAtual: null,
+            eventoAtual: evento?.id || null,
             estoqueAtual: 0,
           })
         }
 
-        if (gerador) {
-          const ggRef = doc(db, 'geradores', gerador.id)
+        for (const gg of (geradores || [])) {
+          const ggRef = doc(db, 'geradores', gg.id)
           tx.update(ggRef, {
             status: 'em_evento',
-            eventoAtual: null,
+            eventoAtual: evento?.id || null,
           })
         }
       })
@@ -105,7 +109,9 @@ export default function StepConfirmacao({ gerador, itens, observacoes, onNovaSai
             <div>
               <p className="text-sm font-semibold text-amber-800">Atenção</p>
               <p className="text-sm text-amber-700 mt-0.5">
-                Você está saindo com <strong>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</strong>{gerador ? ` vinculados ao gerador ${gerador.codigo}` : ''}.
+                Você está saindo com <strong>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</strong>
+                {evento ? ` para o evento ${evento.nome}` : ''}
+                {codigosGeradores ? ` — geradores: ${codigosGeradores}` : ''}.
                 Esta ação atualizará o estoque em tempo real.
               </p>
             </div>
