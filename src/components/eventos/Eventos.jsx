@@ -185,6 +185,7 @@ export default function Eventos() {
 function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onConcluir }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [totalSaidas, setTotalSaidas] = useState(null)
+  const [editandoMaterial, setEditandoMaterial] = useState(false)
 
   useEffect(() => {
     async function buscar() {
@@ -198,6 +199,10 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onCon
   }, [evento.id])
 
   return (
+    <>
+    {editandoMaterial && (
+      <ModalEditarMaterialEvento evento={evento} onFechar={() => setEditandoMaterial(false)} />
+    )}
     <div
       className="card hover:border-brand-red hover:shadow-md transition-all cursor-pointer"
       onClick={onClick}
@@ -249,6 +254,15 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onCon
                     </svg>
                     Editar
                   </button>
+                  <button
+                    onClick={() => { setMenuAberto(false); setEditandoMaterial(true) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+                    </svg>
+                    Editar material
+                  </button>
                   {evento.status !== 'concluido' && (
                     <button
                       onClick={() => { setMenuAberto(false); onConcluir() }}
@@ -276,6 +290,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onCon
         )}
       </div>
     </div>
+    </>
   )
 }
 
@@ -601,6 +616,129 @@ function ModalFormEvento({ evento, onFechar, onSalvar }) {
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalEditarMaterialEvento({ evento, onFechar }) {
+  const { dados: todosMateriais, carregando } = useCollection('materiais')
+  const [busca, setBusca] = useState('')
+  const [processando, setProcessando] = useState(null)
+
+  const materiaisDoEvento = todosMateriais.filter(m => m.eventoAtual === evento.id)
+  const disponiveisFiltrados = todosMateriais.filter(m => {
+    if (m.status !== 'disponivel') return false
+    if (!busca) return true
+    const q = busca.toLowerCase()
+    return m.nome.toLowerCase().includes(q) || m.codigo.toLowerCase().includes(q)
+  })
+
+  async function remover(material) {
+    setProcessando(material.id)
+    try {
+      await updateDoc(doc(db, 'materiais', material.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+    } catch (e) { console.error(e) }
+    finally { setProcessando(null) }
+  }
+
+  async function adicionar(material) {
+    setProcessando(material.id)
+    try {
+      await updateDoc(doc(db, 'materiais', material.id), { status: 'em_evento', estoqueAtual: 0, eventoAtual: evento.id })
+    } catch (e) { console.error(e) }
+    finally { setProcessando(null) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-brand-black">Editar material</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{evento.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              No evento ({materiaisDoEvento.length})
+            </p>
+            {carregando ? (
+              <div className="flex justify-center py-4">
+                <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : materiaisDoEvento.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">Nenhum material vinculado a este evento.</p>
+            ) : (
+              <div className="space-y-2">
+                {materiaisDoEvento.map(m => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-brand-black truncate">{m.nome}</p>
+                      <p className="text-xs text-gray-500 font-mono">{m.codigo}</p>
+                    </div>
+                    <button
+                      onClick={() => remover(m)}
+                      disabled={processando === m.id}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-brand-red rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+                    >
+                      {processando === m.id ? '...' : 'Retirar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              Disponíveis para adicionar
+            </p>
+            <input
+              type="search"
+              placeholder="Buscar por nome ou código..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="input w-full mb-3"
+            />
+            {carregando ? (
+              <div className="flex justify-center py-4">
+                <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : disponiveisFiltrados.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">{busca ? 'Nenhum resultado para a busca.' : 'Nenhum material disponível.'}</p>
+            ) : (
+              <div className="space-y-2">
+                {disponiveisFiltrados.map(m => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-xl px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-brand-black truncate">{m.nome}</p>
+                      <p className="text-xs text-gray-500 font-mono">{m.codigo}</p>
+                    </div>
+                    <button
+                      onClick={() => adicionar(m)}
+                      disabled={processando === m.id}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-green-200 text-green-700 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-40"
+                    >
+                      {processando === m.id ? '...' : 'Adicionar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0">
+          <button onClick={onFechar} className="btn-primary w-full justify-center">Fechar</button>
         </div>
       </div>
     </div>
