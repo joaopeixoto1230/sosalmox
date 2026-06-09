@@ -4,13 +4,19 @@ import MaterialCard from './MaterialCard'
 import NovoMaterialModal from './NovoMaterialModal'
 
 const CATEGORIAS = ['Todos', 'Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
-const STATUS_FILTROS = ['Todos', 'Disponível', 'Em Evento', 'Manutenção', 'Perdido']
-const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Manutenção': 'manutencao', 'Perdido': 'perdido' }
+
+const STATUS_OPCOES = [
+  { label: 'Todos', value: null, ativo: 'bg-brand-black text-white', inativo: 'bg-white border-gray-200 text-gray-600' },
+  { label: 'Disponível', value: 'disponivel', ativo: 'bg-green-500 text-white border-green-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-600' },
+  { label: 'Em Evento', value: 'em_evento', ativo: 'bg-yellow-500 text-white border-yellow-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-yellow-400 hover:text-yellow-600' },
+  { label: 'Manutenção', value: 'manutencao', ativo: 'bg-blue-500 text-white border-blue-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600' },
+  { label: 'Perdido', value: 'perdido', ativo: 'bg-red-500 text-white border-red-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-600' },
+]
 
 export default function Estoque() {
   const { dados: materiais, carregando } = useCollection('materiais')
   const [categoria, setCategoria] = useState('Todos')
-  const [statusFiltro, setStatusFiltro] = useState('Todos')
+  const [statusFiltro, setStatusFiltro] = useState(null)
   const [busca, setBusca] = useState('')
   const [apenasEstoqueBaixo, setApenasEstoqueBaixo] = useState(false)
   const [novoMaterialAberto, setNovoMaterialAberto] = useState(false)
@@ -18,7 +24,7 @@ export default function Estoque() {
   const filtrados = useMemo(() => {
     return materiais.filter(m => {
       if (categoria !== 'Todos' && m.categoria !== categoria) return false
-      if (statusFiltro !== 'Todos' && m.status !== STATUS_MAP[statusFiltro]) return false
+      if (statusFiltro && m.status !== statusFiltro) return false
       if (apenasEstoqueBaixo && !(m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0)) return false
       if (busca) {
         const q = busca.toLowerCase()
@@ -32,8 +38,18 @@ export default function Estoque() {
     total: materiais.length,
     disponiveis: materiais.filter(m => m.status === 'disponivel').length,
     emCampo: materiais.filter(m => m.status === 'em_evento').length,
+    manutencao: materiais.filter(m => m.status === 'manutencao').length,
+    perdido: materiais.filter(m => m.status === 'perdido').length,
     estoqueBaixo: materiais.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length,
   }), [materiais])
+
+  const contagemPorStatus = {
+    null: stats.total,
+    disponivel: stats.disponiveis,
+    em_evento: stats.emCampo,
+    manutencao: stats.manutencao,
+    perdido: stats.perdido,
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -90,15 +106,26 @@ export default function Estoque() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {STATUS_FILTROS.map(s => (
-            <button key={s} onClick={() => setStatusFiltro(s)}
-              className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors
-                ${statusFiltro === s ? 'bg-brand-black text-white border-brand-black' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-              {s}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {STATUS_OPCOES.map(op => (
+            <button
+              key={op.label}
+              onClick={() => setStatusFiltro(op.value)}
+              className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors
+                ${statusFiltro === op.value ? op.ativo : op.inativo}`}
+            >
+              {op.label}
+              <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                statusFiltro === op.value ? 'bg-white/20' : 'bg-gray-100 text-gray-500'
+              }`}>
+                {contagemPorStatus[op.value]}
+              </span>
             </button>
           ))}
-          <label className="flex items-center gap-2 cursor-pointer ml-auto">
+        </div>
+
+        <div className="flex justify-end">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={apenasEstoqueBaixo}
