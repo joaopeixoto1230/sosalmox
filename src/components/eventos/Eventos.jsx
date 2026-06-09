@@ -55,6 +55,9 @@ export default function Eventos() {
         batch.update(d.ref, { status: 'disponivel', eventoAtual: null })
       })
 
+      const ordensSnap = await getDocs(query(collection(db, 'ordens_saida'), where('eventoId', '==', excluindo.id)))
+      ordensSnap.forEach(d => batch.delete(d.ref))
+
       batch.delete(doc(db, 'eventos', excluindo.id))
       await batch.commit()
       setExcluindo(null)

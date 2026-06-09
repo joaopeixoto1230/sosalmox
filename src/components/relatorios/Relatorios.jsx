@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
+import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
-import { formatarData, statusOsLabel, statusOsCor } from '../../utils/formatters'
+import { formatarData, statusOsLabel, statusOsCor, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 
-const ABAS = ['Saídas', 'Devoluções', 'Manutenções', 'Filtros', 'Estoque']
+const ABAS = ['Saídas', 'Devoluções', 'Manutenções', 'Filtros', 'Estoque', 'Eventos']
 
 function dataFiltro(item, campo, de, ate) {
   if (!de && !ate) return true
@@ -17,6 +19,8 @@ export default function Relatorios() {
   const [aba, setAba] = useState('Saídas')
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
+  const [excluindoEvento, setExcluindoEvento] = useState(null)
+  const [excluindo, setExcluindo] = useState(false)
 
   const { dados: ordens } = useCollection('ordens_saida')
   const { dados: devolucoes } = useCollection('devolucoes')
@@ -24,6 +28,7 @@ export default function Relatorios() {
   const { dados: baixasFiltro } = useCollection('baixas_filtro')
   const { dados: materiais } = useCollection('materiais')
   const { dados: filtros } = useCollection('filtros')
+  const { dados: eventos } = useCollection('eventos')
 
   const ordensFiltradas = useMemo(() =>
     ordens.filter(o => dataFiltro(o, 'criadoEm', de, ate))
@@ -54,6 +59,37 @@ export default function Relatorios() {
     filtros.filter(f => f.ativo !== false && f.estoqueMin > 0 && f.quantidadeAtual <= f.estoqueMin)
       .sort((a, b) => (a.quantidadeAtual / (a.estoqueMin || 1)) - (b.quantidadeAtual / (b.estoqueMin || 1))),
     [filtros])
+
+  const eventosFiltrados = useMemo(() =>
+    eventos
+      .filter(e => dataFiltro(e, 'criadoEm', de, ate))
+      .sort((a, b) => new Date(b.data) - new Date(a.data)),
+    [eventos, de, ate])
+
+  async function confirmarExcluirEvento() {
+    if (!excluindoEvento) return
+    setExcluindo(true)
+    try {
+      const batch = writeBatch(db)
+
+      const materiaisSnap = await getDocs(query(collection(db, 'materiais'), where('eventoAtual', '==', excluindoEvento.id)))
+      materiaisSnap.forEach(d => batch.update(d.ref, { status: 'disponivel', estoqueAtual: 1, eventoAtual: null }))
+
+      const geradoresSnap = await getDocs(query(collection(db, 'geradores'), where('eventoAtual', '==', excluindoEvento.id)))
+      geradoresSnap.forEach(d => batch.update(d.ref, { status: 'disponivel', eventoAtual: null }))
+
+      const ordensSnap = await getDocs(query(collection(db, 'ordens_saida'), where('eventoId', '==', excluindoEvento.id)))
+      ordensSnap.forEach(d => batch.delete(d.ref))
+
+      batch.delete(doc(db, 'eventos', excluindoEvento.id))
+      await batch.commit()
+      setExcluindoEvento(null)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setExcluindo(false)
+    }
+  }
 
   const devStats = useMemo(() => {
     const itens = devolucoesFiltradas.flatMap(d => d.itens || [])
@@ -304,6 +340,87 @@ export default function Relatorios() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* EVENTOS */}
+      {aba === 'Eventos' && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-brand-black">Eventos</h2>
+            <span className="text-sm text-gray-400">{eventosFiltrados.length} registros</span>
+          </div>
+          {eventosFiltrados.length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">Nenhum evento no período.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-2 text-gray-500 font-medium">Nome</th>
+                    <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Local</th>
+                    <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Data</th>
+                    <th className="text-left py-2 text-gray-500 font-medium">Status</th>
+                    <th className="py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {eventosFiltrados.map(e => (
+                    <tr key={e.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 font-medium text-brand-black">{e.nome}</td>
+                      <td className="py-2 text-gray-500 hidden sm:table-cell">{e.local || '—'}</td>
+                      <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{e.data ? new Date(e.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                      <td className="py-2">
+                        <span className={`badge ${statusEventoCor(e.status)}`}>{statusEventoLabel(e.status)}</span>
+                      </td>
+                      <td className="py-2 text-right">
+                        <button
+                          onClick={() => setExcluindoEvento(e)}
+                          className="p-1.5 text-gray-300 hover:text-brand-red hover:bg-red-50 rounded-lg transition-colors"
+                          title="Excluir evento"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {excluindoEvento && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-brand-black">Excluir evento</p>
+                <p className="text-sm text-gray-500">Remove materiais, geradores e ordens vinculadas.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              <strong>{excluindoEvento.nome}</strong> — {excluindoEvento.local}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setExcluindoEvento(null)} className="btn-secondary flex-1">Cancelar</button>
+              <button
+                onClick={confirmarExcluirEvento}
+                disabled={excluindo}
+                className="flex-1 px-4 py-2 bg-brand-red text-white rounded-xl font-medium text-sm hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {excluindo ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
