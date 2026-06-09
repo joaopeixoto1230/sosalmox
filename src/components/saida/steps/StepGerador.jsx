@@ -31,6 +31,23 @@ export default function StepGerador({ onSelecionar, onVoltar }) {
         <p className="text-sm text-gray-500">Selecione um ou mais geradores para esta saída.</p>
       </div>
 
+      <button
+        onClick={() => onSelecionar([])}
+        className="card w-full text-left hover:border-gray-400 hover:shadow-sm transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-semibold text-gray-600">Sem gerador</p>
+            <p className="text-xs text-gray-400">O material sairá sem gerador vinculado</p>
+          </div>
+        </div>
+      </button>
+
       {disponiveis.length === 0 ? (
         <div className="text-center py-8 text-gray-400">
           <p>Nenhum gerador disponível no momento.</p>
@@ -88,12 +105,6 @@ export default function StepGerador({ onSelecionar, onVoltar }) {
       <div className="flex gap-3 sticky bottom-0 bg-brand-bg pb-1 pt-2">
         <button onClick={onVoltar} className="btn-ghost">
           ← Voltar
-        </button>
-        <button
-          onClick={() => onSelecionar([])}
-          className="btn-secondary"
-        >
-          Sem gerador
         </button>
         <button
           onClick={() => onSelecionar(selecionados)}
