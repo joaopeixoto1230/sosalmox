@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -43,7 +43,20 @@ export default function Eventos() {
   async function excluirEvento() {
     if (!excluindo) return
     try {
-      await deleteDoc(doc(db, 'eventos', excluindo.id))
+      const batch = writeBatch(db)
+
+      const materiaisSnap = await getDocs(query(collection(db, 'materiais'), where('eventoAtual', '==', excluindo.id)))
+      materiaisSnap.forEach(d => {
+        batch.update(d.ref, { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+      })
+
+      const geradoresSnap = await getDocs(query(collection(db, 'geradores'), where('eventoAtual', '==', excluindo.id)))
+      geradoresSnap.forEach(d => {
+        batch.update(d.ref, { status: 'disponivel', eventoAtual: null })
+      })
+
+      batch.delete(doc(db, 'eventos', excluindo.id))
+      await batch.commit()
       setExcluindo(null)
     } catch (e) {
       console.error(e)
