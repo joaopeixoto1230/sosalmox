@@ -63,14 +63,6 @@ export default function Eventos() {
     }
   }
 
-  async function concluirEvento(evt) {
-    try {
-      await updateDoc(doc(db, 'eventos', evt.id), { status: 'concluido' })
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
   if (carregando) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -150,7 +142,6 @@ export default function Eventos() {
               onClick={() => setDetalheEvento(evt)}
               onEditar={() => setEditando(evt)}
               onExcluir={() => setExcluindo(evt)}
-              onConcluir={() => concluirEvento(evt)}
             />
           ))}
         </div>
@@ -182,10 +173,11 @@ export default function Eventos() {
   )
 }
 
-function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onConcluir }) {
+function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [totalSaidas, setTotalSaidas] = useState(null)
   const [editandoMaterial, setEditandoMaterial] = useState(false)
+  const [concluindoEvento, setConcluindoEvento] = useState(false)
 
   useEffect(() => {
     async function buscar() {
@@ -202,6 +194,9 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onCon
     <>
     {editandoMaterial && (
       <ModalEditarMaterialEvento evento={evento} onFechar={() => setEditandoMaterial(false)} />
+    )}
+    {concluindoEvento && (
+      <ModalConcluirEvento evento={evento} onFechar={() => setConcluindoEvento(false)} onConcluido={() => setConcluindoEvento(false)} />
     )}
     <div
       className="card hover:border-brand-red hover:shadow-md transition-all cursor-pointer"
@@ -265,7 +260,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir, onCon
                   </button>
                   {evento.status !== 'concluido' && (
                     <button
-                      onClick={() => { setMenuAberto(false); onConcluir() }}
+                      onClick={() => { setMenuAberto(false); setConcluindoEvento(true) }}
                       className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -616,6 +611,129 @@ function ModalFormEvento({ evento, onFechar, onSalvar }) {
               {salvando ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const STATUS_DEVOLUCAO = [
+  { value: 'disponivel', label: 'Devolvido', inativo: 'bg-green-50 text-green-700 border-green-200', ativo: 'bg-green-500 text-white border-green-500' },
+  { value: 'manutencao', label: 'Manutenção', inativo: 'bg-blue-50 text-blue-700 border-blue-200', ativo: 'bg-blue-500 text-white border-blue-500' },
+  { value: 'perdido', label: 'Perdido', inativo: 'bg-red-50 text-red-700 border-red-200', ativo: 'bg-red-500 text-white border-red-500' },
+]
+
+function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
+  const { dados: todosMateriais, carregando } = useCollection('materiais')
+  const [statusMap, setStatusMap] = useState({})
+  const [concluindo, setConcluindo] = useState(false)
+
+  const materiaisDoEvento = todosMateriais.filter(m => m.eventoAtual === evento.id)
+
+  function getStatus(id) { return statusMap[id] || 'disponivel' }
+  function setStatus(id, val) { setStatusMap(prev => ({ ...prev, [id]: val })) }
+
+  const resumo = {
+    devolvidos: materiaisDoEvento.filter(m => getStatus(m.id) === 'disponivel').length,
+    manutencao: materiaisDoEvento.filter(m => getStatus(m.id) === 'manutencao').length,
+    perdidos: materiaisDoEvento.filter(m => getStatus(m.id) === 'perdido').length,
+  }
+
+  async function confirmar() {
+    setConcluindo(true)
+    try {
+      const batch = writeBatch(db)
+
+      materiaisDoEvento.forEach(m => {
+        const novoStatus = getStatus(m.id)
+        batch.update(doc(db, 'materiais', m.id), {
+          status: novoStatus,
+          estoqueAtual: novoStatus === 'disponivel' ? 1 : 0,
+          eventoAtual: null,
+        })
+      })
+
+      const geradoresSnap = await getDocs(query(collection(db, 'geradores'), where('eventoAtual', '==', evento.id)))
+      geradoresSnap.forEach(d => batch.update(d.ref, { status: 'disponivel', eventoAtual: null }))
+
+      batch.update(doc(db, 'eventos', evento.id), { status: 'concluido' })
+
+      await batch.commit()
+      onConcluido()
+    } catch (e) {
+      console.error(e)
+      setConcluindo(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-brand-black">Concluir evento</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Confirme o retorno de cada material</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-2.5">
+          {carregando ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : materiaisDoEvento.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <p className="text-sm">Nenhum material vinculado a este evento.</p>
+              <p className="text-xs mt-1">O evento será marcado como concluído.</p>
+            </div>
+          ) : (
+            materiaisDoEvento.map(m => (
+              <div key={m.id} className="border border-gray-100 rounded-xl p-3 space-y-2.5">
+                <div>
+                  <p className="text-sm font-semibold text-brand-black">{m.nome}</p>
+                  <p className="text-xs text-gray-400 font-mono">{m.codigo}</p>
+                </div>
+                <div className="flex gap-1.5">
+                  {STATUS_DEVOLUCAO.map(op => {
+                    const ativo = getStatus(m.id) === op.value
+                    return (
+                      <button
+                        key={op.value}
+                        onClick={() => setStatus(m.id, op.value)}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${ativo ? op.ativo : op.inativo}`}
+                      >
+                        {op.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {materiaisDoEvento.length > 0 && (
+          <div className="px-5 pt-3 pb-2 flex gap-4 justify-center">
+            <span className="text-xs text-green-600 font-semibold">{resumo.devolvidos} devolvidos</span>
+            {resumo.manutencao > 0 && <span className="text-xs text-blue-600 font-semibold">{resumo.manutencao} manutenção</span>}
+            {resumo.perdidos > 0 && <span className="text-xs text-brand-red font-semibold">{resumo.perdidos} perdidos</span>}
+          </div>
+        )}
+
+        <div className="px-5 pb-5 pt-2 border-t border-gray-100 flex-shrink-0 flex gap-3">
+          <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button
+            onClick={confirmar}
+            disabled={concluindo}
+            className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
+          >
+            {concluindo ? 'Concluindo...' : 'Concluir evento ✓'}
+          </button>
         </div>
       </div>
     </div>
