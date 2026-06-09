@@ -10,7 +10,7 @@ import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem } from '../../../utils/formatters'
 
-export default function StepConfirmacao({ evento, geradores, itens, observacoes, onNovaSaida }) {
+export default function StepConfirmacao({ evento, geradores, itens, observacoes, responsavel, onNovaSaida }) {
   const { uid, nome } = useAuth()
   const [status, setStatus] = useState('idle')
   const [numeroOrdem, setNumeroOrdem] = useState(null)
@@ -58,6 +58,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             categoria: i.categoria,
           })),
           observacoes,
+          responsavelNome: responsavel || null,
           operadorUid: uid,
           operadorNome: nome,
           status: 'ativo',

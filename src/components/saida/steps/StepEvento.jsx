@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useCollection } from '../../../hooks/useFirestore'
@@ -7,9 +8,10 @@ import { formatarData, statusEventoCor, statusEventoLabel } from '../../../utils
 
 export default function StepEvento({ onSelecionar }) {
   const { tipoPerfil } = useAuth()
+  const location = useLocation()
   const { dados: eventos, carregando } = useCollection('eventos')
   const [busca, setBusca] = useState('')
-  const [criandoEvento, setCriandoEvento] = useState(false)
+  const [criandoEvento, setCriandoEvento] = useState(location.state?.abrirCriarEvento || false)
   const [form, setForm] = useState({ nome: '', local: '', data: '' })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')

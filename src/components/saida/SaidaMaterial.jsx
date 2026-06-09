@@ -42,6 +42,7 @@ export default function SaidaMaterial() {
   const [geradores, setGeradores] = useState([])
   const [itensSelecionados, setItensSelecionados] = useState([])
   const [observacoes, setObservacoes] = useState('')
+  const [responsavel, setResponsavel] = useState('')
 
   function handleToggleItem(material, acao) {
     setItensSelecionados(prev =>
@@ -61,6 +62,7 @@ export default function SaidaMaterial() {
     setGeradores([])
     setItensSelecionados([])
     setObservacoes('')
+    setResponsavel('')
   }
 
   return (
@@ -103,7 +105,9 @@ export default function SaidaMaterial() {
           geradores={geradores}
           itens={itensSelecionados}
           observacoes={observacoes}
+          responsavel={responsavel}
           onObservacoes={setObservacoes}
+          onResponsavel={setResponsavel}
           onRemover={handleRemoverDoRomaneio}
           onAvancar={() => setPasso(4)}
           onVoltar={() => setPasso(2)}
@@ -116,6 +120,7 @@ export default function SaidaMaterial() {
           geradores={geradores}
           itens={itensSelecionados}
           observacoes={observacoes}
+          responsavel={responsavel}
           onNovaSaida={resetar}
         />
       )}

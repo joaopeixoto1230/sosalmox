@@ -74,7 +74,7 @@ export default function Eventos() {
           <p className="text-gray-500 text-sm mt-1">Histórico completo de todos os eventos.</p>
         </div>
         {podeGerenciar && (
-          <button onClick={() => navigate('/saida')} className="btn-primary flex-shrink-0">
+          <button onClick={() => navigate('/saida', { state: { abrirCriarEvento: true } })} className="btn-primary flex-shrink-0">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
