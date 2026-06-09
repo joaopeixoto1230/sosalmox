@@ -22,6 +22,7 @@ export default function ItemCard({ material, evento, selecionado, onAdicionar, o
   const { tipoPerfil } = useAuth()
   const [menuAberto, setMenuAberto] = useState(false)
   const [editando, setEditando] = useState(false)
+  const [editandoStatus, setEditandoStatus] = useState(false)
   const [detalhes, setDetalhes] = useState(false)
   const disponivel = material.status === 'disponivel' && material.estoqueAtual > 0
   const podeGerenciar = ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
@@ -64,6 +65,15 @@ export default function ItemCard({ material, evento, selecionado, onAdicionar, o
               <>
                 <div className="fixed inset-0 z-10" onClick={e => { e.stopPropagation(); setMenuAberto(false) }} />
                 <div className="absolute right-0 top-7 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-40 py-1 overflow-hidden">
+                  <button
+                    onClick={e => { e.stopPropagation(); setMenuAberto(false); setEditandoStatus(true) }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Editar status
+                  </button>
                   <button
                     onClick={e => { e.stopPropagation(); setMenuAberto(false); setEditando(true) }}
                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -144,10 +154,83 @@ export default function ItemCard({ material, evento, selecionado, onAdicionar, o
         />
       )}
 
+      {editandoStatus && (
+        <ModalEditarStatus material={material} onFechar={() => setEditandoStatus(false)} />
+      )}
+
       {editando && (
         <ModalEditarMaterial material={material} onFechar={() => setEditando(false)} />
       )}
     </>
+  )
+}
+
+const STATUS_OPCOES = [
+  { value: 'disponivel', label: 'Disponível', cor: 'bg-green-100 text-green-700 border-green-200', desc: 'Pronto para uso' },
+  { value: 'em_evento', label: 'Em Evento', cor: 'bg-yellow-100 text-yellow-700 border-yellow-200', desc: 'Fora do almoxarifado' },
+  { value: 'manutencao', label: 'Manutenção', cor: 'bg-blue-100 text-blue-700 border-blue-200', desc: 'Em reparo ou revisão' },
+  { value: 'perdido', label: 'Perdido', cor: 'bg-red-100 text-red-700 border-red-200', desc: 'Não localizado' },
+]
+
+function ModalEditarStatus({ material, onFechar }) {
+  const [salvando, setSalvando] = useState(false)
+
+  async function salvarStatus(novoStatus) {
+    if (novoStatus === material.status) { onFechar(); return }
+    setSalvando(true)
+    try {
+      await updateDoc(doc(db, 'materiais', material.id), {
+        status: novoStatus,
+        estoqueAtual: novoStatus === 'disponivel' ? 1 : 0,
+        eventoAtual: novoStatus === 'disponivel' ? null : material.eventoAtual,
+      })
+      onFechar()
+    } catch (e) {
+      console.error(e)
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-bold text-brand-black text-sm">Editar status</h2>
+            <p className="text-xs text-gray-400 mt-0.5 truncate">{material.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-4 space-y-2">
+          {STATUS_OPCOES.map(op => (
+            <button
+              key={op.value}
+              onClick={() => salvarStatus(op.value)}
+              disabled={salvando}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all text-left ${
+                material.status === op.value
+                  ? op.cor + ' border-current'
+                  : 'border-gray-100 hover:border-gray-300'
+              }`}
+            >
+              <div>
+                <p className="font-semibold text-sm">{op.label}</p>
+                <p className="text-xs opacity-70">{op.desc}</p>
+              </div>
+              {material.status === op.value && (
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
 
