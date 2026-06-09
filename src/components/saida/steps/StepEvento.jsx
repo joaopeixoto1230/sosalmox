@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useCollection } from '../../../hooks/useFirestore'
 import { useAuth } from '../../../contexts/AuthContext'
@@ -15,6 +15,7 @@ export default function StepEvento({ onSelecionar }) {
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState(null)
   const [excluindo, setExcluindo] = useState(null)
+  const [detalheEvento, setDetalheEvento] = useState(null)
 
   const podeGerenciar = ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
 
@@ -66,7 +67,7 @@ export default function StepEvento({ onSelecionar }) {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-brand-black">Selecionar Evento</h2>
-        <p className="text-sm text-gray-500">Escolha o evento para registrar a saída de material.</p>
+        <p className="text-sm text-gray-500">Clique no evento para ver detalhes ou use o botão para iniciar saída.</p>
       </div>
 
       {criandoEvento ? (
@@ -128,39 +129,56 @@ export default function StepEvento({ onSelecionar }) {
       ) : (
         <div className="grid gap-3">
           {filtrados.map(evt => (
-            <div key={evt.id} className="card hover:border-brand-red hover:shadow-md transition-all group flex items-start gap-3">
-              <button
-                onClick={() => onSelecionar(evt)}
-                className="flex-1 text-left min-w-0"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
+            <div
+              key={evt.id}
+              className="card hover:border-brand-red hover:shadow-md transition-all cursor-pointer"
+              onClick={() => setDetalheEvento(evt)}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-1">
                     <p className="font-semibold text-brand-black group-hover:text-brand-red transition-colors truncate">
                       {evt.nome}
                     </p>
-                    <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5 truncate">
-                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      </svg>
-                      {evt.local}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatarData(evt.data)}</p>
+                    <span className={`badge flex-shrink-0 ${statusEventoCor(evt.status)}`}>
+                      {statusEventoLabel(evt.status)}
+                    </span>
                   </div>
-                  <span className={`badge flex-shrink-0 ${statusEventoCor(evt.status)}`}>
-                    {statusEventoLabel(evt.status)}
-                  </span>
+                  <p className="text-sm text-gray-500 flex items-center gap-1 truncate">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    </svg>
+                    {evt.local}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">{formatarData(evt.data)}</p>
                 </div>
-              </button>
 
-              {podeGerenciar && (
-                <MenuEvento
-                  onEditar={() => setEditando(evt)}
-                  onExcluir={() => setExcluindo(evt)}
-                />
-              )}
+                <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => onSelecionar(evt)}
+                    className="px-3 py-1.5 bg-brand-red text-white text-xs font-semibold rounded-lg hover:bg-red-700 transition-colors whitespace-nowrap"
+                  >
+                    Iniciar saída →
+                  </button>
+                  {podeGerenciar && (
+                    <MenuEvento
+                      onEditar={() => setEditando(evt)}
+                      onExcluir={() => setExcluindo(evt)}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {detalheEvento && (
+        <ModalDetalheEvento
+          evento={detalheEvento}
+          onFechar={() => setDetalheEvento(null)}
+          onIniciarSaida={() => { setDetalheEvento(null); onSelecionar(detalheEvento) }}
+        />
       )}
 
       {editando && (
@@ -177,6 +195,127 @@ export default function StepEvento({ onSelecionar }) {
           onFechar={() => setExcluindo(null)}
         />
       )}
+    </div>
+  )
+}
+
+function ModalDetalheEvento({ evento, onFechar, onIniciarSaida }) {
+  const [ordens, setOrdens] = useState([])
+  const [carregando, setCarregando] = useState(true)
+
+  useEffect(() => {
+    async function buscarOrdens() {
+      try {
+        const q = query(collection(db, 'ordens_saida'), where('eventoId', '==', evento.id))
+        const snap = await getDocs(q)
+        const dados = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        dados.sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0))
+        setOrdens(dados)
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setCarregando(false)
+      }
+    }
+    buscarOrdens()
+  }, [evento.id])
+
+  const totalItens = ordens.reduce((acc, o) => acc + (o.itens?.length || 0), 0)
+  const geradores = [...new Set(ordens.filter(o => o.geradorCodigo).map(o => o.geradorCodigo))]
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-brand-black">{evento.nome}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{evento.local} · {evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-brand-black">{ordens.length}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Saídas</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-brand-black">{totalItens}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Materiais</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 text-center">
+              <p className="text-2xl font-bold text-brand-black">{geradores.length}</p>
+              <p className="text-xs text-gray-500 mt-0.5">Geradores</p>
+            </div>
+          </div>
+
+          {geradores.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Geradores</p>
+              <div className="flex flex-wrap gap-2">
+                {geradores.map(g => (
+                  <span key={g} className="px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-semibold rounded-lg">{g}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Histórico de saídas</p>
+            {carregando ? (
+              <div className="flex justify-center py-6">
+                <div className="w-6 h-6 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : ordens.length === 0 ? (
+              <div className="text-center py-6 text-gray-400">
+                <p className="text-sm">Nenhuma saída registrada para este evento.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {ordens.map(ordem => (
+                  <div key={ordem.id} className="border border-gray-100 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold text-brand-red text-sm">{ordem.numeroFormatado}</span>
+                      <div className="flex items-center gap-2">
+                        {ordem.geradorCodigo && (
+                          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{ordem.geradorCodigo}</span>
+                        )}
+                        <span className="text-xs text-gray-400">{ordem.operadorNome}</span>
+                      </div>
+                    </div>
+                    {ordem.itens?.length > 0 && (
+                      <div className="space-y-1">
+                        {ordem.itens.map((item, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                            <span className="truncate">{item.nome}</span>
+                            <span className="text-gray-400 font-mono flex-shrink-0">{item.codigo}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {ordem.observacoes && (
+                      <p className="text-xs text-gray-500 mt-2 italic">"{ordem.observacoes}"</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0 flex gap-3">
+          <button onClick={onFechar} className="btn-secondary flex-1">Fechar</button>
+          <button onClick={onIniciarSaida} className="btn-primary flex-1 justify-center">
+            Nova saída →
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
