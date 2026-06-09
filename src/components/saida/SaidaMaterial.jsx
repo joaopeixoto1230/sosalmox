@@ -90,6 +90,7 @@ export default function SaidaMaterial() {
 
       {passo === 2 && (
         <StepMateriais
+          evento={evento}
           itensSelecionados={itensSelecionados}
           onToggle={handleToggleItem}
           onAvancar={() => setPasso(3)}

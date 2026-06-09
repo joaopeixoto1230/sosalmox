@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useCollection } from '../../../hooks/useFirestore'
 import ItemCard from '../ItemCard'
+import { formatarData } from '../../../utils/formatters'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
-export default function StepMateriais({ itensSelecionados, onToggle, onAvancar, onVoltar }) {
+export default function StepMateriais({ evento, itensSelecionados, onToggle, onAvancar, onVoltar }) {
   const { dados: materiais, carregando } = useCollection('materiais')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Cabos 4x')
   const [busca, setBusca] = useState('')
@@ -21,6 +22,64 @@ export default function StepMateriais({ itensSelecionados, onToggle, onAvancar, 
   }, [materiais, categoriaAtiva, busca])
 
   const countSelecionados = itensSelecionados.length
+
+  function gerarRelatorio() {
+    const dataGeracao = new Date().toLocaleString('pt-BR')
+    const linhasItens = itensSelecionados.map(m =>
+      `<tr>
+        <td>${m.nome}</td>
+        <td>${m.codigo}</td>
+        <td>${m.categoria}</td>
+        <td>${m.tipo}</td>
+        <td>${m.bitola || '—'}</td>
+        <td>${m.metragem || '—'}</td>
+      </tr>`
+    ).join('')
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8"/>
+        <title>Romaneio — ${evento?.nome || ''}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 30px; color: #111; }
+          h1 { color: #CC0000; margin: 0 0 4px; }
+          .header { margin-bottom: 20px; }
+          .header p { margin: 2px 0; color: #555; font-size: 14px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+          th { background: #f0f0f0; text-align: left; padding: 8px 10px; border-bottom: 2px solid #ccc; }
+          td { padding: 7px 10px; border-bottom: 1px solid #e5e5e5; }
+          tr:last-child td { border-bottom: none; }
+          .footer { margin-top: 24px; font-size: 12px; color: #888; }
+          .total { font-weight: bold; margin-top: 12px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>SOS Energia — Romaneio de Saída</h1>
+          <p><strong>Evento:</strong> ${evento?.nome || '—'}</p>
+          <p><strong>Local:</strong> ${evento?.local || '—'} &nbsp;|&nbsp; <strong>Data:</strong> ${evento?.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Material</th><th>Código</th><th>Categoria</th><th>Tipo</th><th>Bitola</th><th>Comprimento</th>
+            </tr>
+          </thead>
+          <tbody>${linhasItens || '<tr><td colspan="6">Nenhum material selecionado.</td></tr>'}</tbody>
+        </table>
+        <p class="total">Total: ${itensSelecionados.length} ${itensSelecionados.length === 1 ? 'item' : 'itens'}</p>
+        <div class="footer">Gerado em ${dataGeracao}</div>
+      </body>
+      </html>
+    `
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    win.print()
+  }
 
   if (carregando) {
     return (
@@ -85,9 +144,11 @@ export default function StepMateriais({ itensSelecionados, onToggle, onAvancar, 
             <ItemCard
               key={mat.id}
               material={mat}
+              evento={evento}
               selecionado={itensSelecionados.some(i => i.id === mat.id)}
               onAdicionar={() => onToggle(mat, 'add')}
               onRemover={() => onToggle(mat, 'remove')}
+              onGerarRelatorio={gerarRelatorio}
             />
           ))}
         </div>
