@@ -291,28 +291,106 @@ function ModalDetalheEvento({ evento, onFechar }) {
   const geradores = [...new Set(ordens.filter(o => o.geradorCodigo).map(o => o.geradorCodigo))]
 
   function imprimir() {
-    const linhas = ordens.flatMap(o =>
-      (o.itens || []).map(item =>
-        `<tr><td>${o.numeroFormatado}</td><td>${item.nome}</td><td>${item.codigo}</td><td>${item.categoria || '—'}</td><td>${o.geradorCodigo || '—'}</td><td>${o.operadorNome || '—'}</td></tr>`
-      )
-    ).join('')
-    const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-      <title>Relatório — ${evento.nome}</title>
-      <style>body{font-family:Arial,sans-serif;padding:30px}h1{color:#CC0000;margin:0 0 4px}
-      .info{color:#555;font-size:14px;margin-bottom:20px}
-      table{width:100%;border-collapse:collapse;font-size:13px}
-      th{background:#f0f0f0;text-align:left;padding:8px 10px;border-bottom:2px solid #ccc}
-      td{padding:7px 10px;border-bottom:1px solid #e5e5e5}
-      .footer{margin-top:20px;font-size:12px;color:#888}
-      @media print{body{padding:0}}</style>
-      </head><body>
-      <h1>SOS Energia — Relatório de Evento</h1>
-      <div class="info"><strong>${evento.nome}</strong> · ${evento.local} · ${evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</div>
-      <table><thead><tr><th>Ordem</th><th>Material</th><th>Código</th><th>Categoria</th><th>Gerador</th><th>Operador</th></tr></thead>
-      <tbody>${linhas || '<tr><td colspan="6">Nenhuma saída registrada.</td></tr>'}</tbody></table>
-      <p style="font-weight:bold;margin-top:12px">Total: ${totalItens} ${totalItens === 1 ? 'item' : 'itens'} em ${ordens.length} ${ordens.length === 1 ? 'saída' : 'saídas'}</p>
-      <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
-      </body></html>`
+    const dataEvento = evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
+
+    const blocoOrdens = ordens.map(o => {
+      const itensLinhas = (o.itens || []).map((item, idx) =>
+        `<tr class="${idx % 2 === 0 ? 'row-par' : ''}">
+          <td>${item.nome}</td>
+          <td class="mono">${item.codigo}</td>
+          <td>${item.categoria || '—'}</td>
+        </tr>`
+      ).join('')
+
+      return `
+        <div class="ordem">
+          <div class="ordem-header">
+            <span class="ordem-num">${o.numeroFormatado}</span>
+            <div class="ordem-pessoas">
+              <span class="pessoa"><span class="label">Entregou:</span> ${o.operadorNome || '—'}</span>
+              <span class="separador">·</span>
+              <span class="pessoa"><span class="label">Recebeu:</span> ${o.responsavelNome || '—'}</span>
+              ${o.geradorCodigo ? `<span class="separador">·</span><span class="pessoa"><span class="label">Gerador:</span> ${o.geradorCodigo}</span>` : ''}
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>Material</th><th>Código</th><th>Categoria</th></tr></thead>
+            <tbody>${itensLinhas}</tbody>
+          </table>
+          ${o.observacoes ? `<p class="obs">"${o.observacoes}"</p>` : ''}
+        </div>`
+    }).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Relatório — ${evento.nome}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Arial', sans-serif; color: #1a1a1a; background: #fff; padding: 32px; font-size: 13px; }
+
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #CC0000; padding-bottom: 16px; margin-bottom: 20px; }
+    .header-left h1 { font-size: 22px; color: #CC0000; font-weight: 800; letter-spacing: -0.5px; }
+    .header-left p { color: #666; font-size: 12px; margin-top: 2px; }
+    .header-right { text-align: right; }
+    .header-right .evento-nome { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+    .header-right .evento-info { font-size: 12px; color: #666; margin-top: 3px; }
+
+    .resumo { display: flex; gap: 12px; margin-bottom: 24px; }
+    .resumo-box { flex: 1; border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 14px; text-align: center; }
+    .resumo-box .num { font-size: 22px; font-weight: 800; color: #1a1a1a; }
+    .resumo-box .desc { font-size: 11px; color: #888; margin-top: 2px; }
+
+    .ordem { margin-bottom: 20px; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; page-break-inside: avoid; }
+    .ordem-header { background: #f8f8f8; padding: 10px 14px; border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+    .ordem-num { font-weight: 800; color: #CC0000; font-size: 14px; }
+    .ordem-pessoas { font-size: 12px; color: #555; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .label { color: #999; font-weight: normal; }
+    .pessoa { font-weight: 600; }
+    .separador { color: #ccc; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #fff; text-align: left; padding: 8px 14px; font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e5e5e5; }
+    td { padding: 8px 14px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    .row-par td { background: #fafafa; }
+    .mono { font-family: monospace; font-size: 12px; color: #CC0000; }
+    .obs { padding: 8px 14px; font-size: 12px; color: #888; font-style: italic; background: #fffbf0; border-top: 1px solid #f0e8c8; }
+
+    .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; font-size: 11px; color: #aaa; }
+    .total { font-size: 13px; font-weight: 700; color: #1a1a1a; }
+
+    @media print { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>SOS Energia</h1>
+      <p>Relatório de Saída de Material</p>
+    </div>
+    <div class="header-right">
+      <div class="evento-nome">${evento.nome}</div>
+      <div class="evento-info">${evento.local} &nbsp;·&nbsp; ${dataEvento}</div>
+    </div>
+  </div>
+
+  <div class="resumo">
+    <div class="resumo-box"><div class="num">${ordens.length}</div><div class="desc">Saídas</div></div>
+    <div class="resumo-box"><div class="num">${totalItens}</div><div class="desc">Materiais</div></div>
+    <div class="resumo-box"><div class="num">${geradores.length}</div><div class="desc">Geradores</div></div>
+  </div>
+
+  ${blocoOrdens || '<p style="color:#888;text-align:center;padding:20px">Nenhuma saída registrada.</p>'}
+
+  <div class="footer">
+    <span class="total">Total: ${totalItens} ${totalItens === 1 ? 'item' : 'itens'} em ${ordens.length} ${ordens.length === 1 ? 'saída' : 'saídas'}</span>
+    <span>Gerado em ${new Date().toLocaleString('pt-BR')}</span>
+  </div>
+</body>
+</html>`
+
     const win = window.open('', '_blank')
     win.document.write(html)
     win.document.close()
