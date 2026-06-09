@@ -7,31 +7,54 @@ import StepConfirmacao from './steps/StepConfirmacao'
 
 const PASSOS = ['Evento', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
 
-function Stepper({ passoAtual }) {
+function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
   return (
-    <div className="flex items-center gap-0">
-      {PASSOS.map((p, i) => (
-        <div key={p} className="flex items-center flex-1 last:flex-none">
-          <div className="flex flex-col items-center">
-            <div className={`
-              w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
-              ${i < passoAtual ? 'bg-green-500 text-white' : i === passoAtual ? 'bg-brand-red text-white' : 'bg-gray-200 text-gray-400'}
-            `}>
-              {i < passoAtual ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : i + 1}
+    <div className="flex items-center gap-3">
+      <div className="flex items-center gap-0 flex-1">
+        {PASSOS.map((p, i) => (
+          <div key={p} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center">
+              <div className={`
+                w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors
+                ${i < passoAtual ? 'bg-green-500 text-white' : i === passoAtual ? 'bg-brand-red text-white' : 'bg-gray-200 text-gray-400'}
+              `}>
+                {i < passoAtual ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : i + 1}
+              </div>
+              <span className={`text-xs mt-1 hidden sm:block font-medium ${i === passoAtual ? 'text-brand-red' : 'text-gray-400'}`}>
+                {p}
+              </span>
             </div>
-            <span className={`text-xs mt-1 hidden sm:block font-medium ${i === passoAtual ? 'text-brand-red' : 'text-gray-400'}`}>
-              {p}
-            </span>
+            {i < PASSOS.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-1 mb-4 transition-colors ${i < passoAtual ? 'bg-green-500' : 'bg-gray-200'}`} />
+            )}
           </div>
-          {i < PASSOS.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-1 mb-4 transition-colors ${i < passoAtual ? 'bg-green-500' : 'bg-gray-200'}`} />
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
+
+      <div className="flex gap-1 mb-4 flex-shrink-0">
+        <button
+          onClick={onVoltar}
+          disabled={passoAtual === 0}
+          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <button
+          onClick={onAvancar}
+          disabled={!podeProsseguir || passoAtual === PASSOS.length - 1}
+          className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }
@@ -65,6 +88,22 @@ export default function SaidaMaterial() {
     setResponsavel('')
   }
 
+  const podeProsseguir = [
+    evento !== null,
+    true,
+    itensSelecionados.length > 0,
+    itensSelecionados.length > 0,
+    false,
+  ][passo]
+
+  function avancarPasso() {
+    if (passo < PASSOS.length - 1 && podeProsseguir) setPasso(p => p + 1)
+  }
+
+  function voltarPasso() {
+    if (passo > 0) setPasso(p => p - 1)
+  }
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
@@ -73,7 +112,7 @@ export default function SaidaMaterial() {
       </div>
 
       <div className="card mb-6">
-        <Stepper passoAtual={passo} />
+        <Stepper passoAtual={passo} podeProsseguir={podeProsseguir} onVoltar={voltarPasso} onAvancar={avancarPasso} />
       </div>
 
       {passo === 0 && (
