@@ -43,6 +43,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isActive();
       allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
       allow update: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
 
     match /devolucoes/{docId} {
