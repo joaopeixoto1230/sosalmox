@@ -4,7 +4,22 @@ import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData, statusOsLabel, statusOsCor, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 
-const ABAS = ['Saídas', 'Devoluções', 'Manutenções', 'Filtros', 'Estoque', 'Eventos']
+const ABAS = ['Saídas', 'Devoluções', 'Condições', 'Manutenções', 'Filtros', 'Estoque', 'Eventos']
+
+const STATUS_CONDICAO = [
+  { value: null, label: 'Todos', ativo: 'bg-brand-black text-white', inativo: 'bg-white border-gray-200 text-gray-600' },
+  { value: 'ok', label: 'OK', ativo: 'bg-green-500 text-white border-green-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-600' },
+  { value: 'problema', label: 'Com problema', ativo: 'bg-orange-500 text-white border-orange-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-orange-400 hover:text-orange-600' },
+  { value: 'cortado', label: 'Cortado', ativo: 'bg-gray-700 text-white border-gray-700', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-gray-500 hover:text-gray-700' },
+  { value: 'perdido', label: 'Perdido', ativo: 'bg-red-500 text-white border-red-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-600' },
+]
+
+const COR_CONDICAO = {
+  ok: 'bg-green-100 text-green-700',
+  problema: 'bg-orange-100 text-orange-700',
+  cortado: 'bg-gray-200 text-gray-700',
+  perdido: 'bg-red-100 text-red-700',
+}
 
 function dataFiltro(item, campo, de, ate) {
   if (!de && !ate) return true
@@ -23,6 +38,7 @@ export default function Relatorios() {
   const [excluindo, setExcluindo] = useState(false)
   const [excluindoOrdem, setExcluindoOrdem] = useState(null)
   const [excluindoOrd, setExcluindoOrd] = useState(false)
+  const [filtroCondicao, setFiltroCondicao] = useState(null)
 
   const { dados: ordens } = useCollection('ordens_saida')
   const { dados: devolucoes } = useCollection('devolucoes')
@@ -41,6 +57,29 @@ export default function Relatorios() {
     devolucoes.filter(d => dataFiltro(d, 'criadoEm', de, ate))
       .sort((a, b) => (b.criadoEm?.toDate?.()?.getTime() || 0) - (a.criadoEm?.toDate?.()?.getTime() || 0)),
     [devolucoes, de, ate])
+
+  const itensRetornados = useMemo(() => {
+    const todos = devolucoesFiltradas.flatMap(d =>
+      (d.itens || []).map(item => ({
+        ...item,
+        eventoNome: d.eventoNome,
+        operadorNome: d.operadorNome,
+        data: d.criadoEm,
+      }))
+    )
+    if (!filtroCondicao) return todos
+    return todos.filter(i => i.statusDevolucao === filtroCondicao)
+  }, [devolucoesFiltradas, filtroCondicao])
+
+  const statsCondicao = useMemo(() => {
+    const todos = devolucoesFiltradas.flatMap(d => d.itens || [])
+    return {
+      ok: todos.filter(i => i.statusDevolucao === 'ok').length,
+      problema: todos.filter(i => i.statusDevolucao === 'problema').length,
+      cortado: todos.filter(i => i.statusDevolucao === 'cortado').length,
+      perdido: todos.filter(i => i.statusDevolucao === 'perdido').length,
+    }
+  }, [devolucoesFiltradas])
 
   const osFiltradas = useMemo(() =>
     os.filter(o => dataFiltro(o, 'criadoEm', de, ate))
@@ -263,6 +302,84 @@ export default function Relatorios() {
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CONDIÇÕES */}
+      {aba === 'Condições' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'OK', valor: statsCondicao.ok, cor: 'text-green-600', bg: 'bg-green-50' },
+              { label: 'Com problema', valor: statsCondicao.problema, cor: 'text-orange-600', bg: 'bg-orange-50' },
+              { label: 'Cortado', valor: statsCondicao.cortado, cor: 'text-gray-700', bg: 'bg-gray-100' },
+              { label: 'Perdido', valor: statsCondicao.perdido, cor: 'text-red-600', bg: 'bg-red-50' },
+            ].map(s => (
+              <div key={s.label} className={`card ${s.bg} border-0 text-center py-3`}>
+                <p className={`text-2xl font-bold ${s.cor}`}>{s.valor}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {STATUS_CONDICAO.map(op => (
+              <button
+                key={op.label}
+                onClick={() => setFiltroCondicao(op.value)}
+                className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors
+                  ${filtroCondicao === op.value ? op.ativo : op.inativo}`}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-brand-black">Itens devolvidos</h2>
+              <span className="text-sm text-gray-400">{itensRetornados.length} itens</span>
+            </div>
+            {itensRetornados.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-8">Nenhum item encontrado.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-2 text-gray-500 font-medium">Material</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Código</th>
+                      <th className="text-left py-2 text-gray-500 font-medium">Condição</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Evento</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Operador</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {itensRetornados.map((item, idx) => (
+                      <tr key={idx} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2 font-medium text-brand-black">{item.nome || '—'}</td>
+                        <td className="py-2 text-gray-400 font-mono text-xs hidden sm:table-cell">{item.codigo || '—'}</td>
+                        <td className="py-2">
+                          <div>
+                            <span className={`badge ${COR_CONDICAO[item.statusDevolucao] || 'bg-gray-100 text-gray-600'}`}>
+                              {item.statusDevolucao === 'ok' ? 'OK' : item.statusDevolucao === 'problema' ? 'Problema' : item.statusDevolucao === 'cortado' ? 'Cortado' : item.statusDevolucao === 'perdido' ? 'Perdido' : '—'}
+                            </span>
+                            {item.descricao && (
+                              <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">{item.descricao}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2 text-gray-600 hidden sm:table-cell">{item.eventoNome || '—'}</td>
+                        <td className="py-2 text-gray-500 hidden sm:table-cell">{item.operadorNome || '—'}</td>
+                        <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{formatarData(item.data)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
