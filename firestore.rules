@@ -26,7 +26,7 @@ service cloud.firestore {
 
     match /eventos/{docId} {
       allow read: if isAuthenticated() && isActive();
-      allow write: if hasRole(['admin', 'gerente']) && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
 
     match /geradores/{docId} {
