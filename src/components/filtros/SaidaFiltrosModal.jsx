@@ -98,12 +98,22 @@ export default function SaidaFiltrosModal({ onFechar }) {
       const filtrosAtualizados = []
 
       await runTransaction(db, async (tx) => {
+        // ── TODAS AS LEITURAS PRIMEIRO ──
         const contRef = doc(db, 'contadores', 'ordens_servico')
         const contSnap = await tx.get(contRef)
+
+        const filtroRefs = itensSelecionados.map(i => doc(db, 'filtros', i.filtro.id))
+        const filtroSnaps = await Promise.all(filtroRefs.map(r => tx.get(r)))
+
+        // ── CÁLCULOS ──
         const ultimo = contSnap.exists() ? (contSnap.data().ultimo || 0) : 0
         const proximo = ultimo + 1
-        tx.set(contRef, { ultimo: proximo }, { merge: true })
         osNumero = formatarNumeroOS(proximo)
+
+        const novasQtds = filtroSnaps.map((snap, idx) => {
+          const atual = snap.data()?.quantidadeAtual || 0
+          return atual - itensSelecionados[idx].quantidade
+        })
 
         const filtrosUsados = itensSelecionados.map(i => ({
           filtroId: i.filtro.id,
@@ -111,6 +121,9 @@ export default function SaidaFiltrosModal({ onFechar }) {
           quantidade: i.quantidade,
           potenciaGG: i.filtro.potenciaGG || '',
         }))
+
+        // ── TODAS AS ESCRITAS DEPOIS ──
+        tx.set(contRef, { ultimo: proximo }, { merge: true })
 
         const osRef = doc(collection(db, 'ordens_servico'))
         tx.set(osRef, {
@@ -135,12 +148,8 @@ export default function SaidaFiltrosModal({ onFechar }) {
           criadoEm: serverTimestamp(),
         })
 
-        for (const item of itensSelecionados) {
-          const filtroRef = doc(db, 'filtros', item.filtro.id)
-          const snap = await tx.get(filtroRef)
-          const atual = snap.data()?.quantidadeAtual || 0
-          const novaQtd = atual - item.quantidade
-          tx.update(filtroRef, { quantidadeAtual: novaQtd })
+        itensSelecionados.forEach((item, idx) => {
+          tx.update(filtroRefs[idx], { quantidadeAtual: novasQtds[idx] })
 
           const baixaRef = doc(collection(db, 'baixas_filtro'))
           tx.set(baixaRef, {
@@ -156,8 +165,8 @@ export default function SaidaFiltrosModal({ onFechar }) {
             criadoEm: serverTimestamp(),
           })
 
-          filtrosAtualizados.push({ ...item.filtro, quantidadeAtual: novaQtd })
-        }
+          filtrosAtualizados.push({ ...item.filtro, quantidadeAtual: novasQtds[idx] })
+        })
 
         if (isGG) {
           tx.update(doc(db, 'geradores', form.equipamentoId), {
