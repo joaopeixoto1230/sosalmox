@@ -61,6 +61,7 @@ export function statusGeradorLabel(status) {
   const map = {
     disponivel: 'Disponível',
     em_evento: 'Em Evento',
+    locacao: 'Em Locação',
     manutencao: 'Em Manutenção',
     defeito: 'Com Defeito',
     inativo: 'Inativo',
@@ -72,6 +73,7 @@ export function statusGeradorCor(status) {
   const map = {
     disponivel: 'bg-green-100 text-green-700',
     em_evento: 'bg-blue-100 text-blue-700',
+    locacao: 'bg-purple-100 text-purple-700',
     manutencao: 'bg-orange-100 text-orange-700',
     defeito: 'bg-red-100 text-red-700',
     inativo: 'bg-gray-100 text-gray-600',

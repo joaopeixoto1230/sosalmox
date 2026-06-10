@@ -8,6 +8,7 @@ import { statusGeradorLabel, statusGeradorCor, formatarData } from '../../utils/
 const STATUS_OPCOES = [
   { value: 'disponivel', label: 'Disponível' },
   { value: 'em_evento', label: 'Em Evento' },
+  { value: 'locacao', label: 'Em Locação' },
   { value: 'manutencao', label: 'Em Manutenção' },
   { value: 'defeito', label: 'Com Defeito' },
 ]
@@ -18,6 +19,7 @@ export default function GGCard({ gg }) {
   const [subMenu, setSubMenu] = useState(null)
   const [editLocal, setEditLocal] = useState(gg.localizacao || '')
   const [motivoDefeito, setMotivoDefeito] = useState('')
+  const [localLocacao, setLocalLocacao] = useState('')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -40,12 +42,23 @@ export default function GGCard({ gg }) {
       setMotivoDefeito('')
       return
     }
+    if (novoStatus === 'locacao') {
+      setSubMenu('locacao')
+      setLocalLocacao(gg.localizacao && gg.status === 'locacao' ? gg.localizacao : '')
+      return
+    }
     fecharMenu()
-    await updateDoc(doc(db, 'geradores', gg.id), {
+    const dados = {
       status: novoStatus,
       temDefeito: false,
       defeito: '',
-    })
+    }
+    if (novoStatus === 'disponivel') {
+      dados.localizacao = 'Pátio SOS'
+      dados.eventoAtual = null
+      dados.eventoNome = null
+    }
+    await updateDoc(doc(db, 'geradores', gg.id), dados)
   }
 
   async function confirmarDefeito() {
@@ -54,6 +67,16 @@ export default function GGCard({ gg }) {
       status: 'defeito',
       temDefeito: true,
       defeito: motivoDefeito.trim() || 'Com defeito',
+    })
+  }
+
+  async function confirmarLocacao() {
+    fecharMenu()
+    await updateDoc(doc(db, 'geradores', gg.id), {
+      status: 'locacao',
+      localizacao: localLocacao.trim() || 'Locação externa',
+      temDefeito: false,
+      defeito: '',
     })
   }
 
@@ -157,6 +180,22 @@ export default function GGCard({ gg }) {
                       />
                       <button onClick={confirmarDefeito} className="btn-primary text-xs w-full py-1.5 bg-red-600 hover:bg-red-700">
                         Confirmar defeito
+                      </button>
+                    </div>
+                  )}
+                  {subMenu === 'locacao' && (
+                    <div className="bg-purple-50 border-t border-b border-purple-100 px-3 py-2 space-y-2">
+                      <p className="text-xs font-medium text-purple-700">Onde está em locação?</p>
+                      <input
+                        className="input text-sm w-full"
+                        value={localLocacao}
+                        onChange={e => setLocalLocacao(e.target.value)}
+                        placeholder="Ex: Cliente XPTO · Goiânia"
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && confirmarLocacao()}
+                      />
+                      <button onClick={confirmarLocacao} className="btn-primary text-xs w-full py-1.5 bg-purple-600 hover:bg-purple-700">
+                        Confirmar locação
                       </button>
                     </div>
                   )}

@@ -6,8 +6,8 @@ import { temPermissao, MODULOS } from '../../utils/permissions'
 import { statusGeradorLabel, statusGeradorCor } from '../../utils/formatters'
 import GGCard from './GGCard'
 
-const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Manutenção', 'Defeito']
-const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
+const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Manutenção', 'Defeito']
+const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
 
 export default function Patrimonio() {
   const navigate = useNavigate()
