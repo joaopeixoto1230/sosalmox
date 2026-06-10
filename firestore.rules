@@ -83,6 +83,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && isActive();
       allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
       allow update: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente']) && isActive();
     }
   }
 }
