@@ -1,12 +1,14 @@
 export function formatarData(data) {
   if (!data) return '-'
   const d = data?.toDate ? data.toDate() : new Date(data)
+  if (isNaN(d.getTime())) return '-'
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export function formatarDataHora(data) {
   if (!data) return '-'
   const d = data?.toDate ? data.toDate() : new Date(data)
+  if (isNaN(d.getTime())) return '-'
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 

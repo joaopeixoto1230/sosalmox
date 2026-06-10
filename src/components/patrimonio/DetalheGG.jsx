@@ -21,14 +21,29 @@ export default function DetalheGG() {
   const podeEditar = temPermissao(tipoPerfil, MODULOS.GERADORES) && tipoPerfil !== 'franca'
 
   function iniciarEdicao() {
-    setForm({ potencia: gg.potencia || '', marca: gg.marca || '', modelo: gg.modelo || '', ano: gg.ano || '', defeito: gg.defeito || '' })
+    setForm({
+      potencia: gg.potencia || '',
+      marca: gg.marca || '',
+      modelo: gg.modelo || '',
+      ano: gg.ano || '',
+      horimetroAtual: gg.horimetroAtual ?? '',
+      semHorimetro: gg.semHorimetro || false,
+    })
     setEditando(true)
   }
 
   async function salvarEdicao() {
     setSalvando(true)
     try {
-      await updateDoc(doc(db, 'geradores', id), { ...form, atualizadoEm: serverTimestamp() })
+      await updateDoc(doc(db, 'geradores', id), {
+        potencia: form.potencia,
+        marca: form.marca,
+        modelo: form.modelo,
+        ano: form.ano,
+        semHorimetro: form.semHorimetro,
+        horimetroAtual: form.semHorimetro ? null : (form.horimetroAtual === '' ? null : Number(form.horimetroAtual)),
+        atualizadoEm: serverTimestamp(),
+      })
       setEditando(false)
     } finally {
       setSalvando(false)
@@ -84,6 +99,29 @@ export default function DetalheGG() {
               <input value={form[k]} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} className="input" placeholder={ph} />
             </div>
           ))}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Horímetro</label>
+            <input
+              type="number"
+              min="0"
+              value={form.semHorimetro ? '' : form.horimetroAtual}
+              onChange={e => setForm(p => ({ ...p, horimetroAtual: e.target.value }))}
+              disabled={form.semHorimetro}
+              className="input disabled:bg-gray-100 disabled:text-gray-400"
+              placeholder={form.semHorimetro ? 'Sem horímetro' : 'Ex: 1230'}
+            />
+            <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.semHorimetro}
+                onChange={e => setForm(p => ({ ...p, semHorimetro: e.target.checked }))}
+                className="w-4 h-4 accent-brand-red"
+              />
+              <span className="text-sm text-gray-600">Este gerador não possui horímetro</span>
+            </label>
+          </div>
+
           <div className="flex gap-3">
             <button onClick={() => setEditando(false)} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button onClick={salvarEdicao} disabled={salvando} className="btn-primary flex-1 justify-center">
@@ -95,7 +133,7 @@ export default function DetalheGG() {
         <div className="card space-y-3">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><p className="text-gray-400 text-xs">Localização</p><p className="font-medium">{gg.localizacao || 'Pátio SOS'}</p></div>
-            {gg.horimetroAtual > 0 && <div><p className="text-gray-400 text-xs">Horímetro</p><p className="font-medium">{gg.horimetroAtual?.toLocaleString('pt-BR')}h</p></div>}
+            <div><p className="text-gray-400 text-xs">Horímetro</p><p className="font-medium">{gg.semHorimetro ? 'Sem horímetro' : `${(gg.horimetroAtual || 0).toLocaleString('pt-BR')}h`}</p></div>
             {gg.ultimaManutencao && <div><p className="text-gray-400 text-xs">Última manutenção</p><p className="font-medium">{formatarData(gg.ultimaManutencao)}</p></div>}
             {gg.proximaPreventiva && <div><p className="text-gray-400 text-xs">Próxima preventiva</p><p className="font-medium">{formatarData(gg.proximaPreventiva)}</p></div>}
           </div>
