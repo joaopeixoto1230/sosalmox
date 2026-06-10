@@ -59,7 +59,7 @@ export default function LoginPage() {
           <img
             src="/logo-sos.png"
             alt="SOS Energia"
-            className="h-24 w-auto mx-auto mb-6"
+            className="h-16 w-auto mx-auto mb-6"
           />
           <p className="text-gray-400 text-sm mt-1">Sistema de Almoxarifado</p>
         </div>
