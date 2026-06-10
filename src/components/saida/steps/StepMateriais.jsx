@@ -43,23 +43,40 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
         <meta charset="UTF-8"/>
         <title>Romaneio — ${evento?.nome || 'Saída'}</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 30px; color: #111; }
-          h1 { color: #CC0000; margin: 0 0 4px; }
-          .header { margin-bottom: 20px; }
-          .header p { margin: 2px 0; color: #555; font-size: 14px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
-          th { background: #f0f0f0; text-align: left; padding: 8px 10px; border-bottom: 2px solid #ccc; }
-          td { padding: 7px 10px; border-bottom: 1px solid #e5e5e5; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; padding: 30px; color: #111; font-size: 13px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #CC0000; padding-bottom: 14px; margin-bottom: 18px; }
+          .header-left h1 { color: #CC0000; font-size: 20px; font-weight: 800; }
+          .header-left p { color: #666; font-size: 12px; margin-top: 2px; }
+          .header-right { text-align: right; font-size: 12px; color: #555; }
+          .header-right strong { font-size: 14px; color: #1a1a1a; display: block; }
+          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+          th { background: #f5f5f5; text-align: left; padding: 8px 10px; border-bottom: 2px solid #ddd; font-size: 11px; color: #777; text-transform: uppercase; letter-spacing: 0.4px; }
+          td { padding: 7px 10px; border-bottom: 1px solid #eee; }
           tr:last-child td { border-bottom: none; }
-          .footer { margin-top: 24px; font-size: 12px; color: #888; }
-          .total { font-weight: bold; margin-top: 12px; }
-          @media print { body { padding: 0; } }
+          tr:nth-child(even) td { background: #fafafa; }
+          .mono { font-family: monospace; color: #CC0000; font-size: 12px; }
+          .total-linha { margin-top: 14px; font-weight: 700; font-size: 13px; }
+
+          .assinaturas { margin-top: 44px; page-break-inside: avoid; }
+          .assinaturas-titulo { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 28px; }
+          .assinaturas-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
+          .assinatura-linha { border-bottom: 1.5px solid #1a1a1a; margin-bottom: 6px; height: 36px; }
+          .assinatura-label { font-size: 11px; color: #888; }
+
+          .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #eee; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; }
+          @media print { body { padding: 16px; } }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>SOS Energia — Romaneio de Saída</h1>
-          ${evento ? `<p><strong>Evento:</strong> ${evento.nome} · ${evento.local}</p><p><strong>Data:</strong> ${new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR')}</p>` : `<p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>`}
+          <div class="header-left">
+            <h1>SOS Energia</h1>
+            <p>Romaneio de Saída de Material</p>
+          </div>
+          <div class="header-right">
+            ${evento ? `<strong>${evento.nome}</strong>${evento.local} · ${new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR')}` : `<strong>Saída avulsa</strong>${new Date().toLocaleDateString('pt-BR')}`}
+          </div>
         </div>
         <table>
           <thead>
@@ -67,10 +84,32 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
               <th>Material</th><th>Código</th><th>Categoria</th><th>Tipo</th><th>Bitola</th><th>Comprimento</th>
             </tr>
           </thead>
-          <tbody>${linhasItens || '<tr><td colspan="6">Nenhum material selecionado.</td></tr>'}</tbody>
+          <tbody>${linhasItens || '<tr><td colspan="6" style="color:#aaa;text-align:center;padding:16px">Nenhum material selecionado.</td></tr>'}</tbody>
         </table>
-        <p class="total">Total: ${itensSelecionados.length} ${itensSelecionados.length === 1 ? 'item' : 'itens'}</p>
-        <div class="footer">Gerado em ${dataGeracao}</div>
+        <p class="total-linha">Total: ${itensSelecionados.length} ${itensSelecionados.length === 1 ? 'item' : 'itens'}</p>
+
+        <div class="assinaturas">
+          <div class="assinaturas-titulo">Assinaturas</div>
+          <div class="assinaturas-grid">
+            <div>
+              <div class="assinatura-linha"></div>
+              <div class="assinatura-label">Almoxarife — Entregou</div>
+            </div>
+            <div>
+              <div class="assinatura-linha"></div>
+              <div class="assinatura-label">Responsável — Recebeu</div>
+            </div>
+            <div>
+              <div class="assinatura-linha"></div>
+              <div class="assinatura-label">Data / Local de entrega</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <span>Documento gerado em ${dataGeracao}</span>
+          <span>SOS Energia — Almoxarifado</span>
+        </div>
       </body>
       </html>
     `

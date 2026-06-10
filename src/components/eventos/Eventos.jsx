@@ -388,6 +388,17 @@ function ModalDetalheEvento({ evento, onFechar }) {
     .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; font-size: 11px; color: #aaa; }
     .total { font-size: 13px; font-weight: 700; color: #1a1a1a; }
 
+    .assinaturas { margin-top: 40px; page-break-inside: avoid; }
+    .assinaturas-titulo { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 28px; }
+    .assinaturas-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
+    .assinatura-bloco { display: flex; flex-direction: column; gap: 6px; }
+    .assinatura-nome { font-size: 13px; font-weight: 700; color: #1a1a1a; min-height: 18px; }
+    .assinatura-linha { border-bottom: 1.5px solid #1a1a1a; margin-top: 32px; margin-bottom: 6px; }
+    .assinatura-label { font-size: 11px; color: #888; }
+    .ressalvas { margin-top: 28px; }
+    .ressalvas-label { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+    .ressalvas-box { border: 1px solid #e5e5e5; border-radius: 6px; min-height: 56px; padding: 10px 12px; font-size: 12px; color: #bbb; font-style: italic; }
+
     @media print { body { padding: 16px; } }
   </style>
 </head>
@@ -410,6 +421,31 @@ function ModalDetalheEvento({ evento, onFechar }) {
   </div>
 
   ${blocoOrdens || '<p style="color:#888;text-align:center;padding:20px">Nenhuma saída registrada.</p>'}
+
+  <div class="assinaturas">
+    <div class="assinaturas-titulo">Assinaturas</div>
+    <div class="assinaturas-grid">
+      <div class="assinatura-bloco">
+        <div class="assinatura-linha"></div>
+        <div class="assinatura-nome">${[...new Set(ordens.map(o => o.operadorNome).filter(Boolean))].join(' / ') || ''}</div>
+        <div class="assinatura-label">Almoxarife — Entregou</div>
+      </div>
+      <div class="assinatura-bloco">
+        <div class="assinatura-linha"></div>
+        <div class="assinatura-nome">${[...new Set(ordens.map(o => o.responsavelNome).filter(Boolean))].join(' / ') || ''}</div>
+        <div class="assinatura-label">Responsável — Recebeu</div>
+      </div>
+      <div class="assinatura-bloco">
+        <div class="assinatura-linha"></div>
+        <div class="assinatura-nome"></div>
+        <div class="assinatura-label">Data / Testemunha</div>
+      </div>
+    </div>
+    <div class="ressalvas">
+      <div class="ressalvas-label">Observações / Ressalvas</div>
+      <div class="ressalvas-box">______________________________________________________________________________________________________________</div>
+    </div>
+  </div>
 
   <div class="footer">
     <span class="total">Total: ${totalItens} ${totalItens === 1 ? 'item' : 'itens'} em ${ordens.length} ${ordens.length === 1 ? 'saída' : 'saídas'}</span>
