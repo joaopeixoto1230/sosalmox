@@ -16,6 +16,46 @@
   }
 }
 
+/* ===== Dark mode ===== */
+.dark body { background-color: #0f0f10; color: #ededed; }
+
+.dark .bg-brand-bg { background-color: #0f0f10; }
+.dark .bg-white { background-color: #1b1b1d; }
+.dark .bg-gray-50 { background-color: #232326; }
+.dark .bg-gray-100 { background-color: #2a2a2e; }
+.dark .hover\:bg-gray-50:hover { background-color: #232326; }
+.dark .hover\:bg-gray-100:hover { background-color: #2a2a2e; }
+
+.dark .text-brand-black { color: #ededed; }
+.dark .text-gray-900 { color: #f4f4f5; }
+.dark .text-gray-800 { color: #e4e4e7; }
+.dark .text-gray-700 { color: #d4d4d8; }
+.dark .text-gray-600 { color: #bcbcc4; }
+.dark .text-gray-500 { color: #a1a1aa; }
+.dark .text-gray-400 { color: #8b8b93; }
+.dark .text-gray-300 { color: #71717a; }
+
+.dark .border-gray-100 { border-color: #2c2c30; }
+.dark .border-gray-200 { border-color: #36363c; }
+.dark .border-gray-50 { border-color: #262629; }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: #2c2c30; }
+
+.dark .card { background-color: #1b1b1d; border-color: #2c2c30; }
+.dark .input {
+  background-color: #232326;
+  border-color: #36363c;
+  color: #ededed;
+}
+.dark .input::placeholder { color: #71717a; }
+.dark .btn-secondary {
+  background-color: #232326;
+  color: #ededed;
+  border-color: #36363c;
+}
+.dark .btn-secondary:hover { background-color: #2a2a2e; }
+.dark .btn-ghost { color: #d4d4d8; }
+.dark .btn-ghost:hover { background-color: #2a2a2e; }
+
 @layer components {
   .btn-primary {
     @apply bg-brand-red text-white font-semibold px-4 py-2 rounded-lg hover:bg-brand-red-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2;

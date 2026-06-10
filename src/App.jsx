@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './components/auth/LoginPage'
 import MainLayout from './components/layout/MainLayout'
@@ -27,6 +28,7 @@ import { MODULOS } from './utils/permissions'
 export default function App() {
   return (
     <BrowserRouter>
+      <ThemeProvider>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -97,6 +99,7 @@ export default function App() {
           <Route path="*" element={<RootRedirect />} />
         </Routes>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   )
 }
