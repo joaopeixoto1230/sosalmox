@@ -390,7 +390,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
 
     .assinaturas { margin-top: 40px; page-break-inside: avoid; }
     .assinaturas-titulo { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 28px; }
-    .assinaturas-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
+    .assinaturas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
     .assinatura-bloco { display: flex; flex-direction: column; gap: 6px; }
     .assinatura-nome { font-size: 13px; font-weight: 700; color: #1a1a1a; min-height: 18px; }
     .assinatura-linha { border-bottom: 1.5px solid #1a1a1a; margin-top: 32px; margin-bottom: 6px; }
@@ -434,11 +434,6 @@ function ModalDetalheEvento({ evento, onFechar }) {
         <div class="assinatura-linha"></div>
         <div class="assinatura-nome">${[...new Set(ordens.map(o => o.responsavelNome).filter(Boolean))].join(' / ') || ''}</div>
         <div class="assinatura-label">Responsável — Recebeu</div>
-      </div>
-      <div class="assinatura-bloco">
-        <div class="assinatura-linha"></div>
-        <div class="assinatura-nome"></div>
-        <div class="assinatura-label">Data / Testemunha</div>
       </div>
     </div>
     <div class="ressalvas">

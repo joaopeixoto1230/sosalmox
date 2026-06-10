@@ -60,7 +60,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
 
           .assinaturas { margin-top: 44px; page-break-inside: avoid; }
           .assinaturas-titulo { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 28px; }
-          .assinaturas-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; }
+          .assinaturas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; }
           .assinatura-linha { border-bottom: 1.5px solid #1a1a1a; margin-bottom: 6px; height: 36px; }
           .assinatura-label { font-size: 11px; color: #888; }
 
@@ -98,10 +98,6 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
             <div>
               <div class="assinatura-linha"></div>
               <div class="assinatura-label">Responsável — Recebeu</div>
-            </div>
-            <div>
-              <div class="assinatura-linha"></div>
-              <div class="assinatura-label">Data / Local de entrega</div>
             </div>
           </div>
         </div>
