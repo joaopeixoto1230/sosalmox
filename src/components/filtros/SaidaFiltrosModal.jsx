@@ -19,6 +19,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
     tipo: 'preventiva',
     descricao: '',
     horimetroAbertura: '',
+    mecanico: '',
   })
   const [itensSelecionados, setItensSelecionados] = useState([])
   const [buscaFiltro, setBuscaFiltro] = useState('')
@@ -79,6 +80,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
   function avancar() {
     if (!form.equipamentoLabel) { setErro('Selecione um equipamento.'); return }
     if (!form.descricao.trim()) { setErro('Descreva o serviço.'); return }
+    if (!form.mecanico) { setErro('Selecione quem está retirando os filtros.'); return }
     setErro('')
     setPasso(2)
   }
@@ -135,8 +137,8 @@ export default function SaidaFiltrosModal({ onFechar }) {
           descricao: form.descricao,
           horimetroAbertura: form.horimetroAbertura ? parseInt(form.horimetroAbertura) : null,
           observacoes: '',
-          mecanicoUid: uid,
-          mecanicoNome: nome,
+          mecanicoUid: null,
+          mecanicoNome: form.mecanico,
           status: 'em_andamento',
           prioridade: eventoAtivo ? 'maxima' : 'normal',
           eventoAtivo,
@@ -160,6 +162,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
             motivo: `Manutenção ${form.tipo} — ${form.equipamentoLabel}`,
             ordemServicoNumero: osNumero,
             equipamentoLabel: form.equipamentoLabel,
+            retiradoPor: form.mecanico,
             operadorUid: uid,
             operadorNome: nome,
             criadoEm: serverTimestamp(),
@@ -280,6 +283,19 @@ export default function SaidaFiltrosModal({ onFechar }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Horímetro atual</label>
                 <input type="number" value={form.horimetroAbertura} onChange={e => set('horimetroAbertura', e.target.value)}
                   className="input" placeholder="Ex: 12450" />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Quem está retirando os filtros? *</label>
+                <div className="flex gap-2">
+                  {['NILTON', 'FABIO', 'FRANÇA'].map(m => (
+                    <button key={m} onClick={() => set('mecanico', m)}
+                      className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors
+                        ${form.mecanico === m ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
