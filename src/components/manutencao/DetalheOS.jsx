@@ -15,6 +15,9 @@ export default function DetalheOS() {
   const { dados: filtros } = useCollection('filtros')
 
   const [horimetroConc, setHorimetroConc] = useState('')
+  const [relatorio, setRelatorio] = useState('')
+  const [problemasEncontrados, setProblemasEncontrados] = useState('')
+  const [proximaPreventiva, setProximaPreventiva] = useState('')
   const [filtrosSelecionados, setFiltrosSelecionados] = useState([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -34,6 +37,7 @@ export default function DetalheOS() {
 
   async function concluir() {
     if (!horimetroConc) { setErro('Informe o horímetro de conclusão.'); return }
+    if (!relatorio.trim()) { setErro('Descreva o serviço executado.'); return }
     setSalvando(true); setErro('')
     try {
       const viaFiltros = os.origem === 'saida_filtros'
@@ -44,6 +48,9 @@ export default function DetalheOS() {
         const baseUpdate = {
           status: 'concluida',
           horimetroConсlusao: parseInt(horimetroConc),
+          relatorioServico: relatorio.trim(),
+          problemasEncontrados: problemasEncontrados.trim() || null,
+          proximaPreventiva: proximaPreventiva || null,
           dataConclusao: serverTimestamp(),
           concluidoPor: uid,
           concluidoPorNome: nome,
@@ -84,6 +91,7 @@ export default function DetalheOS() {
             localizacao: 'Pátio SOS',
             horimetroAtual: parseInt(horimetroConc),
             ultimaManutencao: serverTimestamp(),
+            ...(proximaPreventiva ? { proximaPreventiva } : {}),
           })
         }
       })
@@ -175,6 +183,9 @@ export default function DetalheOS() {
 
   <p class="section-title">Descrição do serviço</p>
   <p style="font-size:14px">${os.descricao || '—'}</p>
+  ${os.relatorioServico ? `<p class="section-title">Relatório do serviço executado</p><p style="font-size:13px;white-space:pre-wrap">${os.relatorioServico}</p>` : ''}
+  ${os.problemasEncontrados ? `<p class="section-title" style="color:#c05000">Problemas encontrados</p><p style="font-size:13px;color:#c05000;background:#fff7ed;padding:8px 12px;border-radius:8px;white-space:pre-wrap">${os.problemasEncontrados}</p>` : ''}
+  ${os.proximaPreventiva ? `<p class="section-title">Próxima preventiva</p><p style="font-size:14px;font-weight:bold;color:#1d4ed8">${os.proximaPreventiva}</p>` : ''}
   ${os.observacoes ? `<p class="section-title">Observações</p><p style="font-size:13px;color:#555">${os.observacoes}</p>` : ''}
 
   <p class="section-title">Filtros utilizados</p>
@@ -269,6 +280,24 @@ export default function DetalheOS() {
             <p className="text-sm text-gray-600">{os.observacoes}</p>
           </div>
         )}
+        {concluida && os.relatorioServico && (
+          <div>
+            <p className="text-gray-400 text-xs mb-1">Relatório do serviço executado</p>
+            <p className="text-sm text-brand-black whitespace-pre-wrap">{os.relatorioServico}</p>
+          </div>
+        )}
+        {concluida && os.problemasEncontrados && (
+          <div>
+            <p className="text-gray-400 text-xs mb-1">Problemas encontrados</p>
+            <p className="text-sm text-orange-700 bg-orange-50 rounded-lg px-3 py-2 whitespace-pre-wrap">{os.problemasEncontrados}</p>
+          </div>
+        )}
+        {concluida && os.proximaPreventiva && (
+          <div>
+            <p className="text-gray-400 text-xs mb-1">Próxima preventiva</p>
+            <p className="text-sm font-medium text-blue-700">{os.proximaPreventiva}</p>
+          </div>
+        )}
         {os.filtrosUsados?.length > 0 && (
           <div>
             <p className="text-gray-400 text-xs mb-1">Filtros {viaFiltros ? 'entregues pelo almoxarife' : 'utilizados'}</p>
@@ -325,6 +354,38 @@ export default function DetalheOS() {
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Relatório do serviço executado *</label>
+              <textarea
+                value={relatorio}
+                onChange={e => setRelatorio(e.target.value)}
+                rows={3}
+                className="input resize-none"
+                placeholder="Descreva o que foi executado: filtros trocados, verificações realizadas, estado do equipamento..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Problemas encontrados</label>
+              <textarea
+                value={problemasEncontrados}
+                onChange={e => setProblemasEncontrados(e.target.value)}
+                rows={2}
+                className="input resize-none"
+                placeholder="Ex: vazamento na mangueira X, correia desgastada — monitorar..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Próxima preventiva</label>
+              <input
+                value={proximaPreventiva}
+                onChange={e => setProximaPreventiva(e.target.value)}
+                className="input"
+                placeholder="Ex: 500h ou 10/09/2026"
+              />
+            </div>
 
             {viaFiltros && (
               <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
