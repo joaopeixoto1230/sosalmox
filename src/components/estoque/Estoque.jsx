@@ -3,7 +3,7 @@ import { useCollection } from '../../hooks/useFirestore'
 import MaterialCard from './MaterialCard'
 import NovoMaterialModal from './NovoMaterialModal'
 
-const CATEGORIAS = ['Todos', 'Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
+const CATEGORIAS = ['Todos', 'Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
 const STATUS_OPCOES = [
   { label: 'Todos', value: null, ativo: 'bg-brand-black text-white', inativo: 'bg-white border-gray-200 text-gray-600' },

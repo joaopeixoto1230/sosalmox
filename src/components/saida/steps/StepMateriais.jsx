@@ -3,7 +3,7 @@ import { useCollection } from '../../../hooks/useFirestore'
 import ItemCard from '../ItemCard'
 import { formatarData } from '../../../utils/formatters'
 
-const CATEGORIAS = ['Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
+const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
 export default function StepMateriais({ evento, itensSelecionados, onToggle, onAvancar, onVoltar }) {
   const { dados: materiais, carregando } = useCollection('materiais')

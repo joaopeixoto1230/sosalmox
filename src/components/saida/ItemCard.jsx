@@ -3,11 +3,13 @@ import { db } from '../../firebase/config'
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useAuth } from '../../contexts/AuthContext'
 
-const CATEGORIAS = ['Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
+const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
 const TIPOS_POR_CATEGORIA = {
   'Cabos 4x': ['Cabo único', 'Cabo com terra'],
+  'Cabos 5x': ['Cabo único', 'Cabo com terra'],
   'Cabos Terra': ['Cabo terra simples', 'Cabo terra CAMLOCK'],
+  'Cabos (Geral)': ['Cabo específico', 'Outro'],
   'Jogos de Cabo': ['Jogo 3F+N', 'Jogo 3F'],
   'Rabichos': ['Rabicho 3F+N', 'Rabicho 3F'],
   'Outros Materiais': [
