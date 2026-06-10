@@ -173,7 +173,6 @@ export default function DetalheOS() {
     <div class="field"><label>Tipo</label><p>${os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'}</p></div>
     <div class="field"><label>Mecânico</label><p>${os.mecanicoNome || '—'}</p></div>
     <div class="field"><label>Data de abertura</label><p>${os.dataAbertura?.toDate ? os.dataAbertura.toDate().toLocaleString('pt-BR') : '—'}</p></div>
-    <div class="field"><label>Horímetro abertura</label><p>${os.horimetroAbertura ? os.horimetroAbertura + 'h' : '—'}</p></div>
     ${os.status === 'concluida' ? `
     <div class="field"><label>Data de conclusão</label><p>${os.dataConclusao?.toDate ? os.dataConclusao.toDate().toLocaleString('pt-BR') : '—'}</p></div>
     <div class="field"><label>Horímetro conclusão</label><p>${os.horimetroConсlusao ? os.horimetroConсlusao + 'h' : '—'}</p></div>
