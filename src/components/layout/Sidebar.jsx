@@ -98,7 +98,7 @@ export default function Sidebar({ aberto, onFechar }) {
         `}
       >
         <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-800">
-          <img src="/logo-sos.svg" alt="SOS Energia" className="h-8 w-auto flex-shrink-0" />
+          <img src="/logo-sos.png" alt="SOS Energia" className="h-9 w-auto flex-shrink-0" />
           <div>
             <p className="text-white font-bold text-sm leading-none">SOS Energia</p>
             <p className="text-gray-500 text-xs mt-0.5">Almoxarifado</p>
