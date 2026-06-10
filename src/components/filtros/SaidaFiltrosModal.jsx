@@ -346,15 +346,15 @@ export default function SaidaFiltrosModal({ onFechar }) {
                       {itens.map(f => {
                         const jaSelecionado = itensSelecionados.some(i => i.filtro.id === f.id)
                         return (
-                          <button key={f.id} onClick={() => adicionarFiltro(f)} disabled={jaSelecionado}
+                          <button key={f.id} onClick={() => jaSelecionado ? removerFiltro(f.id) : adicionarFiltro(f)}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors
                               ${jaSelecionado
-                                ? 'bg-green-50 border-green-200 text-green-700 cursor-default'
+                                ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-600'
                                 : 'bg-white border-gray-100 hover:border-brand-red hover:bg-red-50'}`}>
                             <span className="font-medium">{f.nome}</span>
                             {f.referencia && <span className="ml-2 text-xs text-gray-400">{f.referencia}</span>}
-                            <span className={`float-right text-xs font-semibold ${f.quantidadeAtual <= 0 ? 'text-brand-red' : 'text-gray-500'}`}>
-                              {jaSelecionado ? '✓' : `${f.quantidadeAtual} un`}
+                            <span className={`float-right text-xs font-semibold ${jaSelecionado ? 'text-green-600' : f.quantidadeAtual <= 0 ? 'text-brand-red' : 'text-gray-500'}`}>
+                              {jaSelecionado ? '✓ remover' : `${f.quantidadeAtual} un`}
                             </span>
                           </button>
                         )
