@@ -72,7 +72,9 @@ export default function SaidaFiltrosModal({ onFechar }) {
 
   function setQuantidade(filtroId, qtd) {
     setItensSelecionados(prev =>
-      prev.map(i => i.filtro.id === filtroId ? { ...i, quantidade: Math.max(1, qtd) } : i)
+      prev.map(i => i.filtro.id === filtroId
+        ? { ...i, quantidade: qtd === '' ? '' : Math.max(1, qtd) }
+        : i)
     )
   }
 
@@ -86,6 +88,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
 
   async function confirmar() {
     if (itensSelecionados.length === 0) { setErro('Adicione ao menos um filtro.'); return }
+    const itens = itensSelecionados.map(i => ({ ...i, quantidade: Math.max(1, parseInt(i.quantidade) || 1) }))
     setSalvando(true); setErro('')
     try {
       const isGG = form.equipamentoTipo === 'gerador' && form.equipamentoId
@@ -103,7 +106,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
         const contRef = doc(db, 'contadores', 'ordens_servico')
         const contSnap = await tx.get(contRef)
 
-        const filtroRefs = itensSelecionados.map(i => doc(db, 'filtros', i.filtro.id))
+        const filtroRefs = itens.map(i => doc(db, 'filtros', i.filtro.id))
         const filtroSnaps = await Promise.all(filtroRefs.map(r => tx.get(r)))
 
         // ── CÁLCULOS ──
@@ -113,10 +116,10 @@ export default function SaidaFiltrosModal({ onFechar }) {
 
         const novasQtds = filtroSnaps.map((snap, idx) => {
           const atual = snap.data()?.quantidadeAtual || 0
-          return atual - itensSelecionados[idx].quantidade
+          return atual - itens[idx].quantidade
         })
 
-        const filtrosUsados = itensSelecionados.map(i => ({
+        const filtrosUsados = itens.map(i => ({
           filtroId: i.filtro.id,
           filtroNome: i.filtro.nome,
           quantidade: i.quantidade,
@@ -149,7 +152,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
           criadoEm: serverTimestamp(),
         })
 
-        itensSelecionados.forEach((item, idx) => {
+        itens.forEach((item, idx) => {
           tx.update(filtroRefs[idx], { quantidadeAtual: novasQtds[idx] })
 
           const baixaRef = doc(collection(db, 'baixas_filtro'))
@@ -311,12 +314,29 @@ export default function SaidaFiltrosModal({ onFechar }) {
                         <p className="text-sm font-medium text-brand-black truncate">{i.filtro.nome}</p>
                         <p className="text-xs text-gray-400">{i.filtro.potenciaGG} • em estoque: {i.filtro.quantidadeAtual}</p>
                       </div>
-                      <input
-                        type="number" min="1" max={i.filtro.quantidadeAtual}
-                        value={i.quantidade}
-                        onChange={e => setQuantidade(i.filtro.id, parseInt(e.target.value) || 1)}
-                        className="w-16 text-center border border-gray-200 rounded-lg px-2 py-1 text-sm"
-                      />
+                      <div className="flex items-center flex-shrink-0 border border-gray-200 rounded-lg overflow-hidden">
+                        <button type="button"
+                          onClick={() => setQuantidade(i.filtro.id, i.quantidade - 1)}
+                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors text-lg leading-none">
+                          −
+                        </button>
+                        <input
+                          type="number" inputMode="numeric" min="1"
+                          value={i.quantidade}
+                          onChange={e => {
+                            const v = e.target.value
+                            if (v === '') { setQuantidade(i.filtro.id, ''); return }
+                            setQuantidade(i.filtro.id, parseInt(v) || 1)
+                          }}
+                          onBlur={() => { if (!i.quantidade || i.quantidade < 1) setQuantidade(i.filtro.id, 1) }}
+                          className="w-12 text-center text-sm border-x border-gray-200 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                        <button type="button"
+                          onClick={() => setQuantidade(i.filtro.id, (parseInt(i.quantidade) || 0) + 1)}
+                          className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors text-lg leading-none">
+                          +
+                        </button>
+                      </div>
                       <button onClick={() => removerFiltro(i.filtro.id)}
                         className="text-gray-300 hover:text-brand-red transition-colors flex-shrink-0">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
