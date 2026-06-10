@@ -115,6 +115,27 @@ export default function DetalheOS() {
   async function excluir() {
     setSalvando(true)
     try {
+      const usados = os?.filtrosUsados || []
+      const mapaFiltros = {}
+      for (const f of usados) {
+        const fid = f.filtroId || f.id
+        if (!fid) continue
+        const qtd = Number(f.quantidade ?? f.qtdUsada ?? 1) || 0
+        mapaFiltros[fid] = (mapaFiltros[fid] || 0) + qtd
+      }
+      const idsFiltros = Object.keys(mapaFiltros)
+      if (idsFiltros.length > 0) {
+        await runTransaction(db, async (tx) => {
+          const refs = idsFiltros.map(fid => doc(db, 'filtros', fid))
+          const snaps = await Promise.all(refs.map(r => tx.get(r)))
+          snaps.forEach((snap, idx) => {
+            if (!snap.exists()) return
+            const atual = snap.data()?.quantidadeAtual || 0
+            tx.update(refs[idx], { quantidadeAtual: atual + mapaFiltros[idsFiltros[idx]] })
+          })
+        })
+      }
+
       if (os?.equipamentoTipo === 'gerador' && os?.equipamentoId) {
         if (os?.status !== 'concluida') {
           await updateDoc(doc(db, 'geradores', os.equipamentoId), {
