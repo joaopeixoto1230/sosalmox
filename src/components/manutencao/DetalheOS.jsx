@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection } from 'firebase/firestore'
+import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { criarSolicitacaoCompra } from '../../utils/notificacoes'
@@ -115,11 +115,28 @@ export default function DetalheOS() {
   async function excluir() {
     setSalvando(true)
     try {
-      if (os?.equipamentoTipo === 'gerador' && os?.equipamentoId && os?.status !== 'concluida') {
-        await updateDoc(doc(db, 'geradores', os.equipamentoId), {
-          status: 'disponivel',
-          localizacao: 'Pátio SOS',
-        })
+      if (os?.equipamentoTipo === 'gerador' && os?.equipamentoId) {
+        if (os?.status !== 'concluida') {
+          await updateDoc(doc(db, 'geradores', os.equipamentoId), {
+            status: 'disponivel',
+            localizacao: 'Pátio SOS',
+          })
+        } else {
+          const snap = await getDocs(query(collection(db, 'ordens_servico'), where('equipamentoId', '==', os.equipamentoId)))
+          const concluidasRestantes = snap.docs
+            .filter(d => d.id !== id && d.data().status === 'concluida')
+            .map(d => d.data())
+            .sort((a, b) => {
+              const ta = a.dataConclusao?.toDate ? a.dataConclusao.toDate().getTime() : 0
+              const tb = b.dataConclusao?.toDate ? b.dataConclusao.toDate().getTime() : 0
+              return tb - ta
+            })
+          const ultima = concluidasRestantes[0]
+          await updateDoc(doc(db, 'geradores', os.equipamentoId), {
+            ultimaManutencao: ultima?.dataConclusao || null,
+            proximaPreventiva: ultima?.proximaPreventiva || null,
+          })
+        }
       }
       await deleteDoc(doc(db, 'ordens_servico', id))
       navigate('/manutencao')
