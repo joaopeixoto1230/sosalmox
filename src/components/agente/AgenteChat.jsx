@@ -81,12 +81,15 @@ export default function AgenteChat({ compact = false }) {
         }),
       })
 
-      if (!res.ok) throw new Error(`Erro ${res.status}`)
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        throw new Error(`${res.status}: ${errBody?.error?.message || res.statusText}`)
+      }
       const data = await res.json()
       const resposta = data.content?.[0]?.text || 'Sem resposta.'
       setMensagens(prev => [...prev, { role: 'assistant', content: resposta }])
     } catch (e) {
-      setMensagens(prev => [...prev, { role: 'assistant', content: 'Erro ao conectar com o Agente. Tente novamente.' }])
+      setMensagens(prev => [...prev, { role: 'assistant', content: `Erro ao conectar com o Agente: ${e.message}` }])
     } finally {
       setCarregando(false)
     }
