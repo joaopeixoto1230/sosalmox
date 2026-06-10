@@ -57,11 +57,10 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <img
-            src="/logo-sos.png"
+            src="/logo-sos.svg"
             alt="SOS Energia"
-            className="w-24 h-24 mx-auto mb-4 object-contain drop-shadow-lg"
+            className="h-20 w-auto mx-auto mb-6"
           />
-          <h1 className="text-2xl font-bold text-white tracking-tight">SOS Energia</h1>
           <p className="text-gray-400 text-sm mt-1">Sistema de Almoxarifado</p>
         </div>
 

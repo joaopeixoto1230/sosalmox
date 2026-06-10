@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160" fill="none">
+  <!-- S esquerdo -->
+  <text x="4" y="148" font-family="Impact,'Arial Black',Helvetica,sans-serif"
+        font-size="158" font-weight="900" fill="#CC0000" letter-spacing="-8">S</text>
+
+  <!-- O (círculo vermelho) -->
+  <ellipse cx="258" cy="80" rx="80" ry="80" fill="#CC0000"/>
+
+  <!-- Raio/relâmpago branco dentro do O -->
+  <polygon fill="white"
+    points="285,10  252,72  278,72  232,150  268,88  242,88"/>
+
+  <!-- S direito -->
+  <text x="334" y="148" font-family="Impact,'Arial Black',Helvetica,sans-serif"
+        font-size="158" font-weight="900" fill="#CC0000" letter-spacing="-8">S</text>
+</svg>
