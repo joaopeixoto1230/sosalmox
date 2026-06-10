@@ -76,11 +76,16 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           })
         }
 
+        const localEvento = evento
+          ? `${evento.nome}${evento.local ? ' · ' + evento.local : ''}`
+          : 'Em evento'
         for (const gg of (geradores || [])) {
           const ggRef = doc(db, 'geradores', gg.id)
           tx.update(ggRef, {
             status: 'em_evento',
             eventoAtual: evento?.id || null,
+            eventoNome: evento?.nome || null,
+            localizacao: localEvento,
           })
         }
       })

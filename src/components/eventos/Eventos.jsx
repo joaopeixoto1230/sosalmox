@@ -53,7 +53,7 @@ export default function Eventos() {
 
       const geradoresSnap = await getDocs(query(collection(db, 'geradores'), where('eventoAtual', '==', excluindo.id)))
       geradoresSnap.forEach(d => {
-        batch.update(d.ref, { status: 'disponivel', eventoAtual: null })
+        batch.update(d.ref, { status: 'disponivel', eventoAtual: null, eventoNome: null, localizacao: 'Pátio SOS' })
       })
 
       const ordensSnap = await getDocs(query(collection(db, 'ordens_saida'), where('eventoId', '==', excluindo.id)))
@@ -689,7 +689,7 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
       })
 
       const geradoresSnap = await getDocs(query(collection(db, 'geradores'), where('eventoAtual', '==', evento.id)))
-      geradoresSnap.forEach(d => batch.update(d.ref, { status: 'disponivel', eventoAtual: null }))
+      geradoresSnap.forEach(d => batch.update(d.ref, { status: 'disponivel', eventoAtual: null, eventoNome: null, localizacao: 'Pátio SOS' }))
 
       batch.update(doc(db, 'eventos', evento.id), { status: 'concluido' })
 
