@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
+import DatePicker from '../../ui/DatePicker'
 
 const OPERADORES = [
   'Adjaiton',
@@ -84,11 +85,9 @@ export default function StepEvento({ onSelecionar, onResponsavel }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
-          <input
-            type="date"
+          <DatePicker
             value={form.data}
-            onChange={e => setForm(p => ({ ...p, data: e.target.value }))}
-            className="input"
+            onChange={v => setForm(p => ({ ...p, data: v }))}
           />
         </div>
 

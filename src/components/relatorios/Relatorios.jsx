@@ -3,6 +3,7 @@ import { collection, query, where, getDocs, writeBatch, deleteDoc, updateDoc, do
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData, statusOsLabel, statusOsCor, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
+import DatePicker from '../ui/DatePicker'
 
 const ABAS = ['Saídas', 'Devoluções', 'Condições', 'Manutenções', 'Filtros', 'Estoque', 'Eventos']
 
@@ -203,9 +204,9 @@ export default function Relatorios() {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <input type="date" className="input text-sm" value={de} onChange={e => setDe(e.target.value)} />
+          <DatePicker value={de} onChange={setDe} className="text-sm" />
           <span className="text-gray-400 text-sm">até</span>
-          <input type="date" className="input text-sm" value={ate} onChange={e => setAte(e.target.value)} />
+          <DatePicker value={ate} onChange={setAte} className="text-sm" />
           {(de || ate) && (
             <button onClick={() => { setDe(''); setAte('') }} className="text-xs text-gray-400 hover:text-gray-600">
               Limpar

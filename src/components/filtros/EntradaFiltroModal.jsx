@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { doc, runTransaction, collection, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
+import DatePicker from '../ui/DatePicker'
 
 export default function EntradaFiltroModal({ filtro, onFechar }) {
   const { uid, nome } = useAuth()
@@ -67,7 +68,7 @@ export default function EntradaFiltroModal({ filtro, onFechar }) {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Validade do lote</label>
-            <input type="date" value={form.validade} onChange={e => set('validade', e.target.value)} className="input" />
+            <DatePicker value={form.validade} onChange={v => set('validade', v)} />
           </div>
         </div>
 

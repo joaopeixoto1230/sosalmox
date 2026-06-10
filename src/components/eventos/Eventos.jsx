@@ -5,6 +5,7 @@ import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
+import DatePicker from '../ui/DatePicker'
 
 const STATUS_FILTROS = [
   { value: 'todos', label: 'Todos' },
@@ -597,7 +598,7 @@ function ModalFormEvento({ evento, onFechar, onSalvar }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
-            <input type="date" className="input w-full" value={form.data} onChange={e => setForm(p => ({ ...p, data: e.target.value }))} />
+            <DatePicker value={form.data} onChange={v => setForm(p => ({ ...p, data: v }))} className="w-full" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
