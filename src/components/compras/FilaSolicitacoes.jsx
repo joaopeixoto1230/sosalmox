@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { doc, updateDoc, serverTimestamp, runTransaction, collection } from 'firebase/firestore'
+import { doc, updateDoc, serverTimestamp, runTransaction, collection, addDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -30,6 +30,7 @@ export default function FilaSolicitacoes() {
   const [busca, setBusca] = useState('')
   const [atualizando, setAtualizando] = useState(null)
   const [modalEntrega, setModalEntrega] = useState(null)
+  const [modalNova, setModalNova] = useState(false)
 
   const filtradas = useMemo(() => {
     const statusMap = { 'Pendente': 'pendente', 'Em Cotação': 'em_cotacao', 'Comprado': 'comprado', 'Entregue': 'entregue' }
@@ -41,8 +42,8 @@ export default function FilaSolicitacoes() {
         return s.itemNome?.toLowerCase().includes(q) || s.referencia?.toLowerCase().includes(q) || s.potenciaGG?.toLowerCase().includes(q)
       })
       .sort((a, b) => {
-        const urgA = a.quantidadeAtual <= 0 && a.status !== 'entregue' ? 0 : 1
-        const urgB = b.quantidadeAtual <= 0 && b.status !== 'entregue' ? 0 : 1
+        const urgA = (a.urgente || (a.quantidadeAtual <= 0)) && a.status !== 'entregue' ? 0 : 1
+        const urgB = (b.urgente || (b.quantidadeAtual <= 0)) && b.status !== 'entregue' ? 0 : 1
         if (urgA !== urgB) return urgA - urgB
         const ordemStatus = { pendente: 0, em_cotacao: 1, comprado: 2, entregue: 3 }
         if (ordemStatus[a.status] !== ordemStatus[b.status]) return ordemStatus[a.status] - ordemStatus[b.status]
@@ -114,9 +115,17 @@ export default function FilaSolicitacoes() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-brand-black">Fila de Solicitações</h1>
-        <p className="text-gray-500 text-sm mt-1">Gerencie as solicitações de compra do almoxarifado.</p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-brand-black">Fila de Solicitações</h1>
+          <p className="text-gray-500 text-sm mt-1">Gerencie as solicitações de compra do almoxarifado.</p>
+        </div>
+        <button onClick={() => setModalNova(true)} className="btn-primary flex items-center gap-2 flex-shrink-0">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Nova Solicitação
+        </button>
       </div>
 
       <div className="grid grid-cols-4 gap-3">
@@ -166,6 +175,7 @@ export default function FilaSolicitacoes() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-brand-black text-sm">{s.itemNome}</p>
                   {s.potenciaGG && <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">{s.potenciaGG}</span>}
+                  {s.urgente && <span className="badge bg-orange-100 text-orange-700 text-xs">Urgente</span>}
                   {urgente && <span className="badge bg-red-100 text-brand-red text-xs">Estoque zerado</span>}
                   <span className={`badge ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>
                     {STATUS_LABEL[s.status] || s.status}
@@ -205,6 +215,150 @@ export default function FilaSolicitacoes() {
           salvando={atualizando === modalEntrega.id}
         />
       )}
+
+      {modalNova && (
+        <ModalNovaSolicitacao
+          uid={uid}
+          nome={nome}
+          onFechar={() => setModalNova(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function ModalNovaSolicitacao({ uid, nome, onFechar }) {
+  const [form, setForm] = useState({
+    itemNome: '',
+    quantidadeSugerida: 1,
+    tipo: 'material',
+    fornecedor: '',
+    urgente: false,
+    observacao: '',
+  })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  function set(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function salvar() {
+    if (!form.itemNome.trim()) { setErro('Nome do item é obrigatório'); return }
+    if (!form.quantidadeSugerida || form.quantidadeSugerida < 1) { setErro('Quantidade deve ser maior que zero'); return }
+    setSalvando(true)
+    setErro('')
+    try {
+      await addDoc(collection(db, 'solicitacoes_compra'), {
+        itemNome: form.itemNome.trim(),
+        quantidadeSugerida: Number(form.quantidadeSugerida),
+        quantidadeAtual: 0,
+        estoqueMin: 0,
+        tipo: form.tipo,
+        fornecedor: form.fornecedor.trim() || null,
+        urgente: form.urgente,
+        observacao: form.observacao.trim() || null,
+        status: 'pendente',
+        origem: 'manual',
+        solicitanteUid: uid,
+        solicitanteNome: nome,
+        criadoEm: serverTimestamp(),
+        atualizadoEm: serverTimestamp(),
+      })
+      onFechar()
+    } catch (e) {
+      setErro('Erro ao salvar: ' + e.message)
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <h2 className="font-bold text-brand-black">Nova Solicitação de Compra</h2>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Item / Produto *</label>
+            <input
+              value={form.itemNome}
+              onChange={e => set('itemNome', e.target.value)}
+              placeholder="Ex: Filtro de Óleo 60kVA, Cabo 4x35..."
+              className="input"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Quantidade *</label>
+              <input
+                type="number"
+                min="1"
+                value={form.quantidadeSugerida}
+                onChange={e => set('quantidadeSugerida', e.target.value)}
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
+              <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input">
+                <option value="material">Material</option>
+                <option value="filtro">Filtro</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Fornecedor sugerido</label>
+            <input
+              value={form.fornecedor}
+              onChange={e => set('fornecedor', e.target.value)}
+              placeholder="Ex: Fleetguard, Tecfil..."
+              className="input"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Observação</label>
+            <textarea
+              value={form.observacao}
+              onChange={e => set('observacao', e.target.value)}
+              placeholder="Ex: referência específica, urgência, onde usar..."
+              rows={3}
+              className="input resize-none"
+            />
+          </div>
+
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div
+              onClick={() => set('urgente', !form.urgente)}
+              className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${form.urgente ? 'bg-brand-red' : 'bg-gray-200'}`}
+            >
+              <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${form.urgente ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-sm font-medium text-gray-700">Urgente</span>
+            {form.urgente && <span className="badge bg-red-100 text-brand-red text-xs">Aparece no topo da fila</span>}
+          </label>
+
+          {erro && <p className="text-sm text-brand-red">{erro}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="btn-primary flex-1 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Criar Solicitação'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
