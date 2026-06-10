@@ -743,7 +743,7 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
   )
 }
 
-const CATEGORIAS_MAT = ['Todos', 'Cabos 4x', 'Cabos Terra', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
+const CATEGORIAS_MAT = ['Todos', 'Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
 function ModalEditarMaterialEvento({ evento, onFechar }) {
   const { dados: todosMateriais, carregando } = useCollection('materiais')

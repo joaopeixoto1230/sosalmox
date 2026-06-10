@@ -114,6 +114,9 @@ export default function MaterialCard({ material }) {
         {material.status === 'em_evento' && material.eventoAtual && (
           <p className="text-yellow-600 font-medium truncate">📍 {material.eventoAtual}</p>
         )}
+        {material.observacao && (
+          <p className="text-orange-600 italic truncate">⚠ {material.observacao}</p>
+        )}
       </div>
 
       {material.estoqueMin > 0 && (
@@ -161,6 +164,7 @@ function ModalEditarMaterial({ material, onFechar }) {
     estoqueAtual: material.estoqueAtual ?? 0,
     estoqueMin: material.estoqueMin ?? 0,
     status: material.status || 'disponivel',
+    observacao: material.observacao || '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -190,6 +194,7 @@ function ModalEditarMaterial({ material, onFechar }) {
         estoqueAtual: Number(form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
         status: form.status,
+        observacao: form.observacao.trim() || null,
       })
       onFechar()
     } catch (e) {
@@ -265,6 +270,17 @@ function ModalEditarMaterial({ material, onFechar }) {
               <option value="manutencao">Manutenção</option>
               <option value="perdido">Perdido</option>
             </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Observação</label>
+            <textarea
+              value={form.observacao}
+              onChange={e => set('observacao', e.target.value)}
+              placeholder="Ex: cabo com emenda no meio, conector torto, uso restrito..."
+              rows={3}
+              className="input resize-none"
+            />
           </div>
 
           {erro && <p className="text-sm text-brand-red">{erro}</p>}
