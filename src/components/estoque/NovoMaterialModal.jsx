@@ -41,6 +41,7 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
     status: 'disponivel',
     estoqueAtual: 1,
     estoqueMin: 1,
+    observacao: '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -74,6 +75,7 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
         eventoAtual: null,
         estoqueAtual: Number(form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
+        observacao: form.observacao.trim() || null,
         criadoEm: serverTimestamp(),
       })
       onSalvo()
@@ -148,6 +150,17 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
               <input type="number" min="0" value={form.estoqueMin}
                 onChange={e => set('estoqueMin', e.target.value)} className="input" />
             </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Observação</label>
+            <textarea
+              value={form.observacao}
+              onChange={e => set('observacao', e.target.value)}
+              placeholder="Ex: cabo com emenda no meio, conector torto, uso restrito..."
+              rows={3}
+              className="input resize-none"
+            />
           </div>
 
           <div>
