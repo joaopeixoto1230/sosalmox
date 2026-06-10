@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { db } from '../../firebase/config'
-import { doc, deleteDoc } from 'firebase/firestore'
+import { doc, deleteDoc, updateDoc } from 'firebase/firestore'
 import { statusFiltroLabel, statusFiltroCor, formatarData } from '../../utils/formatters'
 
 export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
+  const [ajustando, setAjustando] = useState(false)
+  const [valorAjuste, setValorAjuste] = useState('')
+  const [salvandoAjuste, setSalvandoAjuste] = useState(false)
 
   const { quantidadeAtual = 0, estoqueMin = 0, validade } = filtro
   const pct = estoqueMin > 0 ? Math.min(100, (quantidadeAtual / estoqueMin) * 100) : 100
@@ -26,6 +29,24 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
       await deleteDoc(doc(db, 'filtros', filtro.id))
     } finally {
       setExcluindo(false)
+    }
+  }
+
+  function abrirAjuste() {
+    setMenuAberto(false)
+    setValorAjuste(String(quantidadeAtual))
+    setAjustando(true)
+  }
+
+  async function salvarAjuste() {
+    const nova = parseInt(valorAjuste)
+    if (isNaN(nova) || nova < 0) return
+    setSalvandoAjuste(true)
+    try {
+      await updateDoc(doc(db, 'filtros', filtro.id), { quantidadeAtual: nova })
+      setAjustando(false)
+    } finally {
+      setSalvandoAjuste(false)
     }
   }
 
@@ -71,6 +92,12 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
                   >
                     Dar Baixa
                   </button>
+                  <button
+                    onClick={abrirAjuste}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Ajustar estoque
+                  </button>
                   <div className="border-t border-gray-100 mt-1 pt-1">
                     <button
                       onClick={excluir}
@@ -106,14 +133,37 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
         </p>
       )}
 
-      <div className="flex gap-2 mt-3">
-        <button onClick={() => onEntrada(filtro)} className="flex-1 text-xs btn-primary py-1.5 justify-center">
-          + Entrada
-        </button>
-        <button onClick={() => onBaixa(filtro)} className="flex-1 text-xs btn-secondary py-1.5 justify-center" disabled={quantidadeAtual <= 0}>
-          Baixa
-        </button>
-      </div>
+      {ajustando ? (
+        <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+          <label className="block text-xs font-medium text-gray-600">Quantidade real em estoque</label>
+          <input
+            type="number" min="0" inputMode="numeric"
+            value={valorAjuste}
+            onChange={e => setValorAjuste(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && salvarAjuste()}
+            className="input text-sm w-full"
+            placeholder="0"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button onClick={() => setAjustando(false)} className="flex-1 text-xs btn-secondary py-1.5 justify-center">
+              Cancelar
+            </button>
+            <button onClick={salvarAjuste} disabled={salvandoAjuste} className="flex-1 text-xs btn-primary py-1.5 justify-center">
+              {salvandoAjuste ? 'Salvando...' : 'Salvar ajuste'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2 mt-3">
+          <button onClick={() => onEntrada(filtro)} className="flex-1 text-xs btn-primary py-1.5 justify-center">
+            + Entrada
+          </button>
+          <button onClick={() => onBaixa(filtro)} className="flex-1 text-xs btn-secondary py-1.5 justify-center" disabled={quantidadeAtual <= 0}>
+            Baixa
+          </button>
+        </div>
+      )}
 
       {excluindo && (
         <div className="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center">
