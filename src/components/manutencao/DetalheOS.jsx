@@ -214,7 +214,7 @@ export default function DetalheOS() {
   const concluida = os.status === 'concluida'
   const viaFiltros = os.origem === 'saida_filtros'
   const podeEditar = !concluida && ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
-  const podeExcluir = ['admin', 'gerente'].includes(tipoPerfil)
+  const podeExcluir = ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
   const podeAdicionarFiltros = !concluida && ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
 
   return (
