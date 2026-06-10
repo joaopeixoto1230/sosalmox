@@ -18,7 +18,6 @@ export default function SaidaFiltrosModal({ onFechar }) {
     equipamentoLabel: '',
     tipo: 'preventiva',
     descricao: '',
-    horimetroAbertura: '',
     mecanico: '',
   })
   const [itensSelecionados, setItensSelecionados] = useState([])
@@ -135,7 +134,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
           equipamentoLabel: form.equipamentoLabel,
           tipo: form.tipo,
           descricao: form.descricao,
-          horimetroAbertura: form.horimetroAbertura ? parseInt(form.horimetroAbertura) : null,
+          horimetroAbertura: null,
           observacoes: '',
           mecanicoUid: null,
           mecanicoNome: form.mecanico,
@@ -277,12 +276,6 @@ export default function SaidaFiltrosModal({ onFechar }) {
                 <textarea value={form.descricao} onChange={e => set('descricao', e.target.value)}
                   rows={2} className="input resize-none"
                   placeholder="Ex: Troca de filtros preventiva..." />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Horímetro atual</label>
-                <input type="number" value={form.horimetroAbertura} onChange={e => set('horimetroAbertura', e.target.value)}
-                  className="input" placeholder="Ex: 12450" />
               </div>
 
               <div>
