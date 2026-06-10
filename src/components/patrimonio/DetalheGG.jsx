@@ -18,7 +18,8 @@ export default function DetalheGG() {
   const [form, setForm] = useState({})
   const [salvando, setSalvando] = useState(false)
 
-  const podeEditar = temPermissao(tipoPerfil, MODULOS.GERADORES) && tipoPerfil !== 'franca'
+  const podeEditar = ['admin', 'gerente', 'almoxarife', 'franca'].includes(tipoPerfil)
+  const podeVender = ['admin', 'gerente'].includes(tipoPerfil)
 
   function iniciarEdicao() {
     setForm({
@@ -151,9 +152,11 @@ export default function DetalheGG() {
                 className={`flex-1 text-sm py-1.5 rounded-lg border font-medium transition-colors ${gg.temDefeito ? 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100' : 'border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100'}`}>
                 {gg.temDefeito ? '✓ Resolver defeito' : '⚠ Marcar defeito'}
               </button>
-              <button onClick={marcarVendido} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
-                Vendido
-              </button>
+              {podeVender && (
+                <button onClick={marcarVendido} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
+                  Vendido
+                </button>
+              )}
             </div>
           )}
         </div>
