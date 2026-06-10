@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc } from 'firebase/firestore'
+import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
+import { criarSolicitacaoCompra } from '../../utils/notificacoes'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusOsLabel, statusOsCor, formatarDataHora } from '../../utils/formatters'
 
@@ -19,6 +20,7 @@ export default function DetalheOS() {
   const [erro, setErro] = useState('')
   const [confirmarExcluir, setConfirmarExcluir] = useState(false)
   const [editando, setEditando] = useState(false)
+  const [adicionandoFiltros, setAdicionandoFiltros] = useState(false)
 
   function toggleFiltro(filtro) {
     setFiltrosSelecionados(prev =>
@@ -203,6 +205,7 @@ export default function DetalheOS() {
   const viaFiltros = os.origem === 'saida_filtros'
   const podeEditar = !concluida && ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
   const podeExcluir = ['admin', 'gerente'].includes(tipoPerfil)
+  const podeAdicionarFiltros = !concluida && ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -223,6 +226,14 @@ export default function DetalheOS() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
               Imprimir
+            </button>
+          )}
+          {podeAdicionarFiltros && (
+            <button onClick={() => setAdicionandoFiltros(true)} className="btn-secondary flex items-center gap-1.5 text-sm px-3 py-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Filtros
             </button>
           )}
           {podeEditar && (
@@ -351,6 +362,210 @@ export default function DetalheOS() {
       {editando && (
         <ModalEditarOS os={os} onFechar={() => setEditando(false)} />
       )}
+
+      {adicionandoFiltros && (
+        <ModalAdicionarFiltros os={os} osId={id} uid={uid} nome={nome} onFechar={() => setAdicionandoFiltros(false)} />
+      )}
+    </div>
+  )
+}
+
+function ModalAdicionarFiltros({ os, osId, uid, nome, onFechar }) {
+  const { dados: filtros } = useCollection('filtros')
+  const [selecionados, setSelecionados] = useState([])
+  const [busca, setBusca] = useState('')
+  const [mecanico, setMecanico] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const filtrosDisponiveis = useMemo(() => {
+    return filtros
+      .filter(f => f.ativo !== false)
+      .filter(f => {
+        if (!busca) return true
+        const q = busca.toLowerCase()
+        return f.nome?.toLowerCase().includes(q) || f.referencia?.toLowerCase().includes(q) || f.potenciaGG?.toLowerCase().includes(q)
+      })
+  }, [filtros, busca])
+
+  const agrupados = useMemo(() => {
+    const map = new Map()
+    filtrosDisponiveis.forEach(f => {
+      const key = f.potenciaGG || 'Outros'
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(f)
+    })
+    return Array.from(map.entries()).sort(([a], [b]) => (parseInt(a) || 9999) - (parseInt(b) || 9999))
+  }, [filtrosDisponiveis])
+
+  function toggle(filtro) {
+    setSelecionados(prev =>
+      prev.some(s => s.filtro.id === filtro.id)
+        ? prev.filter(s => s.filtro.id !== filtro.id)
+        : [...prev, { filtro, quantidade: 1 }]
+    )
+  }
+
+  function setQtd(filtroId, qtd) {
+    setSelecionados(prev => prev.map(s => s.filtro.id === filtroId ? { ...s, quantidade: Math.max(1, parseInt(qtd) || 1) } : s))
+  }
+
+  async function confirmar() {
+    if (selecionados.length === 0) { setErro('Adicione ao menos um filtro.'); return }
+    if (!mecanico) { setErro('Selecione quem está retirando.'); return }
+    setSalvando(true); setErro('')
+    try {
+      const filtrosAtualizados = []
+
+      await runTransaction(db, async (tx) => {
+        // ALL READS FIRST
+        const osSnap = await tx.get(doc(db, 'ordens_servico', osId))
+        const filtroRefs = selecionados.map(s => doc(db, 'filtros', s.filtro.id))
+        const filtroSnaps = await Promise.all(filtroRefs.map(r => tx.get(r)))
+
+        // CALCULATE
+        const existentes = osSnap.data()?.filtrosUsados || []
+        const novosItens = selecionados.map(s => ({
+          filtroId: s.filtro.id,
+          filtroNome: s.filtro.nome,
+          quantidade: s.quantidade,
+          potenciaGG: s.filtro.potenciaGG || '',
+        }))
+        const novasQtds = filtroSnaps.map((snap, idx) => {
+          const atual = snap.data()?.quantidadeAtual || 0
+          return atual - selecionados[idx].quantidade
+        })
+
+        // ALL WRITES
+        tx.update(doc(db, 'ordens_servico', osId), {
+          filtrosUsados: [...existentes, ...novosItens],
+        })
+
+        selecionados.forEach((item, idx) => {
+          tx.update(filtroRefs[idx], { quantidadeAtual: novasQtds[idx] })
+          const baixaRef = doc(collection(db, 'baixas_filtro'))
+          tx.set(baixaRef, {
+            filtroId: item.filtro.id,
+            filtroNome: item.filtro.nome,
+            potenciaGG: item.filtro.potenciaGG || '',
+            quantidade: item.quantidade,
+            motivo: `Adição OS ${os.numero} — ${os.equipamentoLabel}`,
+            ordemServicoNumero: os.numero,
+            equipamentoLabel: os.equipamentoLabel,
+            retiradoPor: mecanico,
+            operadorUid: uid,
+            operadorNome: nome,
+            criadoEm: serverTimestamp(),
+          })
+          filtrosAtualizados.push({ ...item.filtro, quantidadeAtual: novasQtds[idx] })
+        })
+      })
+
+      for (const f of filtrosAtualizados) {
+        if ((f.estoqueMin || 0) > 0 && f.quantidadeAtual <= f.estoqueMin) {
+          await criarSolicitacaoCompra(f).catch(() => {})
+        }
+      }
+
+      onFechar()
+    } catch (e) {
+      setErro(e.message || 'Erro ao adicionar filtros.')
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-brand-black">Adicionar Filtros</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{os.numero} — {os.equipamentoLabel}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Quem está retirando? *</label>
+            <div className="flex gap-2">
+              {['NILTON', 'FABIO', 'FRANÇA'].map(m => (
+                <button key={m} onClick={() => setMecanico(m)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors
+                    ${mecanico === m ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selecionados.length > 0 && (
+            <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Selecionados ({selecionados.length})</p>
+              {selecionados.map(s => (
+                <div key={s.filtro.id} className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{s.filtro.nome}</p>
+                    <p className="text-xs text-gray-400">{s.filtro.potenciaGG} • estoque: {s.filtro.quantidadeAtual}</p>
+                  </div>
+                  <input type="number" min="1" max={s.filtro.quantidadeAtual}
+                    value={s.quantidade}
+                    onChange={e => setQtd(s.filtro.id, e.target.value)}
+                    className="w-16 text-center border border-gray-200 rounded-lg px-2 py-1 text-sm" />
+                  <button onClick={() => toggle(s.filtro)} className="text-gray-300 hover:text-brand-red transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input type="search" placeholder="Buscar filtro..." value={busca} onChange={e => setBusca(e.target.value)} className="input" />
+
+          <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
+            {agrupados.map(([potencia, itens]) => (
+              <div key={potencia}>
+                <p className="text-xs font-bold text-brand-red mb-1.5">{potencia}</p>
+                <div className="space-y-1">
+                  {itens.map(f => {
+                    const sel = selecionados.some(s => s.filtro.id === f.id)
+                    return (
+                      <button key={f.id} onClick={() => toggle(f)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm border transition-colors
+                          ${sel
+                            ? 'bg-green-50 border-green-200 text-green-700 hover:bg-red-50 hover:border-red-200 hover:text-red-600'
+                            : 'bg-white border-gray-100 hover:border-brand-red hover:bg-red-50'}`}>
+                        <span className="font-medium">{f.nome}</span>
+                        {f.referencia && <span className="ml-2 text-xs text-gray-400">{f.referencia}</span>}
+                        <span className={`float-right text-xs font-semibold ${sel ? 'text-green-600' : f.quantidadeAtual <= 0 ? 'text-brand-red' : 'text-gray-500'}`}>
+                          {sel ? '✓ remover' : `${f.quantidadeAtual} un`}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex-shrink-0 px-5 pb-5 pt-3 border-t border-gray-100 space-y-2">
+          {erro && <p className="text-sm text-brand-red">{erro}</p>}
+          <div className="flex gap-3">
+            <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={confirmar} disabled={salvando || selecionados.length === 0}
+              className="btn-primary flex-1 justify-center disabled:opacity-50">
+              {salvando ? 'Registrando...' : `Confirmar (${selecionados.length} filtro${selecionados.length !== 1 ? 's' : ''})`}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
