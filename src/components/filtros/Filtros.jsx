@@ -6,6 +6,7 @@ import FiltroCard from './FiltroCard'
 import EntradaFiltroModal from './EntradaFiltroModal'
 import BaixaFiltroModal from './BaixaFiltroModal'
 import NovoFiltroModal from './NovoFiltroModal'
+import SaidaFiltrosModal from './SaidaFiltrosModal'
 
 const STATUS_OPCOES = ['Todos', 'OK', 'Baixo', 'Crítico']
 
@@ -17,6 +18,7 @@ export default function Filtros() {
   const [modalEntrada, setModalEntrada] = useState(null)
   const [modalBaixa, setModalBaixa] = useState(null)
   const [modalNovo, setModalNovo] = useState(false)
+  const [modalSaida, setModalSaida] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.ESTOQUE) || tipoPerfil === PERFIS.ADMIN
 
@@ -66,11 +68,19 @@ export default function Filtros() {
           <h1 className="text-2xl font-bold text-brand-black">Filtros</h1>
           <p className="text-gray-500 text-sm mt-1">Estoque de filtros organizado por potência de gerador.</p>
         </div>
-        {podeAdministrar && (
-          <button onClick={() => setModalNovo(true)} className="btn-primary flex-shrink-0">
-            + Novo Filtro
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={() => setModalSaida(true)} className="btn-primary flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Saída p/ Manutenção
           </button>
-        )}
+          {podeAdministrar && (
+            <button onClick={() => setModalNovo(true)} className="btn-secondary flex-shrink-0">
+              + Novo Filtro
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -129,6 +139,7 @@ export default function Filtros() {
       {modalEntrada && <EntradaFiltroModal filtro={modalEntrada} onFechar={() => setModalEntrada(null)} />}
       {modalBaixa && <BaixaFiltroModal filtro={modalBaixa} onFechar={() => setModalBaixa(null)} />}
       {modalNovo && <NovoFiltroModal onFechar={() => setModalNovo(false)} />}
+      {modalSaida && <SaidaFiltrosModal onFechar={() => setModalSaida(false)} />}
     </div>
   )
 }
