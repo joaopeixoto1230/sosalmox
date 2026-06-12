@@ -4,7 +4,7 @@ import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 
 const TIPOS = ['Filtro de Combustível 1', 'Filtro de Combustível 2', 'Filtro Separador de Água', 'Filtro de Óleo 1', 'Filtro de Óleo 2', 'Filtro de Ar']
-const POTENCIAS = ['30kVA', '40kVA', '60kVA', '75kVA', '100kVA', '125kVA', '150kVA', '180kVA', '200kVA', '250kVA', '300kVA', '350kVA', '400kVA', '500kVA', 'Caminhão', 'Empilhadeira']
+const POTENCIAS = ['30kVA', '40kVA', '60kVA', '75kVA', '100kVA', '125kVA', '150kVA', '180kVA', '200kVA', '250kVA', '300kVA', '350kVA', '400kVA', '500kVA', '700kVA', '750kVA', 'Caminhão', 'Empilhadeira']
 
 export default function NovoFiltroModal({ onFechar }) {
   const { uid, nome } = useAuth()

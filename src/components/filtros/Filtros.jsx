@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react'
+import { writeBatch, doc } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS, PERFIS } from '../../utils/permissions'
@@ -9,6 +11,16 @@ import NovoFiltroModal from './NovoFiltroModal'
 import SaidaFiltrosModal from './SaidaFiltrosModal'
 
 const STATUS_OPCOES = ['Todos', 'OK', 'Baixo', 'Crítico']
+
+const FILTROS_700KVA = [
+  { id: 'flt_700_FS19735',   tipo: 'Filtro Separador de Água', nome: 'FS19735 Fleetguard',              referencia: 'FS19735', fornecedor: 'Fleetguard'  },
+  { id: 'flt_700_RC358',     tipo: 'Filtro de Combustível 1',  nome: 'Filtro de Combustível RC358',      referencia: 'RC358',   fornecedor: 'Fleetguard'  },
+  { id: 'flt_700_AF26429',   tipo: 'Filtro de Ar',             nome: 'AF26429 Fleetguard',               referencia: 'AF26429', fornecedor: 'Fleetguard'  },
+  { id: 'flt_700_FF5507',    tipo: 'Filtro de Combustível 2',  nome: 'FF5507 Fleetguard',                referencia: 'FF5507',  fornecedor: 'Fleetguard'  },
+  { id: 'flt_700_LF3675',    tipo: 'Filtro de Óleo 1',         nome: 'LF3675 Fleetguard',                referencia: 'LF3675',  fornecedor: 'Fleetguard'  },
+  { id: 'flt_700_W11102',    tipo: 'Filtro de Óleo 2',         nome: 'W11102 Mann Filter',               referencia: 'W11102',  fornecedor: 'Mann Filter' },
+  { id: 'flt_700_LF3675_OL', tipo: 'Filtro de Óleo 1',         nome: 'Filtro óleo lubrificante LF3675',  referencia: 'LF 3675', fornecedor: 'Fleetguard'  },
+]
 
 export default function Filtros() {
   const { tipoPerfil } = useAuth()
@@ -21,6 +33,34 @@ export default function Filtros() {
   const [modalSaida, setModalSaida] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.ESTOQUE) || tipoPerfil === PERFIS.ADMIN
+  const [seeding, setSeeding] = useState(false)
+  const ja700kva = useMemo(() => filtros.some(f => f.potenciaGG === '700kVA'), [filtros])
+
+  async function adicionarFiltros700kVA() {
+    setSeeding(true)
+    try {
+      const batch = writeBatch(db)
+      for (const f of FILTROS_700KVA) {
+        batch.set(doc(db, 'filtros', f.id), {
+          potenciaGG: '700kVA',
+          tipo: f.tipo,
+          nome: f.nome,
+          referencia: f.referencia,
+          fornecedor: f.fornecedor,
+          quantidadeAtual: 0,
+          estoqueMin: 1,
+          unidade: 'un',
+          ativo: true,
+          criadoEm: new Date(),
+        })
+      }
+      await batch.commit()
+    } catch (e) {
+      alert('Erro ao adicionar filtros: ' + e.message)
+    } finally {
+      setSeeding(false)
+    }
+  }
 
   const filtrados = useMemo(() => {
     return filtros
@@ -69,6 +109,11 @@ export default function Filtros() {
           <p className="text-gray-500 text-sm mt-1">Estoque de filtros organizado por potência de gerador.</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
+          {tipoPerfil === PERFIS.ADMIN && !ja700kva && (
+            <button onClick={adicionarFiltros700kVA} disabled={seeding} className="btn-secondary text-sm">
+              {seeding ? 'Adicionando...' : '+ Filtros 700kVA'}
+            </button>
+          )}
           <button onClick={() => setModalSaida(true)} className="btn-primary flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
