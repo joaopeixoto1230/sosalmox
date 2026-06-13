@@ -107,6 +107,10 @@ export default function DevolucaoMaterial() {
           const ordemRef = doc(db, 'ordens_saida', ordem.id)
           tx.update(ordemRef, { status: 'devolvida' })
         }
+
+        // Devolvido todo o material do evento → conclui o evento (Ativo → Concluído)
+        const eventoRef = doc(db, 'eventos', eventoSelecionado.id)
+        tx.update(eventoRef, { status: 'concluido' })
       })
 
       setConcluido(true)
