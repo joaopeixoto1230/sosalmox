@@ -101,10 +101,25 @@ Regras ao instruir o usuário:
 - Após deploy, orientar **Ctrl+Shift+R** no navegador
 - Se algo "não mudou" depois do deploy, suspeitar de cache — conferir se o asset tem nome novo
 
+## 🧭 REGRA DE SESSÕES — uma de cada vez
+
+Todas as sessões empurram para o MESMO branch (`claude/laughing-carson-FcEmu`) e o
+`deploy.ps1` faz `git reset --hard` nesse branch. Por isso:
+
+1. **Trabalhar em sessões focadas por assunto** (ex: uma só para filtros, outra para
+   manutenção) é bom — sessão mais limpa, menos risco de mexer no módulo errado.
+2. ⛔ **NUNCA rodar duas sessões ativas ao mesmo tempo dando push.** Se a sessão A
+   empurra e a B empurra por cima sem saber, uma sobrescreve a outra — mesmo tipo de
+   perda do rebase. **Uma sessão ativa por vez; terminar uma antes de abrir outra.**
+3. Quem abre sessão é o usuário (Claude não consegue criar sessões). Por isso TODA
+   sessão começa com o checklist abaixo, para detectar se outra mexeu antes.
+
 ## ✅ Checklist ao retomar uma sessão
 
 1. `git log --oneline -5` e `git status` — conferir onde o branch está
 2. `git fetch origin claude/laughing-carson-FcEmu` — conferir se local e remoto batem
+   (se o remoto estiver à frente, outra sessão mexeu — fazer `git reset --hard` para o
+   remoto ANTES de editar, depois de anotar o SHA local atual)
 3. Ler este arquivo inteiro antes de qualquer alteração
 4. Em dúvida sobre o que existia antes, conferir o histórico do arquivo:
    `git log --oneline -- <arquivo>` e `git show <sha>:<arquivo>`
