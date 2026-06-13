@@ -112,7 +112,7 @@ export default function Dashboard() {
           titulo="Eventos Ativos"
           valor={stats.eventosAtivos}
           cor="bg-blue-100 text-blue-600"
-          to="/saida"
+          to="/eventos"
           icone={
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -146,7 +146,7 @@ export default function Dashboard() {
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-brand-black">Próximos Eventos</h2>
-          <Link to="/saida" className="text-brand-red text-sm font-medium hover:underline">
+          <Link to="/eventos" className="text-brand-red text-sm font-medium hover:underline">
             Ver todos →
           </Link>
         </div>
