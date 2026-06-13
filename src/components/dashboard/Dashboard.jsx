@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
-import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
+import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS } from '../../utils/permissions'
 import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
 
@@ -169,7 +169,7 @@ export default function Dashboard() {
                   <tr key={evt.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                     <td className="py-2.5 font-medium text-brand-black">{evt.nome}</td>
                     <td className="py-2.5 text-gray-500 hidden sm:table-cell">{evt.local}</td>
-                    <td className="py-2.5 text-gray-600">{formatarData(evt.data)}</td>
+                    <td className="py-2.5 text-gray-600">{evt.data ? new Date(evt.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="py-2.5">
                       <span className={`badge ${statusEventoCor(evt.status)}`}>
                         {statusEventoLabel(evt.status)}
