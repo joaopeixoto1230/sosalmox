@@ -4,7 +4,7 @@ import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, 
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
-import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
+import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import DatePicker from '../ui/DatePicker'
 
 const STATUS_FILTROS = [
@@ -221,7 +221,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
             {evento.local}
           </p>
           <div className="flex items-center gap-3 mt-1.5">
-            <p className="text-xs text-gray-400">{formatarData(evento.data)}</p>
+            <p className="text-xs text-gray-400">{evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
             {totalSaidas !== null && (
               <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600 font-medium">
                 {totalSaidas} {totalSaidas === 1 ? 'saída' : 'saídas'}
