@@ -11,6 +11,11 @@ import NovoFiltroModal from './NovoFiltroModal'
 import SaidaFiltrosModal from './SaidaFiltrosModal'
 
 const STATUS_OPCOES = ['Todos', 'OK', 'Baixo', 'Crítico']
+const POTENCIAS_VEICULO = ['Caminhão', 'Empilhadeira']
+const ABAS = [
+  { id: 'geradores', label: 'Geradores' },
+  { id: 'veiculos', label: 'Veículos' },
+]
 
 const FILTROS_700KVA = [
   { id: 'flt_700_FS19735',   tipo: 'Filtro Separador de Água', nome: 'FS19735 Fleetguard',              referencia: 'FS19735', fornecedor: 'Fleetguard'  },
@@ -26,6 +31,7 @@ export default function Filtros() {
   const { tipoPerfil } = useAuth()
   const { dados: filtros, carregando } = useCollection('filtros')
   const [busca, setBusca] = useState('')
+  const [aba, setAba] = useState('geradores')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [modalEntrada, setModalEntrada] = useState(null)
   const [modalBaixa, setModalBaixa] = useState(null)
@@ -66,6 +72,10 @@ export default function Filtros() {
     return filtros
       .filter(f => f.ativo !== false)
       .filter(f => {
+        const ehVeiculo = POTENCIAS_VEICULO.includes(f.potenciaGG)
+        return aba === 'veiculos' ? ehVeiculo : !ehVeiculo
+      })
+      .filter(f => {
         if (!busca) return true
         const q = busca.toLowerCase()
         return f.nome?.toLowerCase().includes(q) || f.referencia?.toLowerCase().includes(q) || f.potenciaGG?.toLowerCase().includes(q)
@@ -95,11 +105,19 @@ export default function Filtros() {
     })
   }, [filtrados])
 
-  const stats = useMemo(() => ({
-    total: filtros.filter(f => f.ativo !== false).length,
-    criticos: filtros.filter(f => (f.quantidadeAtual || 0) <= 0).length,
-    baixos: filtros.filter(f => { const q = f.quantidadeAtual || 0; const m = f.estoqueMin || 0; return q > 0 && q <= m }).length,
-  }), [filtros])
+  const stats = useMemo(() => {
+    const base = filtros
+      .filter(f => f.ativo !== false)
+      .filter(f => {
+        const ehVeiculo = POTENCIAS_VEICULO.includes(f.potenciaGG)
+        return aba === 'veiculos' ? ehVeiculo : !ehVeiculo
+      })
+    return {
+      total: base.length,
+      criticos: base.filter(f => (f.quantidadeAtual || 0) <= 0).length,
+      baixos: base.filter(f => { const q = f.quantidadeAtual || 0; const m = f.estoqueMin || 0; return q > 0 && q <= m }).length,
+    }
+  }, [filtros, aba])
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -126,6 +144,15 @@ export default function Filtros() {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="flex gap-2 border-b border-gray-200">
+        {ABAS.map(a => (
+          <button key={a.id} onClick={() => setAba(a.id)}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${aba === a.id ? 'border-brand-red text-brand-red' : 'border-transparent text-gray-500 hover:text-brand-black'}`}>
+            {a.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-3 gap-3">

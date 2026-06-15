@@ -36,7 +36,8 @@ export default function DetalheOS() {
   }
 
   async function concluir() {
-    if (!horimetroConc) { setErro('Informe o horímetro de conclusão.'); return }
+    const usaKm = os?.equipamentoTipo === 'caminhao'
+    if (!horimetroConc) { setErro(usaKm ? 'Informe o KM de conclusão.' : 'Informe o horímetro de conclusão.'); return }
     if (!relatorio.trim()) { setErro('Descreva o serviço executado.'); return }
     setSalvando(true); setErro('')
     try {
@@ -168,6 +169,7 @@ export default function DetalheOS() {
   }
 
   function gerarPDF() {
+    const usaKm = os.equipamentoTipo === 'caminhao'
     const filtrosLista = os.filtrosUsados?.length
       ? os.filtrosUsados.map(f => `<tr><td>${f.filtroNome || f.nome || '—'}</td><td>${f.potenciaGG || '—'}</td><td style="text-align:center">${f.quantidade || f.qtdUsada || 1}</td></tr>`).join('')
       : '<tr><td colspan="3" style="color:#888">Nenhum filtro registrado</td></tr>'
@@ -213,7 +215,7 @@ export default function DetalheOS() {
     <div class="field"><label>Data de abertura</label><p>${os.dataAbertura?.toDate ? os.dataAbertura.toDate().toLocaleString('pt-BR') : '—'}</p></div>
     ${os.status === 'concluida' ? `
     <div class="field"><label>Data de conclusão</label><p>${os.dataConclusao?.toDate ? os.dataConclusao.toDate().toLocaleString('pt-BR') : '—'}</p></div>
-    <div class="field"><label>Horímetro conclusão</label><p>${os.horimetroConсlusao ? os.horimetroConсlusao + 'h' : '—'}</p></div>
+    <div class="field"><label>${usaKm ? 'KM conclusão' : 'Horímetro conclusão'}</label><p>${os.horimetroConсlusao ? os.horimetroConсlusao + (usaKm ? ' km' : 'h') : '—'}</p></div>
     ` : ''}
     ${os.almoxarifeNome ? `<div class="field"><label>Entregue por (almoxarife)</label><p>${os.almoxarifeNome}</p></div>` : ''}
   </div>
@@ -250,6 +252,9 @@ export default function DetalheOS() {
   if (!os) return <div className="text-center py-12 text-gray-400"><p>OS não encontrada.</p></div>
 
   const concluida = os.status === 'concluida'
+  const usaKm = os.equipamentoTipo === 'caminhao'
+  const medidaLabel = usaKm ? 'KM' : 'Horímetro'
+  const medidaUnidade = usaKm ? ' km' : 'h'
   const viaFiltros = os.origem === 'saida_filtros'
   const podeEditar = !concluida && ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
   const podeExcluir = ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
@@ -302,9 +307,9 @@ export default function DetalheOS() {
           <div><p className="text-gray-400 text-xs">Tipo</p><p className="font-medium capitalize">{os.tipo}</p></div>
           <div><p className="text-gray-400 text-xs">Mecânico</p><p className="font-medium">{os.mecanicoNome}</p></div>
           <div><p className="text-gray-400 text-xs">Abertura</p><p className="font-medium">{formatarDataHora(os.dataAbertura)}</p></div>
-          {os.horimetroAbertura && <div><p className="text-gray-400 text-xs">Horímetro abertura</p><p className="font-medium">{os.horimetroAbertura}h</p></div>}
+          {os.horimetroAbertura && <div><p className="text-gray-400 text-xs">{medidaLabel} abertura</p><p className="font-medium">{os.horimetroAbertura}{medidaUnidade}</p></div>}
           {concluida && <div><p className="text-gray-400 text-xs">Conclusão</p><p className="font-medium">{formatarDataHora(os.dataConclusao)}</p></div>}
-          {concluida && os.horimetroConсlusao && <div><p className="text-gray-400 text-xs">Horímetro conclusão</p><p className="font-medium">{os.horimetroConсlusao}h</p></div>}
+          {concluida && os.horimetroConсlusao && <div><p className="text-gray-400 text-xs">{medidaLabel} conclusão</p><p className="font-medium">{os.horimetroConсlusao}{medidaUnidade}</p></div>}
           {os.almoxarifeNome && <div><p className="text-gray-400 text-xs">Entregue por</p><p className="font-medium">{os.almoxarifeNome}</p></div>}
         </div>
         <div>
@@ -362,9 +367,9 @@ export default function DetalheOS() {
             <h2 className="font-semibold text-brand-black">Concluir OS</h2>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Horímetro de conclusão *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{usaKm ? 'KM de conclusão *' : 'Horímetro de conclusão *'}</label>
               <input type="number" value={horimetroConc} onChange={e => setHorimetroConc(e.target.value)}
-                className="input" placeholder="Ex: 12480" />
+                className="input" placeholder={usaKm ? 'Ex: 85000' : 'Ex: 12480'} />
             </div>
 
             {!viaFiltros && (
@@ -727,9 +732,9 @@ function ModalEditarOS({ os, onFechar }) {
               rows={3} className="input resize-none" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Horímetro abertura</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{os.equipamentoTipo === 'caminhao' ? 'KM abertura' : 'Horímetro abertura'}</label>
             <input type="number" value={form.horimetroAbertura} onChange={e => set('horimetroAbertura', e.target.value)}
-              className="input" placeholder="Ex: 12450" />
+              className="input" placeholder={os.equipamentoTipo === 'caminhao' ? 'Ex: 84000' : 'Ex: 12450'} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
