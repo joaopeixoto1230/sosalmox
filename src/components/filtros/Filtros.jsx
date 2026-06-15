@@ -14,8 +14,15 @@ const STATUS_OPCOES = ['Todos', 'OK', 'Baixo', 'Crítico']
 const POTENCIAS_VEICULO = ['Caminhão', 'Empilhadeira']
 const ABAS = [
   { id: 'geradores', label: 'Geradores' },
-  { id: 'veiculos', label: 'Veículos' },
+  { id: 'caminhoes', label: 'Caminhões' },
+  { id: 'empilhadeira', label: 'Empilhadeira' },
 ]
+
+function filtroDaAba(f, aba) {
+  if (aba === 'caminhoes') return f.potenciaGG === 'Caminhão'
+  if (aba === 'empilhadeira') return f.potenciaGG === 'Empilhadeira'
+  return !POTENCIAS_VEICULO.includes(f.potenciaGG)
+}
 
 const FILTROS_700KVA = [
   { id: 'flt_700_FS19735',   tipo: 'Filtro Separador de Água', nome: 'FS19735 Fleetguard',              referencia: 'FS19735', fornecedor: 'Fleetguard'  },
@@ -71,10 +78,7 @@ export default function Filtros() {
   const filtrados = useMemo(() => {
     return filtros
       .filter(f => f.ativo !== false)
-      .filter(f => {
-        const ehVeiculo = POTENCIAS_VEICULO.includes(f.potenciaGG)
-        return aba === 'veiculos' ? ehVeiculo : !ehVeiculo
-      })
+      .filter(f => filtroDaAba(f, aba))
       .filter(f => {
         if (!busca) return true
         const q = busca.toLowerCase()
@@ -108,10 +112,7 @@ export default function Filtros() {
   const stats = useMemo(() => {
     const base = filtros
       .filter(f => f.ativo !== false)
-      .filter(f => {
-        const ehVeiculo = POTENCIAS_VEICULO.includes(f.potenciaGG)
-        return aba === 'veiculos' ? ehVeiculo : !ehVeiculo
-      })
+      .filter(f => filtroDaAba(f, aba))
     return {
       total: base.length,
       criticos: base.filter(f => (f.quantidadeAtual || 0) <= 0).length,
