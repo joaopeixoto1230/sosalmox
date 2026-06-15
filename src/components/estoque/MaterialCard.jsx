@@ -27,7 +27,7 @@ const TIPOS_POR_CATEGORIA = {
   ],
 }
 
-export default function MaterialCard({ material }) {
+export default function MaterialCard({ material, evento }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [alterando, setAlterando] = useState(false)
   const [editando, setEditando] = useState(false)
@@ -112,7 +112,10 @@ export default function MaterialCard({ material }) {
         {material.bitola && <p>Bitola: <span className="font-medium text-gray-700">{material.bitola}</span></p>}
         {material.metragem && <p>Comprimento: <span className="font-medium text-gray-700">{material.metragem}</span></p>}
         {material.status === 'em_evento' && material.eventoAtual && (
-          <p className="text-yellow-600 font-medium truncate">📍 {material.eventoAtual}</p>
+          <p className="text-yellow-600 font-medium truncate">
+            📍 {evento ? evento.nome : material.eventoAtual}
+            {evento?.local ? ` · ${evento.local}` : ''}
+          </p>
         )}
         {material.observacao && (
           <p className="text-orange-600 italic truncate">⚠ {material.observacao}</p>

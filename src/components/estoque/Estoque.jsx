@@ -15,6 +15,8 @@ const STATUS_OPCOES = [
 
 export default function Estoque() {
   const { dados: materiais, carregando } = useCollection('materiais')
+  const { dados: eventos } = useCollection('eventos')
+  const eventosMap = useMemo(() => new Map(eventos.map(e => [e.id, e])), [eventos])
   const [categoria, setCategoria] = useState('Todos')
   const [statusFiltro, setStatusFiltro] = useState(null)
   const [busca, setBusca] = useState('')
@@ -152,7 +154,7 @@ export default function Estoque() {
         <>
           <p className="text-sm text-gray-500">{filtrados.length} {filtrados.length === 1 ? 'item encontrado' : 'itens encontrados'}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filtrados.map(mat => <MaterialCard key={mat.id} material={mat} />)}
+            {filtrados.map(mat => <MaterialCard key={mat.id} material={mat} evento={eventosMap.get(mat.eventoAtual)} />)}
           </div>
         </>
       )}
