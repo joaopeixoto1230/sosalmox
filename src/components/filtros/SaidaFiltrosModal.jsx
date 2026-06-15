@@ -329,7 +329,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
                             setQuantidade(i.filtro.id, parseInt(v) || 1)
                           }}
                           onBlur={() => { if (!i.quantidade || i.quantidade < 1) setQuantidade(i.filtro.id, 1) }}
-                          className="w-12 text-center text-sm border-x border-gray-200 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-12 text-center text-sm font-semibold bg-transparent text-brand-black border-x border-gray-200 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <button type="button"
                           onClick={() => setQuantidade(i.filtro.id, (parseInt(i.quantidade) || 0) + 1)}
