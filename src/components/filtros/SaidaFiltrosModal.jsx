@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarNumeroOS } from '../../utils/formatters'
 import { criarSolicitacaoCompra } from '../../utils/notificacoes'
+import { idsFiltrosIguais } from './filtrosUtils'
 
 export default function SaidaFiltrosModal({ onFechar }) {
   const { uid, nome } = useAuth()
@@ -106,17 +107,26 @@ export default function SaidaFiltrosModal({ onFechar }) {
         const contRef = doc(db, 'contadores', 'ordens_servico')
         const contSnap = await tx.get(contRef)
 
-        const filtroRefs = itens.map(i => doc(db, 'filtros', i.filtro.id))
-        const filtroSnaps = await Promise.all(filtroRefs.map(r => tx.get(r)))
+        // estoque compartilhado: cada item baixa também os filtros iguais (mesma referência)
+        const gruposPorItem = itens.map(i => idsFiltrosIguais(filtros, i.filtro))
+        const idsUnicos = [...new Set(gruposPorItem.flat())]
+        const refPorId = new Map(idsUnicos.map(id => [id, doc(db, 'filtros', id)]))
+        const snapEntries = await Promise.all(idsUnicos.map(async id => [id, await tx.get(refPorId.get(id))]))
+        const snapPorId = new Map(snapEntries)
 
         // ── CÁLCULOS ──
         const ultimo = contSnap.exists() ? (contSnap.data().ultimo || 0) : 0
         const proximo = ultimo + 1
         osNumero = formatarNumeroOS(proximo)
 
-        const novasQtds = filtroSnaps.map((snap, idx) => {
-          const atual = snap.data()?.quantidadeAtual || 0
-          return atual - itens[idx].quantidade
+        // novo estoque por item (base = filtro escolhido) e mapa final id -> qtd
+        const novasQtds = itens.map(item => {
+          const atual = snapPorId.get(item.filtro.id)?.data()?.quantidadeAtual || 0
+          return atual - item.quantidade
+        })
+        const writesQtd = new Map()
+        itens.forEach((item, idx) => {
+          gruposPorItem[idx].forEach(id => writesQtd.set(id, novasQtds[idx]))
         })
 
         const filtrosUsados = itens.map(i => ({
@@ -152,9 +162,9 @@ export default function SaidaFiltrosModal({ onFechar }) {
           criadoEm: serverTimestamp(),
         })
 
-        itens.forEach((item, idx) => {
-          tx.update(filtroRefs[idx], { quantidadeAtual: novasQtds[idx] })
+        writesQtd.forEach((qtd, id) => tx.update(refPorId.get(id), { quantidadeAtual: qtd }))
 
+        itens.forEach((item, idx) => {
           const baixaRef = doc(collection(db, 'baixas_filtro'))
           tx.set(baixaRef, {
             filtroId: item.filtro.id,
@@ -165,6 +175,7 @@ export default function SaidaFiltrosModal({ onFechar }) {
             ordemServicoNumero: osNumero,
             equipamentoLabel: form.equipamentoLabel,
             retiradoPor: form.mecanico,
+            aplicadoEmIguais: gruposPorItem[idx].length,
             operadorUid: uid,
             operadorNome: nome,
             criadoEm: serverTimestamp(),
