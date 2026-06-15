@@ -9,6 +9,7 @@ import EntradaFiltroModal from './EntradaFiltroModal'
 import BaixaFiltroModal from './BaixaFiltroModal'
 import NovoFiltroModal from './NovoFiltroModal'
 import SaidaFiltrosModal from './SaidaFiltrosModal'
+import FiltrosIguaisModal from './FiltrosIguaisModal'
 
 const STATUS_OPCOES = ['Todos', 'OK', 'Baixo', 'Crítico']
 const POTENCIAS_VEICULO = ['Caminhão', 'Empilhadeira']
@@ -44,6 +45,7 @@ export default function Filtros() {
   const [modalBaixa, setModalBaixa] = useState(null)
   const [modalNovo, setModalNovo] = useState(false)
   const [modalSaida, setModalSaida] = useState(false)
+  const [modalIguais, setModalIguais] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.ESTOQUE) || tipoPerfil === PERFIS.ADMIN
   const [seeding, setSeeding] = useState(false)
@@ -133,6 +135,9 @@ export default function Filtros() {
               {seeding ? 'Adicionando...' : '+ Filtros 700kVA'}
             </button>
           )}
+          <button onClick={() => setModalIguais(true)} className="btn-secondary text-sm flex-shrink-0">
+            Filtros iguais
+          </button>
           <button onClick={() => setModalSaida(true)} className="btn-primary flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -213,6 +218,7 @@ export default function Filtros() {
       {modalBaixa && <BaixaFiltroModal filtro={modalBaixa} onFechar={() => setModalBaixa(null)} />}
       {modalNovo && <NovoFiltroModal onFechar={() => setModalNovo(false)} />}
       {modalSaida && <SaidaFiltrosModal onFechar={() => setModalSaida(false)} />}
+      {modalIguais && <FiltrosIguaisModal filtros={filtros} onFechar={() => setModalIguais(false)} />}
     </div>
   )
 }
