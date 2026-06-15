@@ -1,14 +1,18 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { doc, runTransaction, collection, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { criarSolicitacaoCompra } from '../../utils/notificacoes'
+import { idsFiltrosIguais } from './filtrosUtils'
 
-export default function BaixaFiltroModal({ filtro, onFechar }) {
+export default function BaixaFiltroModal({ filtro, filtros = [], onFechar }) {
   const { uid, nome } = useAuth()
   const [form, setForm] = useState({ quantidade: '1', motivo: '' })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  const iguaisIds = useMemo(() => idsFiltrosIguais(filtros, filtro), [filtros, filtro])
+  const qtdIguais = iguaisIds.length - 1
 
   function set(k, v) { setForm(prev => ({ ...prev, [k]: v })) }
 
@@ -19,17 +23,25 @@ export default function BaixaFiltroModal({ filtro, onFechar }) {
     try {
       let novaQtd = 0
       await runTransaction(db, async (tx) => {
-        const filtroRef = doc(db, 'filtros', filtro.id)
-        const snap = await tx.get(filtroRef)
-        const atual = snap.data()?.quantidadeAtual || 0
+        // ── TODAS AS LEITURAS PRIMEIRO ──
+        const refs = iguaisIds.map(id => doc(db, 'filtros', id))
+        const snaps = await Promise.all(refs.map(r => tx.get(r)))
+
+        // base = estoque do filtro clicado; estoque compartilhado fica igual em todos
+        const baseIdx = iguaisIds.indexOf(filtro.id)
+        const atual = snaps[baseIdx]?.data()?.quantidadeAtual || 0
         novaQtd = atual - qtd
-        tx.update(filtroRef, { quantidadeAtual: novaQtd })
+
+        // ── ESCRITAS ──
+        refs.forEach(r => tx.update(r, { quantidadeAtual: novaQtd }))
+
         const baixaRef = doc(collection(db, 'baixas_filtro'))
         tx.set(baixaRef, {
           filtroId: filtro.id,
           filtroNome: filtro.nome,
           quantidade: qtd,
           motivo: form.motivo || 'Baixa manual',
+          aplicadoEmIguais: iguaisIds.length,
           operadorUid: uid,
           operadorNome: nome,
           criadoEm: serverTimestamp(),
@@ -56,6 +68,12 @@ export default function BaixaFiltroModal({ filtro, onFechar }) {
         <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
           {filtro.nome} — estoque atual: <strong>{filtro.quantidadeAtual}</strong>
         </p>
+
+        {qtdIguais > 0 && (
+          <div className="text-sm bg-blue-50 border border-blue-200 text-blue-700 rounded-lg px-3 py-2">
+            Estoque compartilhado: a baixa será aplicada também a <strong>{qtdIguais}</strong> filtro{qtdIguais > 1 ? 's' : ''} igual{qtdIguais > 1 ? 'is' : ''} (mesma referência <strong>{filtro.referencia}</strong>) de outras potências.
+          </div>
+        )}
 
         <div className="space-y-3">
           <div>

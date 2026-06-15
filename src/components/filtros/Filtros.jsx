@@ -206,7 +206,7 @@ export default function Filtros() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {itens.map(f => (
-                  <FiltroCard key={f.id} filtro={f} onEntrada={setModalEntrada} onBaixa={setModalBaixa} />
+                  <FiltroCard key={f.id} filtro={f} filtros={filtros} onEntrada={setModalEntrada} onBaixa={setModalBaixa} />
                 ))}
               </div>
             </div>
@@ -214,8 +214,8 @@ export default function Filtros() {
         </div>
       )}
 
-      {modalEntrada && <EntradaFiltroModal filtro={modalEntrada} onFechar={() => setModalEntrada(null)} />}
-      {modalBaixa && <BaixaFiltroModal filtro={modalBaixa} onFechar={() => setModalBaixa(null)} />}
+      {modalEntrada && <EntradaFiltroModal filtro={modalEntrada} filtros={filtros} onFechar={() => setModalEntrada(null)} />}
+      {modalBaixa && <BaixaFiltroModal filtro={modalBaixa} filtros={filtros} onFechar={() => setModalBaixa(null)} />}
       {modalNovo && <NovoFiltroModal onFechar={() => setModalNovo(false)} />}
       {modalSaida && <SaidaFiltrosModal onFechar={() => setModalSaida(false)} />}
       {modalIguais && <FiltrosIguaisModal filtros={filtros} onFechar={() => setModalIguais(false)} />}

@@ -1,8 +1,5 @@
 import { useMemo } from 'react'
-
-function normRef(r) {
-  return (r || '').toString().toUpperCase().replace(/\s+/g, '').trim()
-}
+import { normalizarRef as normRef } from './filtrosUtils'
 
 export default function FiltrosIguaisModal({ filtros, onFechar }) {
   const grupos = useMemo(() => {

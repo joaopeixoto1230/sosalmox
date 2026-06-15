@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { db } from '../../firebase/config'
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore'
+import { doc, deleteDoc, writeBatch } from 'firebase/firestore'
 import { statusFiltroLabel, statusFiltroCor, formatarData } from '../../utils/formatters'
+import { idsFiltrosIguais } from './filtrosUtils'
 
-export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
+export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [excluindo, setExcluindo] = useState(false)
   const [ajustando, setAjustando] = useState(false)
   const [valorAjuste, setValorAjuste] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
+
+  const iguaisIds = idsFiltrosIguais(filtros, filtro)
+  const qtdIguais = iguaisIds.length - 1
 
   const { quantidadeAtual = 0, estoqueMin = 0, validade } = filtro
   const pct = estoqueMin > 0 ? Math.min(100, (quantidadeAtual / estoqueMin) * 100) : 100
@@ -43,7 +47,10 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
     if (isNaN(nova) || nova < 0) return
     setSalvandoAjuste(true)
     try {
-      await updateDoc(doc(db, 'filtros', filtro.id), { quantidadeAtual: nova })
+      // estoque compartilhado: todos os filtros iguais ficam com o mesmo valor
+      const batch = writeBatch(db)
+      iguaisIds.forEach(id => batch.update(doc(db, 'filtros', id), { quantidadeAtual: nova }))
+      await batch.commit()
       setAjustando(false)
     } finally {
       setSalvandoAjuste(false)
@@ -136,6 +143,11 @@ export default function FiltroCard({ filtro, onEntrada, onBaixa }) {
       {ajustando ? (
         <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
           <label className="block text-xs font-medium text-gray-600">Quantidade real em estoque</label>
+          {qtdIguais > 0 && (
+            <p className="text-xs text-blue-600">
+              Aplicado também a {qtdIguais} filtro{qtdIguais > 1 ? 's' : ''} igual{qtdIguais > 1 ? 'is' : ''} (ref. {filtro.referencia}).
+            </p>
+          )}
           <input
             type="number" min="0" inputMode="numeric"
             value={valorAjuste}
