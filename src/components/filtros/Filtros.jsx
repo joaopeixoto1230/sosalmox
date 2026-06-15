@@ -93,7 +93,7 @@ export default function Filtros() {
         if (statusFiltro === 'OK') return qtd > min
         return true
       })
-  }, [filtros, busca, statusFiltro])
+  }, [filtros, busca, statusFiltro, aba])
 
   const agrupados = useMemo(() => {
     const map = new Map()
