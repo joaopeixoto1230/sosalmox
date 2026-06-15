@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db } from '../../firebase/config'
-import { doc, deleteDoc, writeBatch } from 'firebase/firestore'
+import { doc, deleteDoc, updateDoc, writeBatch } from 'firebase/firestore'
 import { statusFiltroLabel, statusFiltroCor, formatarData } from '../../utils/formatters'
 import { idsFiltrosIguais } from './filtrosUtils'
 
@@ -10,6 +10,9 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
   const [ajustando, setAjustando] = useState(false)
   const [valorAjuste, setValorAjuste] = useState('')
   const [salvandoAjuste, setSalvandoAjuste] = useState(false)
+  const [editando, setEditando] = useState(false)
+  const [formEdit, setFormEdit] = useState({ nome: '', referencia: '', fornecedor: '' })
+  const [salvandoEdit, setSalvandoEdit] = useState(false)
 
   const iguaisIds = idsFiltrosIguais(filtros, filtro)
   const qtdIguais = iguaisIds.length - 1
@@ -39,7 +42,36 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
   function abrirAjuste() {
     setMenuAberto(false)
     setValorAjuste(String(quantidadeAtual))
+    setEditando(false)
     setAjustando(true)
+  }
+
+  function abrirEdicao() {
+    setMenuAberto(false)
+    setFormEdit({
+      nome: filtro.nome || '',
+      referencia: filtro.referencia || '',
+      fornecedor: filtro.fornecedor || '',
+    })
+    setAjustando(false)
+    setEditando(true)
+  }
+
+  async function salvarEdicao() {
+    const nome = formEdit.nome.trim()
+    if (!nome) return
+    setSalvandoEdit(true)
+    try {
+      // edição altera somente este filtro (nome/referência/fornecedor são próprios de cada card)
+      await updateDoc(doc(db, 'filtros', filtro.id), {
+        nome,
+        referencia: formEdit.referencia.trim(),
+        fornecedor: formEdit.fornecedor.trim(),
+      })
+      setEditando(false)
+    } finally {
+      setSalvandoEdit(false)
+    }
   }
 
   async function salvarAjuste() {
@@ -105,6 +137,12 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
                   >
                     Ajustar estoque
                   </button>
+                  <button
+                    onClick={abrirEdicao}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Editar filtro
+                  </button>
                   <div className="border-t border-gray-100 mt-1 pt-1">
                     <button
                       onClick={excluir}
@@ -140,7 +178,51 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
         </p>
       )}
 
-      {ajustando ? (
+      {editando ? (
+        <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Nome / Descrição</label>
+            <input
+              value={formEdit.nome}
+              onChange={e => setFormEdit(p => ({ ...p, nome: e.target.value }))}
+              className="input text-sm w-full"
+              placeholder="Nome do filtro"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Referência</label>
+            <input
+              value={formEdit.referencia}
+              onChange={e => setFormEdit(p => ({ ...p, referencia: e.target.value }))}
+              className="input text-sm w-full"
+              placeholder="Ex: FS1006"
+            />
+            {qtdIguais > 0 && (
+              <p className="text-xs text-blue-600 mt-1">
+                Mudar a referência altera o agrupamento de estoque compartilhado deste filtro.
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Fornecedor</label>
+            <input
+              value={formEdit.fornecedor}
+              onChange={e => setFormEdit(p => ({ ...p, fornecedor: e.target.value }))}
+              className="input text-sm w-full"
+              placeholder="Fornecedor"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setEditando(false)} className="flex-1 text-xs btn-secondary py-1.5 justify-center">
+              Cancelar
+            </button>
+            <button onClick={salvarEdicao} disabled={salvandoEdit || !formEdit.nome.trim()} className="flex-1 text-xs btn-primary py-1.5 justify-center">
+              {salvandoEdit ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      ) : ajustando ? (
         <div className="mt-3 bg-gray-50 border border-gray-200 rounded-xl p-3 space-y-2">
           <label className="block text-xs font-medium text-gray-600">Quantidade real em estoque</label>
           {qtdIguais > 0 && (
