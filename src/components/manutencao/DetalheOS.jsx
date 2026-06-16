@@ -9,27 +9,41 @@ import { useAuth } from '../../contexts/AuthContext'
 import { statusOsLabel, statusOsCor, formatarDataHora } from '../../utils/formatters'
 import { idsFiltrosIguais } from '../filtros/filtrosUtils'
 
-// Reduz a foto antes de subir: redimensiona para no máximo 1600px e exporta JPEG ~70%.
+// Reduz a foto antes de subir: redimensiona para no máximo 1280px e exporta JPEG ~65%.
 // Fotos de celular saem de 5–12 MB e caem para algumas centenas de KB — upload rápido e confiável.
-async function comprimirImagem(file, maxLado = 1600, qualidade = 0.7) {
-  if (!file?.type?.startsWith('image/')) return file
-  try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
-    let { width, height } = bitmap
-    const escala = Math.min(1, maxLado / Math.max(width, height))
-    width = Math.round(width * escala)
-    height = Math.round(height * escala)
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height)
-    bitmap.close?.()
-    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', qualidade))
-    // se a compressão não ajudar (ex: foto já pequena), mantém o original
-    return blob && blob.size < file.size ? blob : file
-  } catch {
-    return file // navegador antigo / sem suporte: sobe o original
-  }
+// Usa <img> + canvas (funciona em qualquer iPhone/Android, ao contrário de createImageBitmap).
+function comprimirImagem(file, maxLado = 1280, qualidade = 0.65) {
+  return new Promise(resolve => {
+    if (!file?.type?.startsWith('image/')) return resolve(file)
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      try {
+        let { width, height } = img
+        const escala = Math.min(1, maxLado / Math.max(width, height))
+        width = Math.round(width * escala)
+        height = Math.round(height * escala)
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        canvas.toBlob(
+          blob => {
+            URL.revokeObjectURL(url)
+            // se a compressão não ajudar (ex: foto já pequena), mantém o original
+            resolve(blob && blob.size < file.size ? blob : file)
+          },
+          'image/jpeg',
+          qualidade
+        )
+      } catch {
+        URL.revokeObjectURL(url)
+        resolve(file)
+      }
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
 }
 
 // Upload com acompanhamento de progresso (%); resolve com a URL final.
