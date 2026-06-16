@@ -1,13 +1,49 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { criarSolicitacaoCompra } from '../../utils/notificacoes'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusOsLabel, statusOsCor, formatarDataHora } from '../../utils/formatters'
 import { idsFiltrosIguais } from '../filtros/filtrosUtils'
+
+// Reduz a foto antes de subir: redimensiona para no máximo 1600px e exporta JPEG ~70%.
+// Fotos de celular saem de 5–12 MB e caem para algumas centenas de KB — upload rápido e confiável.
+async function comprimirImagem(file, maxLado = 1600, qualidade = 0.7) {
+  if (!file?.type?.startsWith('image/')) return file
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
+    let { width, height } = bitmap
+    const escala = Math.min(1, maxLado / Math.max(width, height))
+    width = Math.round(width * escala)
+    height = Math.round(height * escala)
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height)
+    bitmap.close?.()
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', qualidade))
+    // se a compressão não ajudar (ex: foto já pequena), mantém o original
+    return blob && blob.size < file.size ? blob : file
+  } catch {
+    return file // navegador antigo / sem suporte: sobe o original
+  }
+}
+
+// Upload com acompanhamento de progresso (%); resolve com a URL final.
+function enviarComProgresso(ref, blob, onProgresso) {
+  return new Promise((resolve, reject) => {
+    const task = uploadBytesResumable(ref, blob, { contentType: blob.type || 'image/jpeg' })
+    task.on(
+      'state_changed',
+      snap => onProgresso(snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0),
+      reject,
+      async () => { try { resolve(await getDownloadURL(task.snapshot.ref)) } catch (e) { reject(e) } }
+    )
+  })
+}
 
 export default function DetalheOS() {
   const { id } = useParams()
@@ -29,6 +65,7 @@ export default function DetalheOS() {
   const [adicionandoFiltros, setAdicionandoFiltros] = useState(false)
   const fotoInputRef = useRef(null)
   const [fotoAmpliada, setFotoAmpliada] = useState(null)
+  const [progresso, setProgresso] = useState(null) // { atual, total, pct } durante envio das fotos
 
   // libera as URLs de preview da memória quando o componente desmonta
   useEffect(() => {
@@ -68,17 +105,20 @@ export default function DetalheOS() {
     try {
       const viaFiltros = os.origem === 'saida_filtros'
 
-      // sobe as fotos do serviço para o Storage antes de gravar a OS
+      // sobe as fotos do serviço para o Storage antes de gravar a OS.
+      // Envia uma de cada vez (mais confiável no celular) comprimindo antes e mostrando o progresso.
       let fotosUrls = os.fotosConclusao || []
       if (fotos.length > 0) {
-        const enviadas = await Promise.all(
-          fotos.map(async (f, i) => {
-            const nomeArq = `${Date.now()}_${i}_${(f.file.name || 'foto').replace(/[^\w.\-]/g, '_')}`
-            const r = storageRef(storage, `ordens_servico/${id}/fotos/${nomeArq}`)
-            await uploadBytes(r, f.file)
-            return await getDownloadURL(r)
-          })
-        )
+        const enviadas = []
+        for (let i = 0; i < fotos.length; i++) {
+          setProgresso({ atual: i + 1, total: fotos.length, pct: 0 })
+          const dados = await comprimirImagem(fotos[i].file)
+          const r = storageRef(storage, `ordens_servico/${id}/fotos/${Date.now()}_${i}.jpg`)
+          const url = await enviarComProgresso(r, dados, pct =>
+            setProgresso({ atual: i + 1, total: fotos.length, pct })
+          )
+          enviadas.push(url)
+        }
         fotosUrls = [...fotosUrls, ...enviadas]
       }
 
@@ -152,9 +192,15 @@ export default function DetalheOS() {
       })
       navigate('/manutencao')
     } catch (e) {
-      setErro(e.message || 'Erro ao concluir OS.')
+      const msg = e?.code === 'storage/unauthorized'
+        ? 'Sem permissão para enviar fotos ao Storage. Avise o administrador.'
+        : e?.code === 'storage/retry-limit-exceeded' || e?.code === 'storage/canceled'
+        ? 'Falha ao enviar as fotos (conexão instável). Verifique a internet e tente de novo.'
+        : (e?.message || 'Erro ao concluir OS.')
+      setErro(msg)
     } finally {
       setSalvando(false)
+      setProgresso(null)
     }
   }
 
@@ -574,8 +620,22 @@ export default function DetalheOS() {
 
             {erro && <p className="text-red-600 text-sm">{erro}</p>}
 
+            {progresso && (
+              <div>
+                <div className="flex justify-between text-xs text-gray-500 mb-1">
+                  <span>Enviando foto {progresso.atual} de {progresso.total}</span>
+                  <span>{progresso.pct}%</span>
+                </div>
+                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-red transition-all duration-200" style={{ width: `${progresso.pct}%` }} />
+                </div>
+              </div>
+            )}
+
             <button onClick={concluir} disabled={salvando} className="btn-primary w-full justify-center">
-              {salvando ? (fotos.length > 0 ? 'Enviando fotos...' : 'Concluindo...') : 'Concluir Ordem de Serviço'}
+              {salvando
+                ? (progresso ? `Enviando foto ${progresso.atual}/${progresso.total} — ${progresso.pct}%` : 'Concluindo...')
+                : 'Concluir Ordem de Serviço'}
             </button>
           </div>
         </>
