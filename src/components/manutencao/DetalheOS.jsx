@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../../firebase/config'
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { criarSolicitacaoCompra } from '../../utils/notificacoes'
 import { useAuth } from '../../contexts/AuthContext'
@@ -20,11 +21,34 @@ export default function DetalheOS() {
   const [problemasEncontrados, setProblemasEncontrados] = useState('')
   const [proximaPreventiva, setProximaPreventiva] = useState('')
   const [filtrosSelecionados, setFiltrosSelecionados] = useState([])
+  const [fotos, setFotos] = useState([])
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [confirmarExcluir, setConfirmarExcluir] = useState(false)
   const [editando, setEditando] = useState(false)
   const [adicionandoFiltros, setAdicionandoFiltros] = useState(false)
+  const fotoInputRef = useRef(null)
+  const [fotoAmpliada, setFotoAmpliada] = useState(null)
+
+  // libera as URLs de preview da memória quando o componente desmonta
+  useEffect(() => {
+    return () => fotos.forEach(f => URL.revokeObjectURL(f.preview))
+  }, [fotos])
+
+  function adicionarFotos(e) {
+    const arquivos = Array.from(e.target.files || [])
+    if (arquivos.length === 0) return
+    setFotos(prev => [...prev, ...arquivos.map(file => ({ file, preview: URL.createObjectURL(file) }))])
+    if (fotoInputRef.current) fotoInputRef.current.value = ''
+  }
+
+  function removerFoto(idx) {
+    setFotos(prev => {
+      const f = prev[idx]
+      if (f) URL.revokeObjectURL(f.preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
 
   function toggleFiltro(filtro) {
     setFiltrosSelecionados(prev =>
@@ -44,6 +68,20 @@ export default function DetalheOS() {
     try {
       const viaFiltros = os.origem === 'saida_filtros'
 
+      // sobe as fotos do serviço para o Storage antes de gravar a OS
+      let fotosUrls = os.fotosConclusao || []
+      if (fotos.length > 0) {
+        const enviadas = await Promise.all(
+          fotos.map(async (f, i) => {
+            const nomeArq = `${Date.now()}_${i}_${(f.file.name || 'foto').replace(/[^\w.\-]/g, '_')}`
+            const r = storageRef(storage, `ordens_servico/${id}/fotos/${nomeArq}`)
+            await uploadBytes(r, f.file)
+            return await getDownloadURL(r)
+          })
+        )
+        fotosUrls = [...fotosUrls, ...enviadas]
+      }
+
       await runTransaction(db, async (tx) => {
         const osRef = doc(db, 'ordens_servico', id)
 
@@ -53,6 +91,7 @@ export default function DetalheOS() {
           relatorioServico: relatorio.trim(),
           problemasEncontrados: problemasEncontrados.trim() || null,
           proximaPreventiva: proximaPreventiva || null,
+          fotosConclusao: fotosUrls,
           dataConclusao: serverTimestamp(),
           concluidoPor: uid,
           concluidoPorNome: nome,
@@ -228,7 +267,9 @@ export default function DetalheOS() {
     .footer { margin-top: 32px; font-size: 11px; color: #aaa; text-align: right; }
     .assinatura { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
     .assinatura div { border-top: 1px solid #999; padding-top: 6px; font-size: 12px; color: #555; text-align: center; }
-    @media print { body { padding: 0; } }
+    .fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+    .fotos img { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; }
+    @media print { body { padding: 0; } .fotos img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
 <body>
@@ -265,6 +306,11 @@ export default function DetalheOS() {
     <thead><tr><th>Filtro</th><th>Potência GG</th><th style="text-align:center">Qtd</th></tr></thead>
     <tbody>${filtrosLista}</tbody>
   </table>
+
+  ${os.fotosConclusao?.length ? `
+  <p class="section-title">Fotos do serviço</p>
+  <div class="fotos">${os.fotosConclusao.map(url => `<img src="${url}" />`).join('')}</div>
+  ` : ''}
 
   <div class="assinatura">
     <div>Mecânico: ${os.mecanicoNome || '_______________'}</div>
@@ -386,6 +432,19 @@ export default function DetalheOS() {
             </div>
           </div>
         )}
+        {os.fotosConclusao?.length > 0 && (
+          <div>
+            <p className="text-gray-400 text-xs mb-1.5">Fotos do serviço ({os.fotosConclusao.length})</p>
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+              {os.fotosConclusao.map((url, i) => (
+                <button key={i} type="button" onClick={() => setFotoAmpliada(url)}
+                  className="aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity">
+                  <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {!concluida && (
@@ -403,6 +462,48 @@ export default function DetalheOS() {
               <label className="block text-sm font-medium text-gray-700 mb-1">{usaKm ? 'KM de conclusão *' : 'Horímetro de conclusão *'}</label>
               <input type="number" value={horimetroConc} onChange={e => setHorimetroConc(e.target.value)}
                 className="input" placeholder={usaKm ? 'Ex: 85000' : 'Ex: 12480'} />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fotos do serviço</label>
+              <p className="text-xs text-gray-400 mb-2">Registre o {usaKm ? 'KM' : 'horímetro'}, peças trocadas e o estado do equipamento.</p>
+              <input
+                ref={fotoInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={adicionarFotos}
+                className="hidden"
+              />
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {fotos.map((f, i) => (
+                  <div key={i} className="relative aspect-square rounded-xl overflow-hidden border border-gray-200 group">
+                    <img src={f.preview} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removerFoto(i)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-brand-red transition-colors"
+                      aria-label="Remover foto"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => fotoInputRef.current?.click()}
+                  className="aspect-square rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-brand-red hover:text-brand-red transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="text-[11px] font-medium leading-none text-center">Câmera<br/>ou galeria</span>
+                </button>
+              </div>
+              {fotos.length > 0 && <p className="text-xs text-gray-400 mt-1.5">{fotos.length} foto{fotos.length !== 1 ? 's' : ''} — as fotos serão enviadas ao concluir.</p>}
             </div>
 
             {!viaFiltros && (
@@ -474,7 +575,7 @@ export default function DetalheOS() {
             {erro && <p className="text-red-600 text-sm">{erro}</p>}
 
             <button onClick={concluir} disabled={salvando} className="btn-primary w-full justify-center">
-              {salvando ? 'Concluindo...' : 'Concluir Ordem de Serviço'}
+              {salvando ? (fotos.length > 0 ? 'Enviando fotos...' : 'Concluindo...') : 'Concluir Ordem de Serviço'}
             </button>
           </div>
         </>
@@ -501,6 +602,17 @@ export default function DetalheOS() {
 
       {adicionandoFiltros && (
         <ModalAdicionarFiltros os={os} osId={id} uid={uid} nome={nome} onFechar={() => setAdicionandoFiltros(false)} />
+      )}
+
+      {fotoAmpliada && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setFotoAmpliada(null)}>
+          <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors" aria-label="Fechar">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img src={fotoAmpliada} alt="Foto do serviço" className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+        </div>
       )}
     </div>
   )
