@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// Regras do Firebase Storage do SOS Almoxarifado.
+// Qualquer usuário autenticado (logado no sistema) pode ler e enviar arquivos —
+// fotos de geradores e fotos das ordens de serviço (ordens_servico/{id}/fotos).
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
