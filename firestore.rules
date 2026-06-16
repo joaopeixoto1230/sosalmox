@@ -85,5 +85,12 @@ service cloud.firestore {
       allow update: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
       allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
+
+    // Fotos do serviço das OS (uma foto por documento, base64 no campo dataUrl)
+    match /fotos_os/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
   }
 }

@@ -1,62 +1,51 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore'
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
-import { db, storage } from '../../firebase/config'
+import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { criarSolicitacaoCompra } from '../../utils/notificacoes'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusOsLabel, statusOsCor, formatarDataHora } from '../../utils/formatters'
 import { idsFiltrosIguais } from '../filtros/filtrosUtils'
 
-// Reduz a foto antes de subir: redimensiona para no máximo 1280px e exporta JPEG ~65%.
-// Fotos de celular saem de 5–12 MB e caem para algumas centenas de KB — upload rápido e confiável.
-// Usa <img> + canvas (funciona em qualquer iPhone/Android, ao contrário de createImageBitmap).
-function comprimirImagem(file, maxLado = 1280, qualidade = 0.65) {
-  return new Promise(resolve => {
-    if (!file?.type?.startsWith('image/')) return resolve(file)
+// Carrega uma imagem (File) num elemento <img> — funciona em qualquer celular.
+function carregarImagem(file) {
+  return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => {
-      try {
-        let { width, height } = img
-        const escala = Math.min(1, maxLado / Math.max(width, height))
-        width = Math.round(width * escala)
-        height = Math.round(height * escala)
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
-        canvas.toBlob(
-          blob => {
-            URL.revokeObjectURL(url)
-            // se a compressão não ajudar (ex: foto já pequena), mantém o original
-            resolve(blob && blob.size < file.size ? blob : file)
-          },
-          'image/jpeg',
-          qualidade
-        )
-      } catch {
-        URL.revokeObjectURL(url)
-        resolve(file)
-      }
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao ler a imagem')) }
     img.src = url
   })
 }
 
-// Upload com acompanhamento de progresso (%); resolve com a URL final.
-function enviarComProgresso(ref, blob, onProgresso) {
-  return new Promise((resolve, reject) => {
-    const task = uploadBytesResumable(ref, blob, { contentType: blob.type || 'image/jpeg' })
-    task.on(
-      'state_changed',
-      snap => onProgresso(snap.totalBytes ? Math.round((snap.bytesTransferred / snap.totalBytes) * 100) : 0),
-      reject,
-      async () => { try { resolve(await getDownloadURL(task.snapshot.ref)) } catch (e) { reject(e) } }
-    )
-  })
+// Comprime a foto e devolve um data URL (JPEG base64) para guardar no Firestore.
+// Reduz tamanho/qualidade até caber bem abaixo do limite de 1 MB de um documento Firestore.
+// Fotos de celular de 5–12 MB viram ~80–250 KB, sem precisar de Storage nem plano pago.
+async function comprimirParaDataUrl(file, maxBytes = 650000) {
+  if (!file?.type?.startsWith('image/')) throw new Error('O arquivo selecionado não é uma imagem.')
+  const img = await carregarImagem(file)
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  let maxLado = 1280
+  let qualidade = 0.6
+  let dataUrl = ''
+  for (let i = 0; i < 9; i++) {
+    let { width, height } = img
+    const escala = Math.min(1, maxLado / Math.max(width, height))
+    width = Math.round(width * escala)
+    height = Math.round(height * escala)
+    canvas.width = width
+    canvas.height = height
+    ctx.clearRect(0, 0, width, height)
+    ctx.drawImage(img, 0, 0, width, height)
+    dataUrl = canvas.toDataURL('image/jpeg', qualidade)
+    if (dataUrl.length <= maxBytes) return dataUrl
+    // ainda grande: baixa a qualidade primeiro, depois o tamanho
+    if (qualidade > 0.4) qualidade -= 0.1
+    else maxLado = Math.round(maxLado * 0.85)
+  }
+  return dataUrl // melhor esforço (já bem reduzida)
 }
 
 export default function DetalheOS() {
@@ -65,6 +54,9 @@ export default function DetalheOS() {
   const { uid, nome, tipoPerfil } = useAuth()
   const { dado: os, carregando } = useDocument('ordens_servico', id)
   const { dados: filtros } = useCollection('filtros')
+  // fotos do serviço guardadas no Firestore (uma por documento na coleção fotos_os)
+  const { dados: fotosOSraw } = useCollection('fotos_os', useMemo(() => [where('osId', '==', id)], [id]), id)
+  const fotosOS = useMemo(() => [...fotosOSraw].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)), [fotosOSraw])
 
   const [horimetroConc, setHorimetroConc] = useState('')
   const [relatorio, setRelatorio] = useState('')
@@ -119,23 +111,25 @@ export default function DetalheOS() {
     try {
       const viaFiltros = os.origem === 'saida_filtros'
 
-      // sobe as fotos do serviço para o Storage antes de gravar a OS.
-      // Envia uma de cada vez (mais confiável no celular) comprimindo antes e mostrando o progresso.
-      // Retry curto: se o Storage recusar, o erro aparece em segundos em vez de travar minutos.
-      try { storage.maxUploadRetryTime = 15000; storage.maxOperationRetryTime = 15000 } catch { /* noop */ }
-      let fotosUrls = os.fotosConclusao || []
+      // guarda as fotos do serviço no Firestore (uma por documento na coleção fotos_os),
+      // comprimidas para caber bem abaixo do limite de 1 MB do documento. Sem Storage/plano pago.
+      // Faz uma de cada vez, mostrando o progresso, e só conclui a OS depois que todas gravaram.
       if (fotos.length > 0) {
-        const enviadas = []
+        const baseOrdem = fotosOS.length
         for (let i = 0; i < fotos.length; i++) {
-          setProgresso({ atual: i + 1, total: fotos.length, pct: 0 })
-          const dados = await comprimirImagem(fotos[i].file)
-          const r = storageRef(storage, `ordens_servico/${id}/fotos/${Date.now()}_${i}.jpg`)
-          const url = await enviarComProgresso(r, dados, pct =>
-            setProgresso({ atual: i + 1, total: fotos.length, pct })
-          )
-          enviadas.push(url)
+          setProgresso({ atual: i + 1, total: fotos.length, pct: 10 })
+          const dataUrl = await comprimirParaDataUrl(fotos[i].file)
+          setProgresso({ atual: i + 1, total: fotos.length, pct: 60 })
+          await addDoc(collection(db, 'fotos_os'), {
+            osId: id,
+            ordem: baseOrdem + i,
+            dataUrl,
+            criadoPor: uid,
+            criadoPorNome: nome,
+            criadoEm: serverTimestamp(),
+          })
+          setProgresso({ atual: i + 1, total: fotos.length, pct: 100 })
         }
-        fotosUrls = [...fotosUrls, ...enviadas]
       }
 
       await runTransaction(db, async (tx) => {
@@ -147,7 +141,7 @@ export default function DetalheOS() {
           relatorioServico: relatorio.trim(),
           problemasEncontrados: problemasEncontrados.trim() || null,
           proximaPreventiva: proximaPreventiva || null,
-          fotosConclusao: fotosUrls,
+          qtdFotos: fotosOS.length + fotos.length,
           dataConclusao: serverTimestamp(),
           concluidoPor: uid,
           concluidoPorNome: nome,
@@ -208,14 +202,7 @@ export default function DetalheOS() {
       })
       navigate('/manutencao')
     } catch (e) {
-      const msg = e?.code === 'storage/unauthorized'
-        ? 'Sem permissão para enviar fotos ao Storage (regra do Firebase). Avise o administrador.'
-        : e?.code === 'storage/retry-limit-exceeded' || e?.code === 'storage/canceled'
-        ? 'Falha ao enviar as fotos (Storage não respondeu). Pode ser regra do Storage ou conexão.'
-        : e?.code
-        ? `Erro ao enviar fotos: ${e.code}`
-        : (e?.message || 'Erro ao concluir OS.')
-      setErro(msg)
+      setErro(e?.message || 'Erro ao concluir OS.')
     } finally {
       setSalvando(false)
       setProgresso(null)
@@ -296,6 +283,10 @@ export default function DetalheOS() {
           })
         }
       }
+      // remove também as fotos do serviço (documentos da coleção fotos_os desta OS)
+      const fotosSnap = await getDocs(query(collection(db, 'fotos_os'), where('osId', '==', id)))
+      await Promise.all(fotosSnap.docs.map(d => deleteDoc(d.ref)))
+
       await deleteDoc(doc(db, 'ordens_servico', id))
       navigate('/manutencao')
     } catch (e) {
@@ -371,9 +362,9 @@ export default function DetalheOS() {
     <tbody>${filtrosLista}</tbody>
   </table>
 
-  ${os.fotosConclusao?.length ? `
+  ${fotosOS.length ? `
   <p class="section-title">Fotos do serviço</p>
-  <div class="fotos">${os.fotosConclusao.map(url => `<img src="${url}" />`).join('')}</div>
+  <div class="fotos">${fotosOS.map(f => `<img src="${f.dataUrl}" />`).join('')}</div>
   ` : ''}
 
   <div class="assinatura">
@@ -496,14 +487,14 @@ export default function DetalheOS() {
             </div>
           </div>
         )}
-        {os.fotosConclusao?.length > 0 && (
+        {fotosOS.length > 0 && (
           <div>
-            <p className="text-gray-400 text-xs mb-1.5">Fotos do serviço ({os.fotosConclusao.length})</p>
+            <p className="text-gray-400 text-xs mb-1.5">Fotos do serviço ({fotosOS.length})</p>
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {os.fotosConclusao.map((url, i) => (
-                <button key={i} type="button" onClick={() => setFotoAmpliada(url)}
+              {fotosOS.map((f, i) => (
+                <button key={f.id} type="button" onClick={() => setFotoAmpliada(f.dataUrl)}
                   className="aspect-square rounded-xl overflow-hidden border border-gray-200 hover:opacity-90 transition-opacity">
-                  <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                  <img src={f.dataUrl} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -567,7 +558,7 @@ export default function DetalheOS() {
                   <span className="text-[11px] font-medium leading-none text-center">Câmera<br/>ou galeria</span>
                 </button>
               </div>
-              {fotos.length > 0 && <p className="text-xs text-gray-400 mt-1.5">{fotos.length} foto{fotos.length !== 1 ? 's' : ''} — as fotos serão enviadas ao concluir.</p>}
+              {fotos.length > 0 && <p className="text-xs text-gray-400 mt-1.5">{fotos.length} foto{fotos.length !== 1 ? 's' : ''} — as fotos serão salvas ao concluir.</p>}
             </div>
 
             {!viaFiltros && (
@@ -641,7 +632,7 @@ export default function DetalheOS() {
             {progresso && (
               <div>
                 <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Enviando foto {progresso.atual} de {progresso.total}</span>
+                  <span>Salvando foto {progresso.atual} de {progresso.total}</span>
                   <span>{progresso.pct}%</span>
                 </div>
                 <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
@@ -652,7 +643,7 @@ export default function DetalheOS() {
 
             <button onClick={concluir} disabled={salvando} className="btn-primary w-full justify-center">
               {salvando
-                ? (progresso ? `Enviando foto ${progresso.atual}/${progresso.total} — ${progresso.pct}%` : 'Concluindo...')
+                ? (progresso ? `Salvando foto ${progresso.atual}/${progresso.total} — ${progresso.pct}%` : 'Concluindo...')
                 : 'Concluir Ordem de Serviço'}
             </button>
           </div>
