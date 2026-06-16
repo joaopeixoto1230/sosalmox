@@ -121,6 +121,8 @@ export default function DetalheOS() {
 
       // sobe as fotos do serviço para o Storage antes de gravar a OS.
       // Envia uma de cada vez (mais confiável no celular) comprimindo antes e mostrando o progresso.
+      // Retry curto: se o Storage recusar, o erro aparece em segundos em vez de travar minutos.
+      try { storage.maxUploadRetryTime = 15000; storage.maxOperationRetryTime = 15000 } catch { /* noop */ }
       let fotosUrls = os.fotosConclusao || []
       if (fotos.length > 0) {
         const enviadas = []
@@ -207,9 +209,11 @@ export default function DetalheOS() {
       navigate('/manutencao')
     } catch (e) {
       const msg = e?.code === 'storage/unauthorized'
-        ? 'Sem permissão para enviar fotos ao Storage. Avise o administrador.'
+        ? 'Sem permissão para enviar fotos ao Storage (regra do Firebase). Avise o administrador.'
         : e?.code === 'storage/retry-limit-exceeded' || e?.code === 'storage/canceled'
-        ? 'Falha ao enviar as fotos (conexão instável). Verifique a internet e tente de novo.'
+        ? 'Falha ao enviar as fotos (Storage não respondeu). Pode ser regra do Storage ou conexão.'
+        : e?.code
+        ? `Erro ao enviar fotos: ${e.code}`
         : (e?.message || 'Erro ao concluir OS.')
       setErro(msg)
     } finally {
