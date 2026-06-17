@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useCollection } from '../../../hooks/useFirestore'
 import ItemCard from '../ItemCard'
+import NovoMaterialModal from '../../estoque/NovoMaterialModal'
 import { formatarData } from '../../../utils/formatters'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
@@ -9,6 +10,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
   const { dados: materiais, carregando } = useCollection('materiais')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Cabos 4x')
   const [busca, setBusca] = useState('')
+  const [novoAberto, setNovoAberto] = useState(false)
 
   const filtrados = useMemo(() => {
     return materiais.filter(m => {
@@ -137,13 +139,25 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
         )}
       </div>
 
-      <input
-        type="search"
-        placeholder="Buscar por nome ou código..."
-        value={busca}
-        onChange={e => setBusca(e.target.value)}
-        className="input"
-      />
+      <div className="flex gap-2">
+        <input
+          type="search"
+          placeholder="Buscar por nome ou código..."
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          className="input flex-1"
+        />
+        <button
+          onClick={() => setNovoAberto(true)}
+          className="btn-secondary flex-shrink-0 gap-1.5 whitespace-nowrap"
+          title="Cadastrar um material que ainda não existe no sistema"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+          </svg>
+          Novo material
+        </button>
+      </div>
 
       {!busca && (
         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -171,6 +185,15 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
           </svg>
           <p>Nenhum material encontrado.</p>
+          <button
+            onClick={() => setNovoAberto(true)}
+            className="btn-primary justify-center gap-1.5 mt-4 mx-auto"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+            Cadastrar este material
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -200,6 +223,13 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
           Revisar Romaneio ({countSelecionados}) →
         </button>
       </div>
+
+      {novoAberto && (
+        <NovoMaterialModal
+          onFechar={() => setNovoAberto(false)}
+          onSalvo={() => {}}
+        />
+      )}
     </div>
   )
 }
