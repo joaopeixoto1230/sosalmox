@@ -52,9 +52,9 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 ### Filtros (`src/components/filtros/`)
 - Cards por potência (30 a 750kVA + Caminhão + Empilhadeira)
 - FiltroCard: menu ⋯ com **"Ajustar estoque"** (edição direta da quantidade), Entrada, Baixa
-- SaidaFiltrosModal: fluxo "Saída p/ Manutenção" — Valdemir entrega filtros e a OS é criada
-  automaticamente; seleção de quem retira (Nilton/Fabio/França)
 - Botão de migração "+ Filtros 700kVA" (admin, some quando os filtros 700kVA já existem)
+- ⚠️ O lançamento de OS ("Saída p/ Manutenção") NÃO fica mais aqui — foi consolidado na
+  Nova OS da Manutenção (passo 2 = filtros). Não recriar essa modal nos Filtros.
 
 ### Manutenção (`src/components/manutencao/`)
 - DetalheOS: **editar OS, excluir OS (devolve filtros ao estoque via transaction e recalcula
@@ -62,6 +62,13 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 - Conclusão de OS com: relatório de serviço, problemas encontrados, próxima preventiva
 - Adicionar filtros a OS aberta; baixa automática de filtros na conclusão
 - Numeração OS-YYYY-NNN via `contadores/ordens_servico`
+- NovaOS em 2 passos: passo 1 = equipamento + local (pátio/locação) + cliente/obra + quem faz
+  a manutenção (Nilton/Fabio/França); passo 2 = filtros (baixa de estoque compartilhado, igual
+  ao antigo SaidaFiltros). Com filtros a OS nasce `em_andamento` com `origem: 'saida_filtros'`.
+- Local pátio/locação: gerador em locação NÃO tem status/localização alterados (fica no cliente).
+- Conclusão: fotos do serviço (base64 no Firestore, coleção `fotos_os` — Storage exige Blaze)
+  + assinaturas digitais
+  (técnico sempre; cliente opcional só em locação) salvas como imagem no doc da OS, no PDF e na tela.
 
 ### Patrimônio (`src/components/patrimonio/`)
 - GG-001 a GG-107 + caminhões + empilhadeiras; status automático por evento/OS/devolução

@@ -15,9 +15,11 @@
 > Sessão focada só nos FILTROS. Não mexa em manutenção, patrimônio, saída nem outros módulos.
 
 - **Escopo:** `src/components/filtros/` (Filtros, FiltroCard, EntradaFiltroModal,
-  BaixaFiltroModal, NovoFiltroModal, SaidaFiltrosModal)
+  BaixaFiltroModal, NovoFiltroModal, FiltrosIguaisModal)
 - **Coleções Firestore:** `filtros`, `entradas_filtro`, `baixas_filtro`
 - **Não tocar:** ordens de serviço, geradores, saída de material.
+- ⚠️ O lançamento de OS ("Saída p/ Manutenção") saiu daqui — agora é na Nova OS da Manutenção
+  (passo 2 = filtros). O antigo `SaidaFiltrosModal.jsx` foi removido.
 
 ## 2. Manutenção (Ordens de Serviço)
 
@@ -25,10 +27,11 @@
 > Sessão focada só na MANUTENÇÃO / ordens de serviço. Não mexa em filtros nem patrimônio.
 
 - **Escopo:** `src/components/manutencao/` (Manutencao, OSCard, NovaOS, DetalheOS)
-- **Coleções:** `ordens_servico`, `contadores/ordens_servico`
+- **Coleções:** `ordens_servico`, `contadores/ordens_servico`, `fotos_os`, `filtros`, `baixas_filtro`
 - **Cuidado:** DetalheOS já tem editar, excluir (devolve filtros ao estoque) e imprimir
-  PDF. Preservar tudo isso. A baixa de filtros na conclusão toca a coleção `filtros`,
-  mas só de leitura/escrita de quantidade — não mexer na UI de filtros.
+  PDF. Preservar tudo isso. NovaOS é em 2 passos e o passo 2 baixa filtros do estoque
+  (toca `filtros`/`baixas_filtro` com estoque compartilhado) — preservar essa lógica.
+- DetalheOS tem fotos (coleção `fotos_os`, base64) e assinaturas digitais na conclusão.
 
 ## 3. Patrimônio (Geradores)
 
