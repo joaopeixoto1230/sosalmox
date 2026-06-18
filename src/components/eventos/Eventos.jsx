@@ -357,7 +357,21 @@ function ModalDetalheEvento({ evento, onFechar }) {
     buscarOrdens()
   }, [evento.id])
 
-  const totalItens = ordens.reduce((acc, o) => acc + (o.itens?.length || 0), 0)
+  // Materiais que estao vinculados ao evento (eventoAtual) mas NAO aparecem em
+  // nenhuma OS (ex.: adicionados pelo "Editar material"). Sem isso, ficavam
+  // invisiveis no detalhe e no relatorio mesmo estando "em evento".
+  const idsNasOrdens = useMemo(() => {
+    const s = new Set()
+    ordens.forEach(o => (o.itens || []).forEach(it => it.id && s.add(it.id)))
+    return s
+  }, [ordens])
+
+  const materiaisAvulsos = useMemo(
+    () => materiais.filter(m => m.eventoAtual === evento.id && !idsNasOrdens.has(m.id)),
+    [materiais, idsNasOrdens, evento.id]
+  )
+
+  const totalItens = ordens.reduce((acc, o) => acc + (o.itens?.length || 0), 0) + materiaisAvulsos.length
   const geradores = [...new Set(ordens.flatMap(codigosGeradoresDaOrdem))]
 
   function imprimir() {
@@ -391,6 +405,23 @@ function ModalDetalheEvento({ evento, onFechar }) {
           ${o.observacoes ? `<p class="obs">"${o.observacoes}"</p>` : ''}
         </div>`
     }).join('')
+
+    const blocoAvulsos = materiaisAvulsos.length > 0 ? `
+        <div class="ordem">
+          <div class="ordem-header">
+            <span class="ordem-num">Materiais adicionados ao evento</span>
+          </div>
+          <table>
+            <thead><tr><th>Material</th><th>Código</th><th>Categoria</th></tr></thead>
+            <tbody>${materiaisAvulsos.map((m, idx) =>
+              `<tr class="${idx % 2 === 0 ? 'row-par' : ''}">
+                <td>${m.nome}</td>
+                <td class="mono">${m.codigo}</td>
+                <td>${m.categoria || '—'}</td>
+              </tr>`
+            ).join('')}</tbody>
+          </table>
+        </div>` : ''
 
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -465,6 +496,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
   </div>
 
   ${blocoOrdens || '<p style="color:#888;text-align:center;padding:20px">Nenhuma saída registrada.</p>'}
+  ${blocoAvulsos}
 
   <div class="assinaturas">
     <div class="assinaturas-titulo">Assinaturas</div>
@@ -605,6 +637,25 @@ function ModalDetalheEvento({ evento, onFechar }) {
               </div>
             )}
           </div>
+
+          {materiaisAvulsos.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+                Materiais adicionados ao evento (sem OS)
+              </p>
+              <div className="border border-gray-100 rounded-xl p-3">
+                <div className="space-y-1">
+                  {materiaisAvulsos.map(m => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs text-gray-600">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                      <span className="truncate">{m.nome}</span>
+                      <span className="text-gray-400 font-mono flex-shrink-0">{m.codigo}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0 flex gap-3">
