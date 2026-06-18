@@ -1,8 +1,11 @@
 // Materiais "por quantidade" (consumiveis): saem em varias unidades, nao ficam
 // presos a um evento (status nao vira "em_evento") e pedem a quantidade na saida.
-// Hoje: protetores de cabo. Detecta pelo tipo cadastrado no material.
+// Hoje: protetores de cabo. Detecta pelo tipo OU pelo nome, porque alguns
+// protetores foram cadastrados com tipo "Outros Materiais" e so o nome indica.
 export function materialPorQuantidade(material) {
-  return material?.tipo === 'Protetor de cabo'
+  if (!material) return false
+  if (material.tipo === 'Protetor de cabo') return true
+  return (material.nome || '').toLowerCase().includes('protetor de cabo')
 }
 
 export function formatarData(data) {
