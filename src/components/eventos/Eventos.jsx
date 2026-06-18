@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
@@ -318,6 +318,27 @@ function codigosGeradoresDaOrdem(o) {
 function ModalDetalheEvento({ evento, onFechar }) {
   const [ordens, setOrdens] = useState([])
   const [carregando, setCarregando] = useState(true)
+  const { dados: materiais } = useCollection('materiais')
+
+  // A OS guarda um retrato do material (nome/codigo da epoca). Para refletir
+  // edicoes feitas no estoque, cruzamos pelo id e usamos o dado atual; se o
+  // material foi excluido, cai no que estava gravado na OS.
+  const materiaisMap = useMemo(() => {
+    const m = {}
+    materiais.forEach(mat => { m[mat.id] = mat })
+    return m
+  }, [materiais])
+
+  function itemAtual(item) {
+    const atual = item.id && materiaisMap[item.id]
+    if (!atual) return item
+    return {
+      ...item,
+      nome: atual.nome || item.nome,
+      codigo: atual.codigo || item.codigo,
+      categoria: atual.categoria || item.categoria,
+    }
+  }
 
   useEffect(() => {
     async function buscarOrdens() {
@@ -343,13 +364,14 @@ function ModalDetalheEvento({ evento, onFechar }) {
     const dataEvento = evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
 
     const blocoOrdens = ordens.map(o => {
-      const itensLinhas = (o.itens || []).map((item, idx) =>
-        `<tr class="${idx % 2 === 0 ? 'row-par' : ''}">
+      const itensLinhas = (o.itens || []).map((itemBruto, idx) => {
+        const item = itemAtual(itemBruto)
+        return `<tr class="${idx % 2 === 0 ? 'row-par' : ''}">
           <td>${item.nome}</td>
           <td class="mono">${item.codigo}</td>
           <td>${item.categoria || '—'}</td>
         </tr>`
-      ).join('')
+      }).join('')
 
       return `
         <div class="ordem">
@@ -559,13 +581,16 @@ function ModalDetalheEvento({ evento, onFechar }) {
 
                     {ordem.itens?.length > 0 && (
                       <div className="space-y-1">
-                        {ordem.itens.map((item, i) => (
-                          <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
-                            <span className="truncate">{item.nome}</span>
-                            <span className="text-gray-400 font-mono flex-shrink-0">{item.codigo}</span>
-                          </div>
-                        ))}
+                        {ordem.itens.map((itemBruto, i) => {
+                          const item = itemAtual(itemBruto)
+                          return (
+                            <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
+                              <span className="truncate">{item.nome}</span>
+                              <span className="text-gray-400 font-mono flex-shrink-0">{item.codigo}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                     )}
 
