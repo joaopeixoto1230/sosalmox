@@ -56,16 +56,10 @@ export default function MaterialCard({ material, evento }) {
 
   return (
     <div className={`card transition-all hover:shadow-md ${estoqueBaixo ? 'border-red-200' : ''} relative`}>
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-brand-black text-sm leading-snug break-words">{material.nome}</p>
-          <p className="text-xs text-brand-red font-mono mt-0.5">{material.codigo}</p>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <span className={`badge ${statusMaterialCor(material.status)}`}>
-            {statusMaterialLabel(material.status)}
-          </span>
-          <div className="relative">
+      <div className="mb-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="flex-1 min-w-0 font-bold text-brand-black text-sm leading-snug">{material.nome}</p>
+          <div className="relative flex-shrink-0">
             <button
               onClick={() => setMenuAberto(v => !v)}
               className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
@@ -108,6 +102,12 @@ export default function MaterialCard({ material, evento }) {
               </>
             )}
           </div>
+        </div>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <span className="text-xs text-brand-red font-mono">{material.codigo}</span>
+          <span className={`badge ${statusMaterialCor(material.status)}`}>
+            {statusMaterialLabel(material.status)}
+          </span>
         </div>
       </div>
 
