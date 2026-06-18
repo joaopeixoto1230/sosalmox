@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
 import { statusGeradorLabel, statusGeradorCor, statusEfetivoCaminhao } from '../../utils/formatters'
 import CaminhaoCard from './CaminhaoCard'
+import NovoCaminhaoModal from './NovoCaminhaoModal'
 import { FROTA_INICIAL } from './frotaInicial'
 
 const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Manutenção', 'Defeito']
@@ -21,6 +22,7 @@ export default function Caminhoes() {
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [vista, setVista] = useState('grid')
   const [importando, setImportando] = useState(false)
+  const [modalNovo, setModalNovo] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.CAMINHOES) && tipoPerfil !== 'franca'
 
@@ -80,9 +82,14 @@ export default function Caminhoes() {
           <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} caminhões ativos.</p>
         </div>
         {podeAdministrar && (
-          <button onClick={() => navigate('/manutencao/nova')} className="btn-secondary flex-shrink-0 text-sm">
-            + Nova OS
-          </button>
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={() => navigate('/manutencao/nova')} className="btn-secondary text-sm">
+              + Nova OS
+            </button>
+            <button onClick={() => setModalNovo(true)} className="btn-primary text-sm">
+              + Novo caminhão
+            </button>
+          </div>
         )}
       </div>
 
@@ -159,6 +166,10 @@ export default function Caminhoes() {
             </div>
           )}
         </>
+      )}
+
+      {modalNovo && (
+        <NovoCaminhaoModal onFechar={() => setModalNovo(false)} onSalvo={() => setModalNovo(false)} />
       )}
     </div>
   )

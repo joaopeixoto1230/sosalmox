@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -65,6 +65,12 @@ export default function DetalheCaminhao() {
   async function marcarVendido() {
     if (!confirm(`Marcar ${caminhao.placa} como vendido/inativo? Ele sairá das listas operacionais.`)) return
     await updateDoc(doc(db, 'caminhoes', id), { status: 'inativo', ativo: false })
+    navigate('/caminhoes')
+  }
+
+  async function excluirCaminhao() {
+    if (!confirm(`Excluir o caminhão ${caminhao.placa} de vez? Esta ação não pode ser desfeita. Se ele só saiu da frota, prefira "Vendido".`)) return
+    await deleteDoc(doc(db, 'caminhoes', id))
     navigate('/caminhoes')
   }
 
@@ -177,7 +183,7 @@ export default function DetalheCaminhao() {
           )}
 
           {podeEditar && (
-            <div className="flex gap-2 pt-2 border-t border-gray-100">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
               <button onClick={toggleDefeito}
                 className={`flex-1 text-sm py-1.5 rounded-lg border font-medium transition-colors ${caminhao.temDefeito ? 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100' : 'border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100'}`}>
                 {caminhao.temDefeito ? '✓ Resolver defeito' : '⚠ Marcar defeito'}
@@ -185,6 +191,11 @@ export default function DetalheCaminhao() {
               {podeVender && (
                 <button onClick={marcarVendido} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">
                   Vendido
+                </button>
+              )}
+              {podeVender && (
+                <button onClick={excluirCaminhao} className="text-sm px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                  Excluir
                 </button>
               )}
             </div>
