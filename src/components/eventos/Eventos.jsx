@@ -59,6 +59,14 @@ export default function Eventos() {
       const ordensSnap = await getDocs(query(collection(db, 'ordens_saida'), where('eventoId', '==', excluindo.id)))
       ordensSnap.forEach(d => batch.delete(d.ref))
 
+      // remove tambem as fotos das saidas (fotos_saida) dessas ordens
+      const ordemIds = ordensSnap.docs.map(d => d.id)
+      for (let i = 0; i < ordemIds.length; i += 10) {
+        const lote = ordemIds.slice(i, i + 10)
+        const fotosSnap = await getDocs(query(collection(db, 'fotos_saida'), where('ordemId', 'in', lote)))
+        fotosSnap.forEach(d => batch.delete(d.ref))
+      }
+
       batch.delete(doc(db, 'eventos', excluindo.id))
       await batch.commit()
       setExcluindo(null)
@@ -318,6 +326,8 @@ function codigosGeradoresDaOrdem(o) {
 function ModalDetalheEvento({ evento, onFechar }) {
   const [ordens, setOrdens] = useState([])
   const [carregando, setCarregando] = useState(true)
+  const [fotosPorOrdem, setFotosPorOrdem] = useState({})
+  const [fotoAmpliada, setFotoAmpliada] = useState(null)
   const { dados: materiais } = useCollection('materiais')
 
   // A OS guarda um retrato do material (nome/codigo da epoca). Para refletir
@@ -348,6 +358,21 @@ function ModalDetalheEvento({ evento, onFechar }) {
         const dados = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         dados.sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0))
         setOrdens(dados)
+
+        // Carrega as fotos das saidas (fotos_saida, uma por documento), agrupadas
+        // por ordem. Query "in" aceita ate 10 ids por vez, entao busca em lotes.
+        const ids = dados.map(d => d.id)
+        const porOrdem = {}
+        for (let i = 0; i < ids.length; i += 10) {
+          const lote = ids.slice(i, i + 10)
+          const fSnap = await getDocs(query(collection(db, 'fotos_saida'), where('ordemId', 'in', lote)))
+          fSnap.docs.forEach(d => {
+            const f = { id: d.id, ...d.data() }
+            ;(porOrdem[f.ordemId] = porOrdem[f.ordemId] || []).push(f)
+          })
+        }
+        Object.values(porOrdem).forEach(arr => arr.sort((a, b) => (a.ordem || 0) - (b.ordem || 0)))
+        setFotosPorOrdem(porOrdem)
       } catch (e) {
         console.error(e)
       } finally {
@@ -632,6 +657,25 @@ function ModalDetalheEvento({ evento, onFechar }) {
                     {ordem.observacoes && (
                       <p className="text-xs text-gray-500 italic">"{ordem.observacoes}"</p>
                     )}
+
+                    {fotosPorOrdem[ordem.id]?.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1.5">
+                          {fotosPorOrdem[ordem.id].length} {fotosPorOrdem[ordem.id].length === 1 ? 'foto' : 'fotos'}
+                        </p>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                          {fotosPorOrdem[ordem.id].map(f => (
+                            <button
+                              key={f.id}
+                              onClick={() => setFotoAmpliada(f.dataUrl)}
+                              className="aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-brand-red transition-colors"
+                            >
+                              <img src={f.dataUrl} alt="Foto da saída" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -668,6 +712,23 @@ function ModalDetalheEvento({ evento, onFechar }) {
           </button>
         </div>
       </div>
+
+      {fotoAmpliada && (
+        <div
+          className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
+          onClick={() => setFotoAmpliada(null)}
+        >
+          <img src={fotoAmpliada} alt="Foto da saída" className="max-w-full max-h-full rounded-lg object-contain" />
+          <button
+            onClick={() => setFotoAmpliada(null)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

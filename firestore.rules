@@ -92,5 +92,12 @@ service cloud.firestore {
       allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
       allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
+
+    // Fotos da saída de material (uma foto por documento, base64 no campo dataUrl)
+    match /fotos_saida/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
   }
 }

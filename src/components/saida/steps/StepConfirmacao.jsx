@@ -1,20 +1,45 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   runTransaction,
   doc,
   collection,
+  addDoc,
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
+import { comprimirParaDataUrl } from '../../../utils/imagem'
 
 export default function StepConfirmacao({ evento, geradores, itens, observacoes, responsavel, onNovaSaida }) {
   const { uid, nome } = useAuth()
   const [status, setStatus] = useState('idle')
   const [numeroOrdem, setNumeroOrdem] = useState(null)
   const [erro, setErro] = useState('')
+  const [fotos, setFotos] = useState([])
+  const [progresso, setProgresso] = useState(null) // { atual, total } durante o envio
+  const fotoInputRef = useRef(null)
+
+  // libera as URLs de preview da memoria quando o componente desmonta
+  useEffect(() => {
+    return () => fotos.forEach(f => URL.revokeObjectURL(f.preview))
+  }, [fotos])
+
+  function adicionarFotos(e) {
+    const arquivos = Array.from(e.target.files || [])
+    if (arquivos.length === 0) return
+    setFotos(prev => [...prev, ...arquivos.map(file => ({ file, preview: URL.createObjectURL(file) }))])
+    if (fotoInputRef.current) fotoInputRef.current.value = ''
+  }
+
+  function removerFoto(idx) {
+    setFotos(prev => {
+      const f = prev[idx]
+      if (f) URL.revokeObjectURL(f.preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
 
   const codigosGeradores = geradores?.length > 0
     ? geradores.map(g => g.codigo).join(', ')
@@ -25,8 +50,27 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     setErro('')
     try {
       const contadorRef = doc(db, 'contadores', 'ordens_saida')
-      const ordensRef = collection(db, 'ordens_saida')
+      const ordemRef = doc(collection(db, 'ordens_saida'))
       let novoNumero
+
+      // Envia as fotos primeiro (uma por documento em fotos_saida, comprimidas
+      // para caber no limite de 1 MB do Firestore). Se falhar, a saida nem e
+      // gravada — mesmo padrao das fotos da OS de Manutencao.
+      if (fotos.length > 0) {
+        for (let i = 0; i < fotos.length; i++) {
+          setProgresso({ atual: i + 1, total: fotos.length })
+          const dataUrl = await comprimirParaDataUrl(fotos[i].file)
+          await addDoc(collection(db, 'fotos_saida'), {
+            ordemId: ordemRef.id,
+            ordem: i,
+            dataUrl,
+            criadoPor: uid,
+            criadoPorNome: nome,
+            criadoEm: serverTimestamp(),
+          })
+        }
+        setProgresso(null)
+      }
 
       await runTransaction(db, async (tx) => {
         const contSnap = await tx.get(contadorRef)
@@ -61,12 +105,12 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           })
         }
 
-        const ordemRef = doc(ordensRef)
         tx.set(ordemRef, {
           numero: novoNumero,
           numeroFormatado: formatarNumeroOrdem(novoNumero),
           eventoId: eventoIdFinal,
           eventoNome: evento?.nome || null,
+          qtdFotos: fotos.length,
           geradores: (geradores || []).map(g => ({ id: g.id, codigo: g.codigo })),
           geradorCodigo: geradores?.length > 0 ? geradores[0].codigo : null,
           itens: itens.map(i => ({
@@ -117,6 +161,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     } catch (err) {
       console.error(err)
       setErro(err.message || 'Erro ao confirmar saída.')
+      setProgresso(null)
       setStatus('erro')
     }
   }
@@ -146,6 +191,59 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           </div>
         </div>
 
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-sm text-gray-700">Fotos (opcional)</h3>
+              <p className="text-xs text-gray-400">Anexe fotos dos materiais ou do romaneio.</p>
+            </div>
+            {fotos.length > 0 && (
+              <span className="bg-brand-red text-white text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0">
+                {fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'}
+              </span>
+            )}
+          </div>
+
+          {fotos.length > 0 && (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+              {fotos.map((f, idx) => (
+                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
+                  <img src={f.preview} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removerFoto(idx)}
+                    disabled={status === 'carregando'}
+                    className="absolute top-1 right-1 w-6 h-6 bg-black/60 hover:bg-brand-red text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            ref={fotoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={adicionarFotos}
+            className="hidden"
+          />
+          <button
+            onClick={() => fotoInputRef.current?.click()}
+            disabled={status === 'carregando'}
+            className="btn-secondary w-full justify-center gap-2 disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {fotos.length > 0 ? 'Adicionar mais fotos' : 'Adicionar fotos'}
+          </button>
+        </div>
+
         {erro && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
             {erro}
@@ -163,7 +261,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Processando...
+              {progresso ? `Enviando foto ${progresso.atual}/${progresso.total}...` : 'Processando...'}
             </>
           ) : 'Confirmar Saída'}
         </button>
