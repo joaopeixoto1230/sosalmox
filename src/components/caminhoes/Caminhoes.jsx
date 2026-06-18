@@ -5,7 +5,7 @@ import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
-import { statusGeradorLabel, statusGeradorCor } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, statusEfetivoCaminhao } from '../../utils/formatters'
 import CaminhaoCard from './CaminhaoCard'
 import { FROTA_INICIAL } from './frotaInicial'
 
@@ -16,6 +16,7 @@ export default function Caminhoes() {
   const navigate = useNavigate()
   const { tipoPerfil } = useAuth()
   const { dados: caminhoes, carregando } = useCollection('caminhoes')
+  const { dados: geradores } = useCollection('geradores')
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [vista, setVista] = useState('grid')
@@ -45,25 +46,31 @@ export default function Caminhoes() {
     }
   }
 
+  // Gerador montado em cada caminhao (vinculo opcional). O status exibido segue
+  // esse gerador quando ele esta em evento/locacao — ver statusEfetivoCaminhao.
+  const gerMap = useMemo(() => new Map(geradores.map(g => [g.id, g])), [geradores])
+  const geradorDe = (c) => (c.geradorMontadoId ? gerMap.get(c.geradorMontadoId) : null)
+  const statusDe = (c) => statusEfetivoCaminhao(c, geradorDe(c))
+
   const ativos = useMemo(() => caminhoes.filter(c => c.ativo !== false && c.status !== 'inativo'), [caminhoes])
 
   const filtrados = useMemo(() => {
     return ativos.filter(c => {
-      if (statusFiltro !== 'Todos' && c.status !== STATUS_MAP[statusFiltro]) return false
+      if (statusFiltro !== 'Todos' && statusDe(c) !== STATUS_MAP[statusFiltro]) return false
       if (busca) {
         const q = busca.toLowerCase()
         return c.placa?.toLowerCase().includes(q) || c.marca?.toLowerCase().includes(q) || c.modelo?.toLowerCase().includes(q)
       }
       return true
     }).sort((a, b) => (a.placa || '').localeCompare(b.placa || ''))
-  }, [ativos, busca, statusFiltro])
+  }, [ativos, busca, statusFiltro, gerMap])
 
   const stats = useMemo(() => ({
     total: ativos.length,
-    disponiveis: ativos.filter(c => c.status === 'disponivel').length,
-    emEvento: ativos.filter(c => c.status === 'em_evento').length,
-    comDefeito: ativos.filter(c => c.temDefeito).length,
-  }), [ativos])
+    disponiveis: ativos.filter(c => statusDe(c) === 'disponivel').length,
+    emEvento: ativos.filter(c => statusDe(c) === 'em_evento').length,
+    comDefeito: ativos.filter(c => statusDe(c) === 'defeito').length,
+  }), [ativos, gerMap])
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -131,7 +138,7 @@ export default function Caminhoes() {
           <p className="text-sm text-gray-500">{filtrados.length} {filtrados.length === 1 ? 'caminhão' : 'caminhões'}</p>
           {vista === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {filtrados.map(c => <CaminhaoCard key={c.id} caminhao={c} />)}
+              {filtrados.map(c => <CaminhaoCard key={c.id} caminhao={c} gerador={geradorDe(c)} />)}
             </div>
           ) : (
             <div className="space-y-2">
@@ -141,7 +148,7 @@ export default function Caminhoes() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-brand-black">{c.placa}</p>
-                      <span className={`badge ${statusGeradorCor(c.status)}`}>{statusGeradorLabel(c.status)}</span>
+                      <span className={`badge ${statusGeradorCor(statusDe(c))}`}>{statusGeradorLabel(statusDe(c))}</span>
                     </div>
                     <p className="text-xs text-gray-500">{c.marca} {c.modelo}{c.ano ? ` (${c.ano})` : ''}</p>
                     <p className="text-xs text-gray-400">{c.localizacao || 'Pátio SOS'}</p>

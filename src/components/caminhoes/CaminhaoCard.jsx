@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../../firebase/config'
 import { doc, updateDoc } from 'firebase/firestore'
-import { statusGeradorLabel, statusGeradorCor, formatarData } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, formatarData, statusEfetivoCaminhao, caminhaoAcompanhaGerador } from '../../utils/formatters'
 
 // Carrega uma imagem (File) num elemento <img> — funciona em qualquer celular.
 function carregarImagem(file) {
@@ -51,7 +51,7 @@ const STATUS_OPCOES = [
   { value: 'defeito', label: 'Com Defeito' },
 ]
 
-export default function CaminhaoCard({ caminhao }) {
+export default function CaminhaoCard({ caminhao, gerador }) {
   const navigate = useNavigate()
   const [menuAberto, setMenuAberto] = useState(false)
   const [subMenu, setSubMenu] = useState(null)
@@ -71,8 +71,15 @@ export default function CaminhaoCard({ caminhao }) {
     return Math.floor((Date.now() - d.getTime()) / 86400000)
   })() : null
 
-  const alertaParado = diasParado !== null && diasParado >= 15 && caminhao.status === 'disponivel'
-  const alertaDefeito = caminhao.status === 'defeito'
+  // Status exibido: se houver gerador montado e ele estiver em evento/locacao,
+  // o caminhao acompanha (vai junto). Defeito/manutencao do gerador NAO mudam o
+  // caminhao; condicoes do proprio caminhao prevalecem.
+  const statusEfetivo = statusEfetivoCaminhao(caminhao, gerador)
+  const acompanha = caminhaoAcompanhaGerador(caminhao, gerador)
+  const defeitoTexto = caminhao.defeito || ''
+
+  const alertaParado = diasParado !== null && diasParado >= 15 && statusEfetivo === 'disponivel'
+  const alertaDefeito = statusEfetivo === 'defeito'
 
   function fecharMenu() {
     setMenuAberto(false)
@@ -233,11 +240,14 @@ export default function CaminhaoCard({ caminhao }) {
               {[caminhao.marca, caminhao.modelo].filter(Boolean).join(' ')}{caminhao.ano ? ` • ${caminhao.ano}` : ''}
             </p>
           )}
+          {gerador && (
+            <p className="text-[11px] text-brand-red font-medium mt-0.5">⚡ Acompanha {gerador.codigo}</p>
+          )}
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
-          <span className={`badge ${statusGeradorCor(caminhao.status)}`}>
-            {statusGeradorLabel(caminhao.status)}
+          <span className={`badge ${statusGeradorCor(statusEfetivo)}`}>
+            {statusGeradorLabel(statusEfetivo)}
           </span>
           <div className="relative">
             <button
@@ -388,7 +398,9 @@ export default function CaminhaoCard({ caminhao }) {
         className="cursor-pointer"
         onClick={() => navigate(`/caminhoes/${caminhao.id}`)}
       >
-        <p className="text-xs text-gray-600 truncate">{caminhao.localizacao || 'Pátio SOS'}</p>
+        <p className="text-xs text-gray-600 truncate">
+          {(acompanha ? (gerador.localizacao || gerador.eventoNome) : caminhao.localizacao) || 'Pátio SOS'}
+        </p>
 
         {caminhao.horimetroAtual > 0 && (
           <p className="text-xs text-gray-400 mt-1">{caminhao.horimetroAtual?.toLocaleString('pt-BR')}h</p>
@@ -396,7 +408,7 @@ export default function CaminhaoCard({ caminhao }) {
 
         {(alertaParado || alertaDefeito) && (
           <div className={`mt-2 text-xs font-medium px-2 py-1 rounded-lg ${alertaDefeito ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
-            {alertaDefeito ? `⚠️ ${caminhao.defeito || 'Com defeito'}` : `⏱️ Parado há ${diasParado} dias`}
+            {alertaDefeito ? `⚠️ ${defeitoTexto || 'Com defeito'}` : `⏱️ Parado há ${diasParado} dias`}
           </div>
         )}
 

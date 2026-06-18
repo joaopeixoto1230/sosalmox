@@ -95,6 +95,26 @@ export function statusGeradorCor(status) {
   return map[status] || 'bg-gray-100 text-gray-600'
 }
 
+// Caminhao com gerador montado: quando o gerador vai a evento/locacao, ele segue
+// fisicamente em cima do caminhao, entao o caminhao acompanha esse status. Defeito
+// e manutencao do gerador NAO afetam o caminhao (sao da maquina, nao do veiculo).
+// Condicoes do proprio caminhao (defeito/manutencao) sempre prevalecem.
+const ESTADOS_ACOMPANHA = ['em_evento', 'locacao']
+
+export function caminhaoAcompanhaGerador(caminhao, gerador) {
+  if (!gerador) return false
+  const proprio = caminhao?.status || 'disponivel'
+  if (caminhao?.temDefeito || proprio === 'defeito' || proprio === 'manutencao') return false
+  return ESTADOS_ACOMPANHA.includes(gerador.status)
+}
+
+export function statusEfetivoCaminhao(caminhao, gerador) {
+  const proprio = caminhao?.status || 'disponivel'
+  if (caminhao?.temDefeito || proprio === 'defeito' || proprio === 'manutencao') return proprio
+  if (gerador && ESTADOS_ACOMPANHA.includes(gerador.status)) return gerador.status
+  return proprio
+}
+
 export function statusOsLabel(status) {
   const map = {
     pendente: 'Pendente',

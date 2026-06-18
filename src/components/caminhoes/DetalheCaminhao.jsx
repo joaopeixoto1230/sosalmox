@@ -4,7 +4,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
-import { statusGeradorLabel, statusGeradorCor, statusOsLabel, statusOsCor, formatarData } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, statusOsLabel, statusOsCor, formatarData, statusEfetivoCaminhao } from '../../utils/formatters'
 import { where } from 'firebase/firestore'
 
 export default function DetalheCaminhao() {
@@ -13,9 +13,12 @@ export default function DetalheCaminhao() {
   const { tipoPerfil } = useAuth()
   const { dado: caminhao, carregando } = useDocument('caminhoes', id)
   const { dados: ordens } = useCollection('ordens_servico', [where('equipamentoId', '==', id || '_')], id)
+  const { dados: geradores } = useCollection('geradores')
   const [editando, setEditando] = useState(false)
   const [form, setForm] = useState({})
   const [salvando, setSalvando] = useState(false)
+  const [buscaGer, setBuscaGer] = useState('')
+  const [vinculando, setVinculando] = useState(false)
 
   const podeEditar = ['admin', 'gerente', 'almoxarife', 'franca'].includes(tipoPerfil)
   const podeVender = ['admin', 'gerente'].includes(tipoPerfil)
@@ -65,8 +68,36 @@ export default function DetalheCaminhao() {
     navigate('/caminhoes')
   }
 
+  async function vincularGerador(g) {
+    setVinculando(true)
+    try {
+      await updateDoc(doc(db, 'caminhoes', id), { geradorMontadoId: g.id, geradorMontadoCodigo: g.codigo || null })
+      setBuscaGer('')
+    } finally {
+      setVinculando(false)
+    }
+  }
+
+  async function desvincularGerador() {
+    if (!confirm('Remover o vínculo com o gerador montado? O status do caminhão deixa de acompanhá-lo.')) return
+    await updateDoc(doc(db, 'caminhoes', id), { geradorMontadoId: null, geradorMontadoCodigo: null })
+  }
+
   if (carregando) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" /></div>
   if (!caminhao) return <div className="text-center py-12 text-gray-400"><p>Caminhão não encontrado.</p></div>
+
+  // Gerador montado (vinculo opcional) e status exibido derivado dele.
+  const gerMontado = caminhao.geradorMontadoId ? geradores.find(g => g.id === caminhao.geradorMontadoId) : null
+  const statusEfetivo = statusEfetivoCaminhao(caminhao, gerMontado)
+  const geradoresParaVincular = geradores
+    .filter(g => g.ativo !== false && g.status !== 'inativo')
+    .filter(g => {
+      if (!buscaGer) return true
+      const q = buscaGer.toLowerCase()
+      return g.codigo?.toLowerCase().includes(q) || g.potencia?.toLowerCase().includes(q)
+    })
+    .sort((a, b) => parseInt(a.codigo?.replace(/\D/g, '') || '0') - parseInt(b.codigo?.replace(/\D/g, '') || '0'))
+    .slice(0, 25)
 
   const historico = ordens.sort((a, b) => {
     const ta = a.dataAbertura?.toDate ? a.dataAbertura.toDate() : new Date(a.dataAbertura || 0)
@@ -81,7 +112,7 @@ export default function DetalheCaminhao() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-brand-black">{caminhao.placa}</h1>
-            <span className={`badge ${statusGeradorCor(caminhao.status)}`}>{statusGeradorLabel(caminhao.status)}</span>
+            <span className={`badge ${statusGeradorCor(statusEfetivo)}`}>{statusGeradorLabel(statusEfetivo)}</span>
           </div>
           <p className="text-gray-500 text-sm">{caminhao.marca} {caminhao.modelo} {caminhao.ano && `(${caminhao.ano})`}</p>
         </div>
@@ -160,6 +191,64 @@ export default function DetalheCaminhao() {
           )}
         </div>
       )}
+
+      <div className="card space-y-3">
+        <div className="flex items-center gap-2">
+          <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <h2 className="font-semibold text-brand-black">Gerador montado</h2>
+        </div>
+
+        {gerMontado ? (
+          <>
+            <button onClick={() => navigate(`/geradores/${gerMontado.id}`)}
+              className="w-full text-left flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-gray-100 hover:border-brand-red hover:bg-red-50/30 transition-all">
+              <div>
+                <p className="font-bold text-brand-black">{gerMontado.codigo}</p>
+                <p className="text-xs text-gray-500">{[gerMontado.potencia, gerMontado.marca].filter(Boolean).join(' • ')}</p>
+              </div>
+              <span className={`badge flex-shrink-0 ${statusGeradorCor(gerMontado.status)}`}>{statusGeradorLabel(gerMontado.status)}</span>
+            </button>
+            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+              Quando este gerador vai a um evento ou locação, o caminhão acompanha automaticamente.
+              Defeito ou manutenção do gerador <strong>não</strong> alteram o status do caminhão.
+            </p>
+            {podeEditar && (
+              <button onClick={desvincularGerador} className="text-sm text-brand-red hover:underline">
+                Remover vínculo
+              </button>
+            )}
+          </>
+        ) : podeEditar ? (
+          <>
+            <p className="text-sm text-gray-500">Vincule o gerador que fica montado em cima deste caminhão.</p>
+            <input
+              type="search"
+              placeholder="Buscar gerador por código ou potência..."
+              value={buscaGer}
+              onChange={e => setBuscaGer(e.target.value)}
+              className="input"
+            />
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {geradoresParaVincular.length === 0 ? (
+                <p className="text-sm text-gray-400 py-2">{buscaGer ? 'Nenhum gerador encontrado.' : 'Nenhum gerador disponível.'}</p>
+              ) : geradoresParaVincular.map(g => (
+                <button key={g.id} onClick={() => vincularGerador(g)} disabled={vinculando}
+                  className="w-full text-left flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-100 hover:border-brand-red hover:bg-red-50/30 transition-all disabled:opacity-50">
+                  <div>
+                    <p className="font-semibold text-sm text-brand-black">{g.codigo}</p>
+                    <p className="text-xs text-gray-400">{[g.potencia, g.marca].filter(Boolean).join(' • ')}</p>
+                  </div>
+                  <span className={`badge flex-shrink-0 ${statusGeradorCor(g.status)}`}>{statusGeradorLabel(g.status)}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-gray-400">Nenhum gerador montado.</p>
+        )}
+      </div>
 
       <div className="card">
         <h2 className="font-semibold text-brand-black mb-3">Histórico de Manutenção ({historico.length})</h2>
