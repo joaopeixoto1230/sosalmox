@@ -181,6 +181,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [totalSaidas, setTotalSaidas] = useState(null)
   const [editandoMaterial, setEditandoMaterial] = useState(false)
+  const [editandoGerador, setEditandoGerador] = useState(false)
   const [concluindoEvento, setConcluindoEvento] = useState(false)
 
   useEffect(() => {
@@ -198,6 +199,9 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
     <>
     {editandoMaterial && (
       <ModalEditarMaterialEvento evento={evento} onFechar={() => setEditandoMaterial(false)} />
+    )}
+    {editandoGerador && (
+      <ModalEditarGeradorEvento evento={evento} onFechar={() => setEditandoGerador(false)} />
     )}
     {concluindoEvento && (
       <ModalConcluirEvento evento={evento} onFechar={() => setConcluindoEvento(false)} onConcluido={() => setConcluindoEvento(false)} />
@@ -261,6 +265,15 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
                     </svg>
                     Editar material
+                  </button>
+                  <button
+                    onClick={() => { setMenuAberto(false); setEditandoGerador(true) }}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Editar geradores
                   </button>
                   {evento.status !== 'concluido' && (
                     <button
@@ -898,6 +911,138 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
                       className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-green-200 text-green-700 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-40"
                     >
                       {processando === m.id ? '...' : 'Adicionar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0">
+          <button onClick={onFechar} className="btn-primary w-full justify-center">Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalEditarGeradorEvento({ evento, onFechar }) {
+  const { dados: todosGeradores, carregando } = useCollection('geradores')
+  const [busca, setBusca] = useState('')
+  const [processando, setProcessando] = useState(null)
+
+  const geradoresDoEvento = todosGeradores.filter(g => g.eventoAtual === evento.id)
+  const disponiveisFiltrados = todosGeradores.filter(g => {
+    if (g.status !== 'disponivel') return false
+    if (!busca) return true
+    const q = busca.toLowerCase()
+    return (g.codigo || '').toLowerCase().includes(q) ||
+      (g.modelo || '').toLowerCase().includes(q) ||
+      (g.marca || '').toLowerCase().includes(q) ||
+      (g.potencia || '').toLowerCase().includes(q)
+  })
+
+  const localEvento = `${evento.nome}${evento.local ? ' · ' + evento.local : ''}`
+
+  async function remover(gerador) {
+    setProcessando(gerador.id)
+    try {
+      await updateDoc(doc(db, 'geradores', gerador.id), {
+        status: 'disponivel', eventoAtual: null, eventoNome: null, localizacao: 'Pátio SOS',
+      })
+    } catch (e) { console.error(e) }
+    finally { setProcessando(null) }
+  }
+
+  async function adicionar(gerador) {
+    setProcessando(gerador.id)
+    try {
+      await updateDoc(doc(db, 'geradores', gerador.id), {
+        status: 'em_evento', eventoAtual: evento.id, eventoNome: evento.nome, localizacao: localEvento,
+      })
+    } catch (e) { console.error(e) }
+    finally { setProcessando(null) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-brand-black">Editar geradores</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{evento.nome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              No evento ({geradoresDoEvento.length})
+            </p>
+            {carregando ? (
+              <div className="flex justify-center py-4">
+                <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : geradoresDoEvento.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">Nenhum gerador vinculado a este evento.</p>
+            ) : (
+              <div className="space-y-2">
+                {geradoresDoEvento.map(g => (
+                  <div key={g.id} className="flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-brand-black truncate">{g.codigo}</p>
+                      <p className="text-xs text-gray-500 truncate">{[g.potencia, g.marca, g.modelo].filter(Boolean).join(' • ')}</p>
+                    </div>
+                    <button
+                      onClick={() => remover(g)}
+                      disabled={processando === g.id}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-brand-red rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+                    >
+                      {processando === g.id ? '...' : 'Retirar'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
+              Disponíveis para adicionar
+            </p>
+            <input
+              type="search"
+              placeholder="Buscar por código, potência ou modelo..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className="input w-full mb-2"
+            />
+            {carregando ? (
+              <div className="flex justify-center py-4">
+                <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : disponiveisFiltrados.length === 0 ? (
+              <p className="text-sm text-gray-400 py-2">{busca ? 'Nenhum resultado para a busca.' : 'Nenhum gerador disponível.'}</p>
+            ) : (
+              <div className="space-y-2">
+                {disponiveisFiltrados.map(g => (
+                  <div key={g.id} className="flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-xl px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-brand-black truncate">{g.codigo}</p>
+                      <p className="text-xs text-gray-500 truncate">{[g.potencia, g.marca, g.modelo].filter(Boolean).join(' • ')}</p>
+                    </div>
+                    <button
+                      onClick={() => adicionar(g)}
+                      disabled={processando === g.id}
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-green-200 text-green-700 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-40"
+                    >
+                      {processando === g.id ? '...' : 'Adicionar'}
                     </button>
                   </div>
                 ))}
