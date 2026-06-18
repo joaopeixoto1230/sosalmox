@@ -224,10 +224,15 @@ export default function CaminhaoCard({ caminhao }) {
           className="flex-1 min-w-0 cursor-pointer"
           onClick={() => navigate(`/caminhoes/${caminhao.id}`)}
         >
-          <p className="font-bold text-brand-black">{caminhao.placa}</p>
-          <p className="text-xs text-gray-500">
-            {caminhao.marca || ''}{caminhao.modelo ? ` ${caminhao.modelo}` : ''}{caminhao.ano ? ` • ${caminhao.ano}` : ''}
-          </p>
+          <p className="font-bold text-brand-black tracking-wide">{caminhao.placa}</p>
+          {caminhao.observacao && (
+            <p className="text-xs font-medium text-gray-600 mt-0.5 leading-snug">{caminhao.observacao}</p>
+          )}
+          {(caminhao.marca || caminhao.modelo || caminhao.ano) && (
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {[caminhao.marca, caminhao.modelo].filter(Boolean).join(' ')}{caminhao.ano ? ` • ${caminhao.ano}` : ''}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -392,12 +397,6 @@ export default function CaminhaoCard({ caminhao }) {
         {(alertaParado || alertaDefeito) && (
           <div className={`mt-2 text-xs font-medium px-2 py-1 rounded-lg ${alertaDefeito ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
             {alertaDefeito ? `⚠️ ${caminhao.defeito || 'Com defeito'}` : `⏱️ Parado há ${diasParado} dias`}
-          </div>
-        )}
-
-        {caminhao.observacao && (
-          <div className="mt-2 text-xs px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
-            📝 {caminhao.observacao}
           </div>
         )}
 
