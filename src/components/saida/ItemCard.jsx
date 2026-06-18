@@ -129,43 +129,8 @@ export default function ItemCard({ material, evento, selecionado, quantidade, on
             <span className="badge bg-red-100 text-red-700">Indisponível</span>
           )}
 
-          {disponivel && (
-            ehQtd && selecionado ? (
-              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => onQuantidade(Math.max(1, (quantidade || 1) - 1))}
-                  className="w-6 h-7 bg-gray-100 rounded-md text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
-                  </svg>
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={quantidade || 1}
-                  onChange={e => onQuantidade(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-10 h-7 text-center text-sm font-bold text-brand-black border border-gray-200 rounded-md focus:border-brand-red focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  onClick={() => onQuantidade((quantidade || 1) + 1)}
-                  className="w-6 h-7 bg-brand-red rounded-md text-white flex items-center justify-center hover:bg-red-700 transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-                <button
-                  onClick={onRemover}
-                  className="w-6 h-7 text-gray-300 flex items-center justify-center hover:text-brand-red transition-colors"
-                  title="Remover"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ) : selecionado ? (
+          {disponivel && !(ehQtd && selecionado) && (
+            selecionado ? (
               <button
                 onClick={e => { e.stopPropagation(); onRemover() }}
                 className="w-7 h-7 bg-brand-red rounded-lg text-white flex items-center justify-center hover:bg-red-700 transition-colors"
@@ -186,6 +151,45 @@ export default function ItemCard({ material, evento, selecionado, quantidade, on
             )
           )}
         </div>
+
+        {disponivel && ehQtd && selecionado && (
+          <div className="mt-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-medium text-gray-500">Quantidade</span>
+              <button
+                onClick={onRemover}
+                className="text-xs font-medium text-gray-400 hover:text-brand-red transition-colors"
+              >
+                Remover
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => onQuantidade(Math.max(1, (quantidade || 1) - 1))}
+                className="w-9 h-9 rounded-lg bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200 transition-colors flex-shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                </svg>
+              </button>
+              <input
+                type="number"
+                min="1"
+                value={quantidade || 1}
+                onChange={e => onQuantidade(Math.max(1, Number(e.target.value) || 1))}
+                className="flex-1 w-full min-w-0 h-9 text-center text-base font-bold text-brand-black bg-gray-50 border border-gray-200 rounded-lg focus:border-brand-red focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+              <button
+                onClick={() => onQuantidade((quantidade || 1) + 1)}
+                className="w-9 h-9 rounded-lg bg-brand-red text-white flex items-center justify-center hover:bg-red-700 transition-colors flex-shrink-0"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {detalhes && (
