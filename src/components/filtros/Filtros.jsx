@@ -8,7 +8,6 @@ import FiltroCard from './FiltroCard'
 import EntradaFiltroModal from './EntradaFiltroModal'
 import BaixaFiltroModal from './BaixaFiltroModal'
 import NovoFiltroModal from './NovoFiltroModal'
-import SaidaFiltrosModal from './SaidaFiltrosModal'
 import FiltrosIguaisModal from './FiltrosIguaisModal'
 
 const STATUS_OPCOES = ['Todos', 'OK', 'Baixo', 'Crítico']
@@ -44,7 +43,6 @@ export default function Filtros() {
   const [modalEntrada, setModalEntrada] = useState(null)
   const [modalBaixa, setModalBaixa] = useState(null)
   const [modalNovo, setModalNovo] = useState(false)
-  const [modalSaida, setModalSaida] = useState(false)
   const [modalIguais, setModalIguais] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.ESTOQUE) || tipoPerfil === PERFIS.ADMIN
@@ -138,12 +136,6 @@ export default function Filtros() {
           <button onClick={() => setModalIguais(true)} className="btn-secondary text-sm flex-shrink-0">
             Filtros iguais
           </button>
-          <button onClick={() => setModalSaida(true)} className="btn-primary flex items-center gap-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Saída p/ Manutenção
-          </button>
           {podeAdministrar && (
             <button onClick={() => setModalNovo(true)} className="btn-secondary flex-shrink-0">
               + Novo Filtro
@@ -217,7 +209,6 @@ export default function Filtros() {
       {modalEntrada && <EntradaFiltroModal filtro={modalEntrada} filtros={filtros} onFechar={() => setModalEntrada(null)} />}
       {modalBaixa && <BaixaFiltroModal filtro={modalBaixa} filtros={filtros} onFechar={() => setModalBaixa(null)} />}
       {modalNovo && <NovoFiltroModal onFechar={() => setModalNovo(false)} />}
-      {modalSaida && <SaidaFiltrosModal onFechar={() => setModalSaida(false)} />}
       {modalIguais && <FiltrosIguaisModal filtros={filtros} onFechar={() => setModalIguais(false)} />}
     </div>
   )
