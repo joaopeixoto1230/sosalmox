@@ -371,9 +371,9 @@ export default function NovaOS() {
                     <p className="text-sm font-medium text-brand-black truncate">{i.filtro.nome}</p>
                     <p className="text-xs text-gray-400">{i.filtro.potenciaGG} • em estoque: {i.filtro.quantidadeAtual}</p>
                   </div>
-                  <div className="flex items-center flex-shrink-0 border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="flex items-center flex-shrink-0 border border-gray-200 rounded-lg overflow-hidden bg-white">
                     <button type="button" onClick={() => setQuantidade(i.filtro.id, i.quantidade - 1)}
-                      className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors text-lg leading-none">−</button>
+                      className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-100 transition-colors text-lg leading-none">−</button>
                     <input type="number" inputMode="numeric" min="1" value={i.quantidade}
                       onChange={e => {
                         const v = e.target.value
@@ -383,7 +383,7 @@ export default function NovaOS() {
                       onBlur={() => { if (!i.quantidade || i.quantidade < 1) setQuantidade(i.filtro.id, 1) }}
                       className="w-12 text-center text-sm font-semibold bg-transparent text-brand-black border-x border-gray-200 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                     <button type="button" onClick={() => setQuantidade(i.filtro.id, (parseInt(i.quantidade) || 0) + 1)}
-                      className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors text-lg leading-none">+</button>
+                      className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-100 transition-colors text-lg leading-none">+</button>
                   </div>
                   <button onClick={() => removerFiltro(i.filtro.id)} className="text-gray-300 hover:text-brand-red transition-colors flex-shrink-0">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

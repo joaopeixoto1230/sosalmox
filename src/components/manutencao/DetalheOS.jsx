@@ -1056,11 +1056,17 @@ function ModalAdicionarFiltros({ os, osId, uid, nome, onFechar }) {
                     <p className="text-sm font-medium truncate">{s.filtro.nome}</p>
                     <p className="text-xs text-gray-400">{s.filtro.potenciaGG} • estoque: {s.filtro.quantidadeAtual}</p>
                   </div>
-                  <input type="number" min="1" max={s.filtro.quantidadeAtual}
-                    value={s.quantidade}
-                    onChange={e => setQtd(s.filtro.id, e.target.value)}
-                    className="w-16 text-center border border-gray-200 rounded-lg px-2 py-1 text-sm" />
-                  <button onClick={() => toggle(s.filtro)} className="text-gray-300 hover:text-brand-red transition-colors">
+                  <div className="flex items-center flex-shrink-0 rounded-lg overflow-hidden border border-gray-200 bg-white">
+                    <button type="button" onClick={() => setQtd(s.filtro.id, (parseInt(s.quantidade) || 1) - 1)}
+                      className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-100 transition-colors text-lg leading-none">−</button>
+                    <input type="number" inputMode="numeric" min="1" max={s.filtro.quantidadeAtual}
+                      value={s.quantidade}
+                      onChange={e => setQtd(s.filtro.id, e.target.value)}
+                      className="w-12 text-center text-sm font-semibold bg-transparent text-brand-black border-x border-gray-200 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                    <button type="button" onClick={() => setQtd(s.filtro.id, (parseInt(s.quantidade) || 0) + 1)}
+                      className="w-8 h-8 flex items-center justify-center text-gray-600 hover:bg-gray-100 active:bg-gray-100 transition-colors text-lg leading-none">+</button>
+                  </div>
+                  <button onClick={() => toggle(s.filtro)} className="text-gray-300 hover:text-brand-red transition-colors flex-shrink-0">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
