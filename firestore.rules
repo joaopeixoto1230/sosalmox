@@ -34,6 +34,11 @@ service cloud.firestore {
       allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
     }
 
+    match /caminhoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
+
     match /materiais/{docId} {
       allow read: if isAuthenticated() && isActive();
       allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
