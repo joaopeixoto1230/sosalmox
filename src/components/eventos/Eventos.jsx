@@ -306,6 +306,15 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
   )
 }
 
+// Extrai todos os codigos de gerador de uma ordem. Ordens novas guardam o array
+// `geradores`; ordens antigas so tinham `geradorCodigo` (1 gerador) — fallback.
+function codigosGeradoresDaOrdem(o) {
+  if (Array.isArray(o.geradores) && o.geradores.length > 0) {
+    return o.geradores.map(g => g.codigo).filter(Boolean)
+  }
+  return o.geradorCodigo ? [o.geradorCodigo] : []
+}
+
 function ModalDetalheEvento({ evento, onFechar }) {
   const [ordens, setOrdens] = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -328,7 +337,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
   }, [evento.id])
 
   const totalItens = ordens.reduce((acc, o) => acc + (o.itens?.length || 0), 0)
-  const geradores = [...new Set(ordens.filter(o => o.geradorCodigo).map(o => o.geradorCodigo))]
+  const geradores = [...new Set(ordens.flatMap(codigosGeradoresDaOrdem))]
 
   function imprimir() {
     const dataEvento = evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'
@@ -350,7 +359,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
               <span class="pessoa"><span class="label">Entregou:</span> ${o.operadorNome || '—'}</span>
               <span class="separador">·</span>
               <span class="pessoa"><span class="label">Recebeu:</span> ${o.responsavelNome || '—'}</span>
-              ${o.geradorCodigo ? `<span class="separador">·</span><span class="pessoa"><span class="label">Gerador:</span> ${o.geradorCodigo}</span>` : ''}
+              ${codigosGeradoresDaOrdem(o).length > 0 ? `<span class="separador">·</span><span class="pessoa"><span class="label">${codigosGeradoresDaOrdem(o).length > 1 ? 'Geradores' : 'Gerador'}:</span> ${codigosGeradoresDaOrdem(o).join(', ')}</span>` : ''}
             </div>
           </div>
           <table>
@@ -522,10 +531,14 @@ function ModalDetalheEvento({ evento, onFechar }) {
               <div className="space-y-3">
                 {ordens.map(ordem => (
                   <div key={ordem.id} className="border border-gray-100 rounded-xl p-3 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <span className="font-bold text-brand-red text-sm">{ordem.numeroFormatado}</span>
-                      {ordem.geradorCodigo && (
-                        <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{ordem.geradorCodigo}</span>
+                      {codigosGeradoresDaOrdem(ordem).length > 0 && (
+                        <div className="flex flex-wrap gap-1 justify-end">
+                          {codigosGeradoresDaOrdem(ordem).map(cod => (
+                            <span key={cod} className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{cod}</span>
+                          ))}
+                        </div>
                       )}
                     </div>
 
