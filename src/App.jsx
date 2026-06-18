@@ -12,6 +12,8 @@ import Estoque from './components/estoque/Estoque'
 import Filtros from './components/filtros/Filtros'
 import Patrimonio from './components/patrimonio/Patrimonio'
 import DetalheGG from './components/patrimonio/DetalheGG'
+import Caminhoes from './components/caminhoes/Caminhoes'
+import DetalheCaminhao from './components/caminhoes/DetalheCaminhao'
 import Manutencao from './components/manutencao/Manutencao'
 import NovaOS from './components/manutencao/NovaOS'
 import DetalheOS from './components/manutencao/DetalheOS'
@@ -71,6 +73,12 @@ export default function App() {
             } />
             <Route path="geradores/:id" element={
               <ProtectedRoute modulo={MODULOS.GERADORES}><DetalheGG /></ProtectedRoute>
+            } />
+            <Route path="caminhoes" element={
+              <ProtectedRoute modulo={MODULOS.CAMINHOES}><Caminhoes /></ProtectedRoute>
+            } />
+            <Route path="caminhoes/:id" element={
+              <ProtectedRoute modulo={MODULOS.CAMINHOES}><DetalheCaminhao /></ProtectedRoute>
             } />
             <Route path="manutencao" element={
               <ProtectedRoute modulo={MODULOS.MANUTENCAO}><Manutencao /></ProtectedRoute>

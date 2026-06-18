@@ -44,6 +44,12 @@ const ICONS = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
+  truck: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 001 1h1m-2-1V8h4l3 4v4a1 1 0 01-1 1h-1m-3 0H9" />
+    </svg>
+  ),
   cpu: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3H7a2 2 0 00-2 2v2M9 3h6M9 3v0M15 3h2a2 2 0 012 2v2M15 3v0M21 9h0M21 15h0M3 9h0M3 15h0M9 21H7a2 2 0 01-2-2v-2M9 21h6M15 21h2a2 2 0 002-2v-2M9 9h6v6H9z" />
