@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { doc, updateDoc } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
@@ -18,6 +20,29 @@ export default function Patrimonio() {
   const [vista, setVista] = useState('grid')
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.GERADORES) && tipoPerfil !== 'franca'
+
+  // ⚠️ TEMPORÁRIO: migração única GG-085→094 (marca BRG / motor FPT / ano 2023). Remover depois.
+  const [migrando, setMigrando] = useState(false)
+  async function migrarBRG() {
+    const alvos = geradores.filter(g => {
+      if (!/^GG-/i.test(g.codigo || '')) return false
+      const n = parseInt((g.codigo || '').replace(/\D/g, ''))
+      return n >= 85 && n <= 94
+    })
+    if (!alvos.length) { alert('Nenhum GG-085 a GG-094 encontrado.'); return }
+    if (!confirm(`Atualizar ${alvos.length} geradores (${alvos.map(g => g.codigo).join(', ')}) para:\n• Marca: BRG GERADORES\n• Motor: FPT\n• Ano: 2023`)) return
+    setMigrando(true)
+    try {
+      for (const g of alvos) {
+        await updateDoc(doc(db, 'geradores', g.id), { marca: 'BRG GERADORES', motor: 'FPT', ano: '2023' })
+      }
+      alert(`Pronto! ${alvos.length} geradores atualizados.`)
+    } catch (e) {
+      alert('Erro: ' + (e?.message || e))
+    } finally {
+      setMigrando(false)
+    }
+  }
 
   const ativos = useMemo(() => geradores.filter(g => g.ativo !== false && g.status !== 'inativo'), [geradores])
 
@@ -50,11 +75,19 @@ export default function Patrimonio() {
           <h1 className="text-2xl font-bold text-brand-black">Patrimônio de Geradores</h1>
           <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} geradores ativos.</p>
         </div>
-        {podeAdministrar && (
-          <button onClick={() => navigate('/manutencao/nova')} className="btn-secondary flex-shrink-0 text-sm">
-            + Nova OS
-          </button>
-        )}
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          {podeAdministrar && (
+            <button onClick={() => navigate('/manutencao/nova')} className="btn-secondary text-sm">
+              + Nova OS
+            </button>
+          )}
+          {tipoPerfil === 'admin' && (
+            <button onClick={migrarBRG} disabled={migrando}
+              className="text-xs px-2 py-1 rounded-lg border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 disabled:opacity-60">
+              {migrando ? 'Atualizando...' : '⚙️ Atualizar GG-085→094 (BRG)'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
