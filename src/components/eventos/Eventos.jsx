@@ -367,7 +367,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
       const itensLinhas = (o.itens || []).map((itemBruto, idx) => {
         const item = itemAtual(itemBruto)
         return `<tr class="${idx % 2 === 0 ? 'row-par' : ''}">
-          <td>${item.nome}</td>
+          <td>${item.nome}${item.quantidade > 0 ? ` <strong>(${item.quantidade} un.)</strong>` : ''}</td>
           <td class="mono">${item.codigo}</td>
           <td>${item.categoria || '—'}</td>
         </tr>`
@@ -587,6 +587,9 @@ function ModalDetalheEvento({ evento, onFechar }) {
                             <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
                               <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
                               <span className="truncate">{item.nome}</span>
+                              {item.quantidade > 0 && (
+                                <span className="flex-shrink-0 bg-green-100 text-green-700 font-semibold px-1.5 py-0.5 rounded">{item.quantidade} un.</span>
+                              )}
                               <span className="text-gray-400 font-mono flex-shrink-0">{item.codigo}</span>
                             </div>
                           )

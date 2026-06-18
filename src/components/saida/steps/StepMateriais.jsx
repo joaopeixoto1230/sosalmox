@@ -6,7 +6,7 @@ import { formatarData } from '../../../utils/formatters'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
-export default function StepMateriais({ evento, itensSelecionados, onToggle, onAvancar, onVoltar }) {
+export default function StepMateriais({ evento, itensSelecionados, onToggle, onQuantidade, onAvancar, onVoltar }) {
   const { dados: materiais, carregando } = useCollection('materiais')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Cabos 4x')
   const [busca, setBusca] = useState('')
@@ -29,7 +29,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
     const dataGeracao = new Date().toLocaleString('pt-BR')
     const linhasItens = itensSelecionados.map(m =>
       `<tr>
-        <td>${m.nome}</td>
+        <td>${m.nome}${m.quantidade > 0 ? ` <strong>(${m.quantidade} un.)</strong>` : ''}</td>
         <td>${m.codigo}</td>
         <td>${m.categoria}</td>
         <td>${m.tipo}</td>
@@ -203,8 +203,10 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onA
               material={mat}
               evento={evento}
               selecionado={itensSelecionados.some(i => i.id === mat.id)}
+              quantidade={itensSelecionados.find(i => i.id === mat.id)?.quantidade}
               onAdicionar={() => onToggle(mat, 'add')}
               onRemover={() => onToggle(mat, 'remove')}
+              onQuantidade={q => onQuantidade(mat.id, q)}
               onGerarRelatorio={gerarRelatorio}
             />
           ))}

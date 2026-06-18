@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { materialPorQuantidade } from '../../utils/formatters'
 import StepEvento from './steps/StepEvento'
 import StepGerador from './steps/StepGerador'
 import StepMateriais from './steps/StepMateriais'
@@ -71,8 +72,14 @@ export default function SaidaMaterial() {
   function handleToggleItem(material, acao) {
     setItensSelecionados(prev =>
       acao === 'add'
-        ? [...prev, material]
+        ? [...prev, materialPorQuantidade(material) ? { ...material, quantidade: 1 } : material]
         : prev.filter(i => i.id !== material.id)
+    )
+  }
+
+  function handleQuantidadeItem(materialId, quantidade) {
+    setItensSelecionados(prev =>
+      prev.map(i => i.id === materialId ? { ...i, quantidade } : i)
     )
   }
 
@@ -136,6 +143,7 @@ export default function SaidaMaterial() {
           evento={evento}
           itensSelecionados={itensSelecionados}
           onToggle={handleToggleItem}
+          onQuantidade={handleQuantidadeItem}
           onAvancar={() => setPasso(3)}
           onVoltar={() => setPasso(1)}
         />

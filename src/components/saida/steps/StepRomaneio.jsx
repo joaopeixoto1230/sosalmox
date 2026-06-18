@@ -1,4 +1,4 @@
-import { formatarData } from '../../../utils/formatters'
+import { formatarData, materialPorQuantidade } from '../../../utils/formatters'
 
 export default function StepRomaneio({ evento, geradores, itens, observacoes, responsavel, onObservacoes, onResponsavel, onRemover, onAvancar, onVoltar }) {
   const codigosGeradores = geradores?.length > 0
@@ -49,6 +49,11 @@ export default function StepRomaneio({ evento, geradores, itens, observacoes, re
                 <p className="text-sm font-medium text-brand-black truncate">{item.nome}</p>
                 <p className="text-xs text-brand-red font-mono">{item.codigo}</p>
               </div>
+              {materialPorQuantidade(item) && (
+                <span className="badge bg-green-100 text-green-700 flex-shrink-0">
+                  {item.quantidade || 1} un.
+                </span>
+              )}
               <button
                 onClick={() => onRemover(item.id)}
                 className="p-1.5 rounded-lg hover:bg-red-50 hover:text-brand-red transition-colors text-gray-300 flex-shrink-0"

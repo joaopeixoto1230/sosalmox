@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { db } from '../../firebase/config'
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { useAuth } from '../../contexts/AuthContext'
+import { materialPorQuantidade } from '../../utils/formatters'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
@@ -20,13 +21,16 @@ const TIPOS_POR_CATEGORIA = {
   ],
 }
 
-export default function ItemCard({ material, evento, selecionado, onAdicionar, onRemover, onGerarRelatorio }) {
+export default function ItemCard({ material, evento, selecionado, quantidade, onAdicionar, onRemover, onQuantidade, onGerarRelatorio }) {
   const { tipoPerfil } = useAuth()
   const [menuAberto, setMenuAberto] = useState(false)
   const [editando, setEditando] = useState(false)
   const [editandoStatus, setEditandoStatus] = useState(false)
   const [detalhes, setDetalhes] = useState(false)
-  const disponivel = material.status === 'disponivel' && material.estoqueAtual > 0
+  const ehQtd = materialPorQuantidade(material)
+  // Materiais por quantidade (protetor de cabo) nunca ficam indisponiveis:
+  // saem em varias unidades e nao prendem estoque a um evento.
+  const disponivel = ehQtd ? true : (material.status === 'disponivel' && material.estoqueAtual > 0)
   const podeGerenciar = ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
 
   async function excluir() {
@@ -112,8 +116,10 @@ export default function ItemCard({ material, evento, selecionado, onAdicionar, o
           <p className="text-xs text-gray-500">Tipo: <span className="font-medium text-gray-700">{material.tipo}</span></p>
         </div>
 
-        <div className="flex items-center justify-between">
-          {material.status === 'disponivel' && material.estoqueAtual > 0 ? (
+        <div className="flex items-center justify-between gap-2">
+          {ehQtd ? (
+            <span className="badge bg-green-100 text-green-700">Por qtd.</span>
+          ) : material.status === 'disponivel' && material.estoqueAtual > 0 ? (
             <span className="badge bg-green-100 text-green-700">Disponível</span>
           ) : material.status === 'em_evento' ? (
             <span className="badge bg-yellow-100 text-yellow-700 truncate max-w-[120px]" title={`Em: ${material.eventoAtual}`}>
@@ -124,7 +130,42 @@ export default function ItemCard({ material, evento, selecionado, onAdicionar, o
           )}
 
           {disponivel && (
-            selecionado ? (
+            ehQtd && selecionado ? (
+              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => onQuantidade(Math.max(1, (quantidade || 1) - 1))}
+                  className="w-6 h-7 bg-gray-100 rounded-md text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M20 12H4" />
+                  </svg>
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantidade || 1}
+                  onChange={e => onQuantidade(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-10 h-7 text-center text-sm font-bold text-brand-black border border-gray-200 rounded-md focus:border-brand-red focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  onClick={() => onQuantidade((quantidade || 1) + 1)}
+                  className="w-6 h-7 bg-brand-red rounded-md text-white flex items-center justify-center hover:bg-red-700 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+                <button
+                  onClick={onRemover}
+                  className="w-6 h-7 text-gray-300 flex items-center justify-center hover:text-brand-red transition-colors"
+                  title="Remover"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : selecionado ? (
               <button
                 onClick={e => { e.stopPropagation(); onRemover() }}
                 className="w-7 h-7 bg-brand-red rounded-lg text-white flex items-center justify-center hover:bg-red-700 transition-colors"

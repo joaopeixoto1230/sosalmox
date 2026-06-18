@@ -1,3 +1,10 @@
+// Materiais "por quantidade" (consumiveis): saem em varias unidades, nao ficam
+// presos a um evento (status nao vira "em_evento") e pedem a quantidade na saida.
+// Hoje: protetores de cabo. Detecta pelo tipo cadastrado no material.
+export function materialPorQuantidade(material) {
+  return material?.tipo === 'Protetor de cabo'
+}
+
 export function formatarData(data) {
   if (!data) return '-'
   const d = data?.toDate ? data.toDate() : new Date(data)

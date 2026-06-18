@@ -8,7 +8,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
-import { formatarNumeroOrdem } from '../../../utils/formatters'
+import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
 
 export default function StepConfirmacao({ evento, geradores, itens, observacoes, responsavel, onNovaSaida }) {
   const { uid, nome } = useAuth()
@@ -34,6 +34,9 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         novoNumero = atual + 1
 
         for (const item of itens) {
+          // Materiais por quantidade (protetor de cabo) nao prendem estoque:
+          // saem em varias unidades e seguem disponiveis para outros eventos.
+          if (materialPorQuantidade(item)) continue
           const matRef = doc(db, 'materiais', item.id)
           const matSnap = await tx.get(matRef)
           if (!matSnap.exists()) throw new Error(`Material ${item.nome} não encontrado.`)
@@ -56,6 +59,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             nome: i.nome,
             codigo: i.codigo,
             categoria: i.categoria,
+            ...(materialPorQuantidade(i) ? { quantidade: i.quantidade || 1 } : {}),
           })),
           observacoes,
           responsavelNome: responsavel || null,
@@ -68,6 +72,9 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         tx.set(contadorRef, { ultimo: novoNumero }, { merge: true })
 
         for (const item of itens) {
+          // Protetor de cabo nao vira "em_evento" nem zera estoque: continua
+          // disponivel para novas saidas (controle so pela quantidade na OS).
+          if (materialPorQuantidade(item)) continue
           const matRef = doc(db, 'materiais', item.id)
           tx.update(matRef, {
             status: 'em_evento',
