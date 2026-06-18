@@ -1,10 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { collection, doc, writeBatch, serverTimestamp } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
 import { statusGeradorLabel, statusGeradorCor } from '../../utils/formatters'
 import CaminhaoCard from './CaminhaoCard'
+import { FROTA_INICIAL } from './frotaInicial'
 
 const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Manutenção', 'Defeito']
 const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
@@ -16,8 +19,31 @@ export default function Caminhoes() {
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [vista, setVista] = useState('grid')
+  const [importando, setImportando] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.CAMINHOES) && tipoPerfil !== 'franca'
+
+  // Importacao unica da frota inicial. So aparece para o admin enquanto a
+  // colecao estiver vazia; depois de importar, some sozinha.
+  const mostrarImportar = tipoPerfil === 'admin' && !carregando && caminhoes.length === 0
+
+  async function importarFrota() {
+    if (caminhoes.length > 0) return
+    if (!window.confirm(`Importar ${FROTA_INICIAL.length} caminhões da Relação de Veículos? Isso só deve ser feito uma vez.`)) return
+    setImportando(true)
+    try {
+      const batch = writeBatch(db)
+      for (const c of FROTA_INICIAL) {
+        const ref = doc(collection(db, 'caminhoes'))
+        batch.set(ref, { ...c, criadoEm: serverTimestamp() })
+      }
+      await batch.commit()
+    } catch (err) {
+      alert(err?.message || 'Não foi possível importar a frota. Tente novamente.')
+    } finally {
+      setImportando(false)
+    }
+  }
 
   const ativos = useMemo(() => caminhoes.filter(c => c.ativo !== false && c.status !== 'inativo'), [caminhoes])
 
@@ -94,6 +120,11 @@ export default function Caminhoes() {
         <div className="text-center py-12 text-gray-400">
           <p className="text-4xl mb-3">🚚</p>
           <p>Nenhum caminhão encontrado.</p>
+          {mostrarImportar && (
+            <button onClick={importarFrota} disabled={importando} className="btn-primary mt-4 disabled:opacity-60">
+              {importando ? 'Importando...' : `Importar frota inicial (${FROTA_INICIAL.length} caminhões)`}
+            </button>
+          )}
         </div>
       ) : (
         <>
