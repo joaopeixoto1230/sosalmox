@@ -425,7 +425,7 @@ export default function DetalheOS() {
     const iframe = document.createElement('iframe')
     iframe.id = 'os-print-frame'
     iframe.setAttribute('aria-hidden', 'true')
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
     iframe.onload = () => {
       // pequena espera para as imagens (base64) renderizarem antes de imprimir
       setTimeout(() => {
