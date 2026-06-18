@@ -352,6 +352,8 @@ export default function DetalheOS() {
     .section-title { font-size: 12px; font-weight: bold; color: #555; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
     .footer { margin-top: 16px; font-size: 10px; color: #aaa; text-align: right; }
     .assinatura { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 28px; page-break-inside: avoid; break-inside: avoid; }
+    .assinatura.solo { grid-template-columns: 1fr; justify-items: center; }
+    .assinatura.solo .bloco { width: 60%; max-width: 320px; }
     .assinatura .bloco { text-align: center; }
     .assinatura .traco { border-top: 1px solid #999; padding-top: 5px; font-size: 12px; color: #555; }
     .assinatura img { display: block; margin: 0 auto -4px; height: 48px; object-fit: contain; }
@@ -402,15 +404,17 @@ export default function DetalheOS() {
   <div class="fotos">${fotosOS.map(f => `<img src="${f.dataUrl}" />`).join('')}</div>
   ` : ''}
 
-  <div class="assinatura">
+  <div class="assinatura ${os.localTipo === 'locacao' ? '' : 'solo'}">
     <div class="bloco">
       ${os.assinaturaTecnico ? `<img src="${os.assinaturaTecnico}" />` : ''}
       <div class="traco">Técnico: ${os.assinaturaTecnicoNome || os.mecanicoNome || '_______________'}</div>
     </div>
+    ${os.localTipo === 'locacao' ? `
     <div class="bloco">
       ${os.assinaturaCliente ? `<img src="${os.assinaturaCliente}" />` : ''}
-      <div class="traco">${os.localTipo === 'locacao' ? `Cliente: ${os.assinaturaClienteNome || os.clienteNome || '_______________'}` : 'Responsável: _______________'}</div>
+      <div class="traco">Cliente: ${os.assinaturaClienteNome || os.clienteNome || '_______________'}</div>
     </div>
+    ` : ''}
   </div>
 
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
