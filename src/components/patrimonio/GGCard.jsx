@@ -169,14 +169,16 @@ export default function GGCard({ gg }) {
   return (
     <div className={`card transition-all hover:shadow-md relative ${alertaDefeito ? 'border-red-300' : alertaParado ? 'border-yellow-300' : ''}`}>
       {gg.fotoUrl && (
-        <div className="-mx-4 -mt-4 mb-3 rounded-t-xl overflow-hidden h-28 relative group">
-          <img
-            src={gg.fotoUrl}
-            alt={gg.codigo}
-            className="w-full h-full object-cover cursor-zoom-in"
-            onClick={() => setFotoAberta(true)}
-          />
-          <div className="absolute top-1.5 right-1.5">
+        <div className="-mx-4 -mt-4 mb-3 h-28 relative">
+          <div className="rounded-t-xl overflow-hidden h-full">
+            <img
+              src={gg.fotoUrl}
+              alt={gg.codigo}
+              className="w-full h-full object-cover cursor-zoom-in"
+              onClick={() => setFotoAberta(true)}
+            />
+          </div>
+          <div className="absolute top-1.5 right-1.5 z-30">
             <button
               onClick={(e) => { e.stopPropagation(); setFotoMenu(v => !v) }}
               className="w-7 h-7 flex items-center justify-center rounded-lg bg-black/45 text-white hover:bg-black/65 transition-colors backdrop-blur-sm"
