@@ -95,6 +95,17 @@ export function statusGeradorCor(status) {
   return map[status] || 'bg-gray-100 text-gray-600'
 }
 
+// Caminhao/carro mede KM (hodometro), nao horimetro. Os campos novos sao kmAtual
+// e semKm; estes helpers leem com fallback para os campos antigos (horimetroAtual/
+// semHorimetro) dos caminhoes importados antes da troca, evitando migracao.
+export function caminhaoSemKm(c) {
+  return c?.semKm ?? c?.semHorimetro ?? false
+}
+
+export function caminhaoKm(c) {
+  return c?.kmAtual ?? c?.horimetroAtual ?? null
+}
+
 // Caminhao com gerador montado: quando o gerador vai a evento/locacao, ele segue
 // fisicamente em cima do caminhao, entao o caminhao acompanha esse status. Defeito
 // e manutencao do gerador NAO afetam o caminhao (sao da maquina, nao do veiculo).

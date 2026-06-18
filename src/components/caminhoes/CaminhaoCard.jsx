@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../../firebase/config'
 import { doc, updateDoc } from 'firebase/firestore'
-import { statusGeradorLabel, statusGeradorCor, formatarData, statusEfetivoCaminhao, caminhaoAcompanhaGerador } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, formatarData, statusEfetivoCaminhao, caminhaoAcompanhaGerador, caminhaoKm } from '../../utils/formatters'
 
 // Carrega uma imagem (File) num elemento <img> — funciona em qualquer celular.
 function carregarImagem(file) {
@@ -402,8 +402,8 @@ export default function CaminhaoCard({ caminhao, gerador }) {
           {(acompanha ? (gerador.localizacao || gerador.eventoNome) : caminhao.localizacao) || 'Pátio SOS'}
         </p>
 
-        {caminhao.horimetroAtual > 0 && (
-          <p className="text-xs text-gray-400 mt-1">{caminhao.horimetroAtual?.toLocaleString('pt-BR')}h</p>
+        {caminhaoKm(caminhao) > 0 && (
+          <p className="text-xs text-gray-400 mt-1">{caminhaoKm(caminhao).toLocaleString('pt-BR')} km</p>
         )}
 
         {(alertaParado || alertaDefeito) && (

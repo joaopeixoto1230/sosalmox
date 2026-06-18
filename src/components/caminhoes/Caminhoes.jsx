@@ -5,7 +5,7 @@ import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
-import { statusGeradorLabel, statusGeradorCor, statusEfetivoCaminhao } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, statusEfetivoCaminhao, caminhaoKm } from '../../utils/formatters'
 import CaminhaoCard from './CaminhaoCard'
 import NovoCaminhaoModal from './NovoCaminhaoModal'
 import { FROTA_INICIAL } from './frotaInicial'
@@ -160,7 +160,7 @@ export default function Caminhoes() {
                     <p className="text-xs text-gray-500">{c.marca} {c.modelo}{c.ano ? ` (${c.ano})` : ''}</p>
                     <p className="text-xs text-gray-400">{c.localizacao || 'Pátio SOS'}</p>
                   </div>
-                  {c.horimetroAtual > 0 && <p className="text-sm text-gray-400 flex-shrink-0">{c.horimetroAtual?.toLocaleString('pt-BR')}h</p>}
+                  {caminhaoKm(c) > 0 && <p className="text-sm text-gray-400 flex-shrink-0">{caminhaoKm(c).toLocaleString('pt-BR')} km</p>}
                 </button>
               ))}
             </div>

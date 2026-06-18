@@ -8,8 +8,8 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
     marca: '',
     modelo: '',
     ano: '',
-    horimetroAtual: '',
-    semHorimetro: true,
+    kmAtual: '',
+    semKm: false,
     observacao: '',
   })
   const [salvando, setSalvando] = useState(false)
@@ -31,8 +31,8 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
         ano: form.ano.trim(),
         status: 'disponivel',
         localizacao: 'Pátio SOS',
-        semHorimetro: form.semHorimetro,
-        horimetroAtual: form.semHorimetro ? null : (form.horimetroAtual === '' ? null : Number(form.horimetroAtual)),
+        semKm: form.semKm,
+        kmAtual: form.semKm ? null : (form.kmAtual === '' ? null : Number(form.kmAtual)),
         observacao: form.observacao.trim(),
         temDefeito: false,
         defeito: '',
@@ -94,24 +94,24 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Horímetro</label>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Quilometragem (KM)</label>
             <input
               type="number"
               min="0"
-              value={form.semHorimetro ? '' : form.horimetroAtual}
-              onChange={e => set('horimetroAtual', e.target.value)}
-              disabled={form.semHorimetro}
+              value={form.semKm ? '' : form.kmAtual}
+              onChange={e => set('kmAtual', e.target.value)}
+              disabled={form.semKm}
               className="input disabled:bg-gray-100 disabled:text-gray-400"
-              placeholder={form.semHorimetro ? 'Sem horímetro' : 'Ex: 1230'}
+              placeholder={form.semKm ? 'Sem hodômetro' : 'Ex: 125000'}
             />
             <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
               <input
                 type="checkbox"
-                checked={form.semHorimetro}
-                onChange={e => set('semHorimetro', e.target.checked)}
+                checked={form.semKm}
+                onChange={e => set('semKm', e.target.checked)}
                 className="w-4 h-4 accent-brand-red"
               />
-              <span className="text-sm text-gray-600">Este caminhão não possui horímetro</span>
+              <span className="text-sm text-gray-600">Este caminhão não tem hodômetro (KM)</span>
             </label>
           </div>
 

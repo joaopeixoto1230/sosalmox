@@ -4,7 +4,7 @@ import { doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
-import { statusGeradorLabel, statusGeradorCor, statusOsLabel, statusOsCor, formatarData, statusEfetivoCaminhao } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, statusOsLabel, statusOsCor, formatarData, statusEfetivoCaminhao, caminhaoSemKm, caminhaoKm } from '../../utils/formatters'
 import { where } from 'firebase/firestore'
 
 export default function DetalheCaminhao() {
@@ -29,8 +29,8 @@ export default function DetalheCaminhao() {
       marca: caminhao.marca || '',
       modelo: caminhao.modelo || '',
       ano: caminhao.ano || '',
-      horimetroAtual: caminhao.horimetroAtual ?? '',
-      semHorimetro: caminhao.semHorimetro || false,
+      kmAtual: caminhaoKm(caminhao) ?? '',
+      semKm: caminhaoSemKm(caminhao),
     })
     setEditando(true)
   }
@@ -43,8 +43,8 @@ export default function DetalheCaminhao() {
         marca: form.marca,
         modelo: form.modelo,
         ano: form.ano,
-        semHorimetro: form.semHorimetro,
-        horimetroAtual: form.semHorimetro ? null : (form.horimetroAtual === '' ? null : Number(form.horimetroAtual)),
+        semKm: form.semKm,
+        kmAtual: form.semKm ? null : (form.kmAtual === '' ? null : Number(form.kmAtual)),
         atualizadoEm: serverTimestamp(),
       })
       setEditando(false)
@@ -138,24 +138,24 @@ export default function DetalheCaminhao() {
           ))}
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Horímetro</label>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Quilometragem (KM)</label>
             <input
               type="number"
               min="0"
-              value={form.semHorimetro ? '' : form.horimetroAtual}
-              onChange={e => setForm(p => ({ ...p, horimetroAtual: e.target.value }))}
-              disabled={form.semHorimetro}
+              value={form.semKm ? '' : form.kmAtual}
+              onChange={e => setForm(p => ({ ...p, kmAtual: e.target.value }))}
+              disabled={form.semKm}
               className="input disabled:bg-gray-100 disabled:text-gray-400"
-              placeholder={form.semHorimetro ? 'Sem horímetro' : 'Ex: 1230'}
+              placeholder={form.semKm ? 'Sem hodômetro' : 'Ex: 125000'}
             />
             <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
               <input
                 type="checkbox"
-                checked={form.semHorimetro}
-                onChange={e => setForm(p => ({ ...p, semHorimetro: e.target.checked }))}
+                checked={form.semKm}
+                onChange={e => setForm(p => ({ ...p, semKm: e.target.checked }))}
                 className="w-4 h-4 accent-brand-red"
               />
-              <span className="text-sm text-gray-600">Este caminhão não possui horímetro</span>
+              <span className="text-sm text-gray-600">Este caminhão não tem hodômetro (KM)</span>
             </label>
           </div>
 
@@ -170,7 +170,7 @@ export default function DetalheCaminhao() {
         <div className="card space-y-3">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div><p className="text-gray-400 text-xs">Localização</p><p className="font-medium">{caminhao.localizacao || 'Pátio SOS'}</p></div>
-            <div><p className="text-gray-400 text-xs">Horímetro</p><p className="font-medium">{caminhao.semHorimetro ? 'Sem horímetro' : `${(caminhao.horimetroAtual || 0).toLocaleString('pt-BR')}h`}</p></div>
+            <div><p className="text-gray-400 text-xs">Quilometragem</p><p className="font-medium">{caminhaoSemKm(caminhao) ? 'Sem hodômetro' : `${(caminhaoKm(caminhao) || 0).toLocaleString('pt-BR')} km`}</p></div>
             {caminhao.ultimaManutencao && <div><p className="text-gray-400 text-xs">Última manutenção</p><p className="font-medium">{formatarData(caminhao.ultimaManutencao)}</p></div>}
             {caminhao.proximaPreventiva && <div><p className="text-gray-400 text-xs">Próxima preventiva</p><p className="font-medium">{formatarData(caminhao.proximaPreventiva)}</p></div>}
           </div>
