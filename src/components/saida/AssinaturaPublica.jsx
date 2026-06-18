@@ -10,7 +10,6 @@ export default function AssinaturaPublica() {
   const { token } = useParams()
   const [estado, setEstado] = useState('carregando') // carregando | ok | assinada | naoencontrado | erro
   const [dados, setDados] = useState(null)
-  const [nome, setNome] = useState('')
   const [assinatura, setAssinatura] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -22,7 +21,6 @@ export default function AssinaturaPublica() {
         if (!snap.exists()) { setEstado('naoencontrado'); return }
         const d = snap.data()
         setDados(d)
-        setNome(d.recebeuNome || '')
         if (d.recebeuAssinatura) { setEstado('assinada'); return }
         setEstado('ok')
       } catch (e) {
@@ -34,12 +32,10 @@ export default function AssinaturaPublica() {
   }, [token])
 
   async function confirmar() {
-    if (!nome.trim()) { setErro('Informe seu nome.'); return }
     if (!assinatura) { setErro('Assine no campo acima.'); return }
     setSalvando(true); setErro('')
     try {
       await updateDoc(doc(db, 'assinaturas_saida', token), {
-        recebeuNome: nome.trim(),
         recebeuAssinatura: assinatura,
         status: 'assinada',
         assinadoEm: serverTimestamp(),
@@ -125,8 +121,11 @@ export default function AssinaturaPublica() {
 
             <div className="card space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Seu nome *</label>
-                <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome de quem recebeu" className="input" />
+                <p className="text-sm font-medium text-gray-700 mb-1">Você está assinando como</p>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                  <p className="font-bold text-brand-black">{dados.recebeuNome || '—'}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Confira se o nome está correto. Em caso de divergência, fale com o almoxarifado.</p>
+                </div>
               </div>
               <SignaturePad titulo="Assinatura *" valor={assinatura} onChange={setAssinatura} />
               {erro && <p className="text-sm text-brand-red">{erro}</p>}
