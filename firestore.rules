@@ -99,5 +99,20 @@ service cloud.firestore {
       allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
       allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
+
+    // Assinaturas da saída (capability URL). O recebedor assina por link sem login:
+    // get publico por token (sem listar a colecao), e update anonimo so para
+    // preencher a assinatura do recebedor UMA vez (sem alterar o resto).
+    match /assinaturas_saida/{token} {
+      allow get: if true;
+      allow list: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow update: if (hasRole(['admin', 'gerente', 'almoxarife']) && isActive())
+                    || (resource.data.recebeuAssinatura == null
+                        && request.resource.data.recebeuAssinatura is string
+                        && request.resource.data.ordemId == resource.data.ordemId
+                        && request.resource.data.entregouAssinatura == resource.data.entregouAssinatura);
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
   }
 }

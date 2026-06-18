@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDoc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import DatePicker from '../ui/DatePicker'
+import SignaturePad from '../ui/SignaturePad'
 
 const STATUS_FILTROS = [
   { value: 'todos', label: 'Todos' },
@@ -66,6 +67,12 @@ export default function Eventos() {
         const fotosSnap = await getDocs(query(collection(db, 'fotos_saida'), where('ordemId', 'in', lote)))
         fotosSnap.forEach(d => batch.delete(d.ref))
       }
+
+      // remove os documentos de assinatura (assinaturas_saida) dessas ordens
+      ordensSnap.docs.forEach(d => {
+        const token = d.data().tokenAssinatura
+        if (token) batch.delete(doc(db, 'assinaturas_saida', token))
+      })
 
       batch.delete(doc(db, 'eventos', excluindo.id))
       await batch.commit()
@@ -328,6 +335,9 @@ function ModalDetalheEvento({ evento, onFechar }) {
   const [carregando, setCarregando] = useState(true)
   const [fotosPorOrdem, setFotosPorOrdem] = useState({})
   const [fotoAmpliada, setFotoAmpliada] = useState(null)
+  const [assinaturas, setAssinaturas] = useState({}) // { ordemId: { id, ...doc } }
+  const [versaoAss, setVersaoAss] = useState(0) // recarrega assinaturas apos assinar
+  const [coletando, setColetando] = useState(null) // { ass, papel } no modal presencial
   const { dados: materiais } = useCollection('materiais')
 
   // A OS guarda um retrato do material (nome/codigo da epoca). Para refletir
@@ -373,6 +383,16 @@ function ModalDetalheEvento({ evento, onFechar }) {
         }
         Object.values(porOrdem).forEach(arr => arr.sort((a, b) => (a.ordem || 0) - (b.ordem || 0)))
         setFotosPorOrdem(porOrdem)
+
+        // Carrega as assinaturas (assinaturas_saida) de cada OS pelo token.
+        const assPorOrdem = {}
+        await Promise.all(dados.filter(d => d.tokenAssinatura).map(async d => {
+          try {
+            const aSnap = await getDoc(doc(db, 'assinaturas_saida', d.tokenAssinatura))
+            if (aSnap.exists()) assPorOrdem[d.id] = { id: aSnap.id, ...aSnap.data() }
+          } catch { /* ignora assinatura ausente */ }
+        }))
+        setAssinaturas(assPorOrdem)
       } catch (e) {
         console.error(e)
       } finally {
@@ -380,7 +400,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
       }
     }
     buscarOrdens()
-  }, [evento.id])
+  }, [evento.id, versaoAss])
 
   // Materiais que estao vinculados ao evento (eventoAtual) mas NAO aparecem em
   // nenhuma OS (ex.: adicionados pelo "Editar material"). Sem isso, ficavam
@@ -449,6 +469,41 @@ function ModalDetalheEvento({ evento, onFechar }) {
           </table>
         </div>` : ''
 
+    // Assinaturas digitais (entregou/recebeu) por OS. Se nenhuma OS tem registro
+    // de assinatura, cai no formato antigo de linhas em branco para assinar a mao.
+    const ordensComAss = ordens.filter(o => assinaturas[o.id])
+    const multiplas = ordensComAss.length > 1
+    const blocoAssinaturasGrid = ordensComAss.length > 0
+      ? ordensComAss.map(o => {
+          const a = assinaturas[o.id]
+          const suf = multiplas ? ` · ${o.numeroFormatado}` : ''
+          const lado = (assinatura, nome, label) => `
+            <div class="assinatura-bloco">
+              ${assinatura
+                ? `<img class="assinatura-img" src="${assinatura}"/>`
+                : '<div class="assinatura-linha"></div>'}
+              <div class="assinatura-nome">${nome || ''}</div>
+              <div class="assinatura-label">${label}${suf}</div>
+              ${assinatura ? '' : '<div class="assinatura-pend">Pendente</div>'}
+            </div>`
+          return `<div class="assinaturas-grid" style="margin-bottom:28px">
+            ${lado(a.entregouAssinatura, a.entregouNome, 'Entregou')}
+            ${lado(a.recebeuAssinatura, a.recebeuNome, 'Recebeu')}
+          </div>`
+        }).join('')
+      : `<div class="assinaturas-grid">
+          <div class="assinatura-bloco">
+            <div class="assinatura-linha"></div>
+            <div class="assinatura-nome">${[...new Set(ordens.map(o => o.operadorNome).filter(Boolean))].join(' / ') || ''}</div>
+            <div class="assinatura-label">Almoxarife — Entregou</div>
+          </div>
+          <div class="assinatura-bloco">
+            <div class="assinatura-linha"></div>
+            <div class="assinatura-nome">${[...new Set(ordens.map(o => o.responsavelNome).filter(Boolean))].join(' / ') || ''}</div>
+            <div class="assinatura-label">Responsável — Recebeu</div>
+          </div>
+        </div>`
+
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -497,7 +552,9 @@ function ModalDetalheEvento({ evento, onFechar }) {
     .assinatura-bloco { display: flex; flex-direction: column; gap: 6px; }
     .assinatura-nome { font-size: 13px; font-weight: 700; color: #1a1a1a; min-height: 18px; }
     .assinatura-linha { border-bottom: 1.5px solid #1a1a1a; margin-top: 32px; margin-bottom: 6px; }
+    .assinatura-img { height: 56px; max-width: 100%; object-fit: contain; object-position: left bottom; border-bottom: 1.5px solid #1a1a1a; margin-top: 8px; margin-bottom: 6px; }
     .assinatura-label { font-size: 11px; color: #888; }
+    .assinatura-pend { font-size: 11px; color: #c08400; font-weight: 600; }
     .ressalvas { margin-top: 28px; }
     .ressalvas-label { font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
     .ressalvas-box { border: 1px solid #e5e5e5; border-radius: 6px; min-height: 56px; padding: 10px 12px; font-size: 12px; color: #bbb; font-style: italic; }
@@ -528,18 +585,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
 
   <div class="assinaturas">
     <div class="assinaturas-titulo">Assinaturas</div>
-    <div class="assinaturas-grid">
-      <div class="assinatura-bloco">
-        <div class="assinatura-linha"></div>
-        <div class="assinatura-nome">${[...new Set(ordens.map(o => o.operadorNome).filter(Boolean))].join(' / ') || ''}</div>
-        <div class="assinatura-label">Almoxarife — Entregou</div>
-      </div>
-      <div class="assinatura-bloco">
-        <div class="assinatura-linha"></div>
-        <div class="assinatura-nome">${[...new Set(ordens.map(o => o.responsavelNome).filter(Boolean))].join(' / ') || ''}</div>
-        <div class="assinatura-label">Responsável — Recebeu</div>
-      </div>
-    </div>
+    ${blocoAssinaturasGrid}
     <div class="ressalvas">
       <div class="ressalvas-label">Observações / Ressalvas</div>
       <div class="ressalvas-box">______________________________________________________________________________________________________________</div>
@@ -679,6 +725,14 @@ function ModalDetalheEvento({ evento, onFechar }) {
                         </div>
                       </div>
                     )}
+
+                    {assinaturas[ordem.id] && (
+                      <BlocoAssinaturas
+                        ass={assinaturas[ordem.id]}
+                        onAmpliar={setFotoAmpliada}
+                        onColetar={(papel) => setColetando({ ass: assinaturas[ordem.id], papel })}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -732,6 +786,135 @@ function ModalDetalheEvento({ evento, onFechar }) {
           </button>
         </div>
       )}
+
+      {coletando && (
+        <ModalColetarAssinatura
+          ass={coletando.ass}
+          papel={coletando.papel}
+          onFechar={() => setColetando(null)}
+          onAssinado={() => { setColetando(null); setVersaoAss(v => v + 1) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Mostra o status das assinaturas de uma OS e as acoes (link / presencial).
+function BlocoAssinaturas({ ass, onAmpliar, onColetar }) {
+  const link = `${window.location.origin}/assinar/${ass.id}`
+  const [copiado, setCopiado] = useState(false)
+  const msg = `Confirme o recebimento do material da SOS Energia assinando aqui: ${link}`
+
+  function linha(papel, nome, assinatura) {
+    return (
+      <div className="flex items-center gap-2">
+        {assinatura ? (
+          <button onClick={() => onAmpliar(assinatura)} className="w-12 h-8 rounded border border-gray-200 bg-white overflow-hidden flex-shrink-0">
+            <img src={assinatura} alt="Assinatura" className="w-full h-full object-contain" />
+          </button>
+        ) : (
+          <span className="w-12 h-8 rounded border border-dashed border-gray-300 flex items-center justify-center flex-shrink-0">
+            <svg className="w-3.5 h-3.5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400">{papel}</p>
+          <p className="text-xs font-semibold text-brand-black truncate">{nome || '—'}</p>
+        </div>
+        {assinatura
+          ? <span className="ml-auto text-xs font-semibold text-green-600 flex-shrink-0">assinado</span>
+          : <button onClick={() => onColetar(papel === 'Entregou' ? 'entregou' : 'recebeu')} className="ml-auto text-xs font-semibold text-brand-red flex-shrink-0">assinar</button>
+        }
+      </div>
+    )
+  }
+
+  return (
+    <div className="border-t border-gray-100 pt-2 space-y-2">
+      {linha('Entregou', ass.entregouNome, ass.entregouAssinatura)}
+      {linha('Recebeu', ass.recebeuNome, ass.recebeuAssinatura)}
+      {!ass.recebeuAssinatura && (
+        <div className="flex items-center gap-2 pt-0.5">
+          <button
+            onClick={() => { navigator.clipboard?.writeText(link); setCopiado(true); setTimeout(() => setCopiado(false), 2000) }}
+            className="text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand-red hover:text-brand-red transition-colors"
+          >
+            {copiado ? 'Link copiado!' : 'Copiar link'}
+          </button>
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs font-medium text-green-700 border border-green-200 rounded-lg px-2.5 py-1 hover:bg-green-50 transition-colors"
+          >
+            WhatsApp
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Coleta presencial de uma assinatura pendente (entregou/recebeu), gravando no
+// proprio documento assinaturas_saida.
+function ModalColetarAssinatura({ ass, papel, onFechar, onAssinado }) {
+  const ehRecebeu = papel === 'recebeu'
+  const [nome, setNome] = useState(ehRecebeu ? (ass.recebeuNome || '') : (ass.entregouNome || ''))
+  const [assinatura, setAssinatura] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  async function salvar() {
+    if (!nome.trim()) { setErro('Informe o nome.'); return }
+    if (!assinatura) { setErro('Assine no campo acima.'); return }
+    setSalvando(true); setErro('')
+    try {
+      const campos = ehRecebeu
+        ? { recebeuNome: nome.trim(), recebeuAssinatura: assinatura, status: 'assinada', assinadoEm: serverTimestamp() }
+        : { entregouNome: nome.trim(), entregouAssinatura: assinatura }
+      await updateDoc(doc(db, 'assinaturas_saida', ass.id), campos)
+      if (ehRecebeu) {
+        try { await updateDoc(doc(db, 'ordens_saida', ass.ordemId), { assinaturaStatus: 'assinada' }) } catch { /* ok */ }
+      }
+      onAssinado()
+    } catch (e) {
+      console.error(e)
+      setErro('Não foi possível salvar. Tente de novo.')
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-bold text-brand-black">Assinatura — {ehRecebeu ? 'quem recebeu' : 'quem entregou'}</h2>
+            <p className="text-xs text-gray-500 mt-0.5">{ass.numeroFormatado}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+            <input value={nome} onChange={e => setNome(e.target.value)} className="input" />
+          </div>
+          <SignaturePad titulo="Assinatura *" valor={assinatura} onChange={setAssinatura} />
+          {erro && <p className="text-sm text-brand-red">{erro}</p>}
+          <div className="flex gap-3 pt-1">
+            <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="btn-primary flex-1 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar assinatura'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

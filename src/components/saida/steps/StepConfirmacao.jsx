@@ -5,12 +5,14 @@ import {
   doc,
   collection,
   addDoc,
+  setDoc,
   serverTimestamp,
 } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
 import { comprimirParaDataUrl } from '../../../utils/imagem'
+import SignaturePad from '../../ui/SignaturePad'
 
 export default function StepConfirmacao({ evento, geradores, itens, observacoes, responsavel, onNovaSaida }) {
   const { uid, nome } = useAuth()
@@ -20,6 +22,11 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
   const [fotos, setFotos] = useState([])
   const [progresso, setProgresso] = useState(null) // { atual, total } durante o envio
   const fotoInputRef = useRef(null)
+  const [assinaturaEntregou, setAssinaturaEntregou] = useState('')
+  const [assinaturaRecebeu, setAssinaturaRecebeu] = useState('')
+  const [tokenGerado, setTokenGerado] = useState(null)
+  const [recebeuPendente, setRecebeuPendente] = useState(false)
+  const [linkCopiado, setLinkCopiado] = useState(false)
 
   // libera as URLs de preview da memoria quando o componente desmonta
   useEffect(() => {
@@ -51,6 +58,8 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     try {
       const contadorRef = doc(db, 'contadores', 'ordens_saida')
       const ordemRef = doc(collection(db, 'ordens_saida'))
+      const assinaturaRef = doc(collection(db, 'assinaturas_saida'))
+      const tokenAssinatura = assinaturaRef.id
       let novoNumero
 
       // Envia as fotos primeiro (uma por documento em fotos_saida, comprimidas
@@ -111,6 +120,8 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           eventoId: eventoIdFinal,
           eventoNome: evento?.nome || null,
           qtdFotos: fotos.length,
+          tokenAssinatura: tokenAssinatura,
+          assinaturaStatus: assinaturaRecebeu ? 'assinada' : 'pendente',
           geradores: (geradores || []).map(g => ({ id: g.id, codigo: g.codigo })),
           geradorCodigo: geradores?.length > 0 ? geradores[0].codigo : null,
           itens: itens.map(i => ({
@@ -156,6 +167,31 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         }
       })
 
+      // Cria o documento de assinatura (capability URL) com o resumo da OS.
+      // Guarda a assinatura de quem entregou (coletada agora) e a de quem recebeu
+      // se ja assinou aqui; senao fica pendente para assinar por link/presencial.
+      await setDoc(assinaturaRef, {
+        ordemId: ordemRef.id,
+        numeroFormatado: formatarNumeroOrdem(novoNumero),
+        eventoNome: evento?.nome || null,
+        local: evento?.local || null,
+        dataEvento: evento?.data || null,
+        itens: itens.map(i => ({
+          nome: i.nome,
+          codigo: i.codigo,
+          ...(materialPorQuantidade(i) ? { quantidade: i.quantidade || 1 } : {}),
+        })),
+        entregouNome: nome || null,
+        entregouAssinatura: assinaturaEntregou || null,
+        recebeuNome: responsavel || null,
+        recebeuAssinatura: assinaturaRecebeu || null,
+        status: assinaturaRecebeu ? 'assinada' : 'pendente',
+        criadoEm: serverTimestamp(),
+        assinadoEm: assinaturaRecebeu ? serverTimestamp() : null,
+      })
+
+      setTokenGerado(tokenAssinatura)
+      setRecebeuPendente(!assinaturaRecebeu)
       setNumeroOrdem(formatarNumeroOrdem(novoNumero))
       setStatus('sucesso')
     } catch (err) {
@@ -244,6 +280,34 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           </button>
         </div>
 
+        <div className="card space-y-4">
+          <div>
+            <h3 className="font-semibold text-sm text-gray-700">Assinaturas</h3>
+            <p className="text-xs text-gray-400">
+              Quem entrega assina agora. Quem recebe pode assinar agora (se presente) ou depois,
+              por link/presencialmente.
+            </p>
+          </div>
+          <SignaturePad
+            titulo={`Quem entregou${nome ? ` — ${nome}` : ''}`}
+            valor={assinaturaEntregou}
+            onChange={setAssinaturaEntregou}
+            altura={120}
+          />
+          <SignaturePad
+            titulo={`Quem recebeu${responsavel ? ` — ${responsavel}` : ''} (opcional)`}
+            valor={assinaturaRecebeu}
+            onChange={setAssinaturaRecebeu}
+            altura={120}
+          />
+          {!assinaturaRecebeu && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Sem a assinatura de quem recebeu, a saída fica <strong>pendente</strong> e um link
+              será gerado para o recebedor assinar no evento.
+            </p>
+          )}
+        </div>
+
         {erro && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
             {erro}
@@ -284,6 +348,40 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             {numeroOrdem}
           </div>
         </div>
+
+        {recebeuPendente && tokenGerado && (() => {
+          const link = `${window.location.origin}/assinar/${tokenGerado}`
+          const msg = `Confirme o recebimento do material da SOS Energia assinando aqui: ${link}`
+          return (
+            <div className="card text-left max-w-md mx-auto space-y-3">
+              <div>
+                <p className="font-semibold text-sm text-brand-black">Falta a assinatura de quem recebeu</p>
+                <p className="text-xs text-gray-500 mt-0.5">Envie o link para {responsavel || 'o recebedor'} assinar no evento.</p>
+              </div>
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <span className="text-xs text-gray-600 font-mono truncate flex-1">{link}</span>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(link); setLinkCopiado(true); setTimeout(() => setLinkCopiado(false), 2000) }}
+                  className="text-xs font-semibold text-brand-red flex-shrink-0"
+                >
+                  {linkCopiado ? 'Copiado!' : 'Copiar'}
+                </button>
+              </div>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary w-full justify-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.207zM17.41 14.382c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.247-.694.247-1.289.173-1.413z" />
+                </svg>
+                Enviar pelo WhatsApp
+              </a>
+            </div>
+          )
+        })()}
+
         <div className="flex gap-3 justify-center flex-wrap">
           <button onClick={onNovaSaida} className="btn-primary">
             Nova Saída
