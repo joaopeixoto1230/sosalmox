@@ -339,7 +339,7 @@ export default function DetalheOS() {
   <style>
     @page { size: A4; margin: 12mm; }
     body { font-family: Arial, sans-serif; padding: 0; color: #111; max-width: 700px; margin: 0 auto; font-size: 13px; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 2px solid #CC0000; padding-bottom: 12px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 16px; border-bottom: 2px solid #CC0000; padding-bottom: 12px; }
     .header h1 { color: #CC0000; margin: 0; font-size: 19px; }
     .header p { margin: 2px 0; color: #555; font-size: 12px; }
     .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #e5f5e5; color: #2a7a2a; }
