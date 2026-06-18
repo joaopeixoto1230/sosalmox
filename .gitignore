@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Credenciais — NUNCA commitar (chave de service account do Firebase)
+serviceAccount.json
+serviceAccount.json.json
+.firebase/
