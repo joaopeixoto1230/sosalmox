@@ -20,6 +20,8 @@ export default function GGCard({ gg }) {
   const [editLocal, setEditLocal] = useState(gg.localizacao || '')
   const [motivoDefeito, setMotivoDefeito] = useState('')
   const [localLocacao, setLocalLocacao] = useState('')
+  const [editObs, setEditObs] = useState(gg.observacao || '')
+  const [salvandoObs, setSalvandoObs] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
@@ -83,6 +85,16 @@ export default function GGCard({ gg }) {
   async function salvarLocal() {
     await updateDoc(doc(db, 'geradores', gg.id), { localizacao: editLocal })
     fecharMenu()
+  }
+
+  async function salvarObs() {
+    setSalvandoObs(true)
+    try {
+      await updateDoc(doc(db, 'geradores', gg.id), { observacao: editObs.trim() })
+      fecharMenu()
+    } finally {
+      setSalvandoObs(false)
+    }
   }
 
   async function handleFotoSelecionada(e) {
@@ -225,6 +237,32 @@ export default function GGCard({ gg }) {
                   )}
 
                   <button
+                    onClick={() => { setSubMenu(subMenu === 'obs' ? null : 'obs'); setEditObs(gg.observacao || '') }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-between"
+                  >
+                    {gg.observacao ? 'Editar observação' : 'Adicionar observação'}
+                    <svg className={`w-3.5 h-3.5 transition-transform ${subMenu === 'obs' ? 'rotate-180' : ''}`} fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  {subMenu === 'obs' && (
+                    <div className="bg-amber-50 border-t border-b border-amber-100 px-3 py-2 space-y-2">
+                      <p className="text-xs font-medium text-amber-700">Observação da máquina</p>
+                      <textarea
+                        className="input text-sm w-full resize-none"
+                        rows={3}
+                        value={editObs}
+                        onChange={e => setEditObs(e.target.value)}
+                        placeholder="Ex: Painel com botão emperrado, usar chave reserva..."
+                        autoFocus
+                      />
+                      <button onClick={salvarObs} disabled={salvandoObs} className="btn-primary text-xs w-full py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-60">
+                        {salvandoObs ? 'Salvando...' : 'Salvar observação'}
+                      </button>
+                    </div>
+                  )}
+
+                  <button
                     onClick={() => { fecharMenu(); fileInputRef.current?.click() }}
                     className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
@@ -259,6 +297,12 @@ export default function GGCard({ gg }) {
         {(alertaParado || alertaDefeito) && (
           <div className={`mt-2 text-xs font-medium px-2 py-1 rounded-lg ${alertaDefeito ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`}>
             {alertaDefeito ? `⚠️ ${gg.defeito || 'Com defeito'}` : `⏱️ Parado há ${diasParado} dias`}
+          </div>
+        )}
+
+        {gg.observacao && (
+          <div className="mt-2 text-xs px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
+            📝 {gg.observacao}
           </div>
         )}
 
