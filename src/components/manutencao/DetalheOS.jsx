@@ -337,26 +337,27 @@ export default function DetalheOS() {
   <meta charset="UTF-8"/>
   <title>OS ${os.numero}</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 30px; color: #111; max-width: 700px; margin: 0 auto; }
-    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; border-bottom: 2px solid #CC0000; padding-bottom: 16px; }
-    .header h1 { color: #CC0000; margin: 0; font-size: 22px; }
-    .header p { margin: 2px 0; color: #555; font-size: 13px; }
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial, sans-serif; padding: 0; color: #111; max-width: 700px; margin: 0 auto; font-size: 13px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 2px solid #CC0000; padding-bottom: 12px; }
+    .header h1 { color: #CC0000; margin: 0; font-size: 19px; }
+    .header p { margin: 2px 0; color: #555; font-size: 12px; }
     .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #e5f5e5; color: #2a7a2a; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin: 16px 0; }
-    .field label { font-size: 11px; color: #888; display: block; margin-bottom: 2px; }
-    .field p { font-size: 14px; font-weight: 600; margin: 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
-    th { background: #f0f0f0; text-align: left; padding: 8px 10px; border-bottom: 2px solid #ccc; }
-    td { padding: 7px 10px; border-bottom: 1px solid #eee; }
-    .section-title { font-size: 13px; font-weight: bold; color: #555; margin: 20px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .footer { margin-top: 32px; font-size: 11px; color: #aaa; text-align: right; }
-    .assinatura { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 12px 0; }
+    .field label { font-size: 10px; color: #888; display: block; margin-bottom: 1px; }
+    .field p { font-size: 13px; font-weight: 600; margin: 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; }
+    th { background: #f0f0f0; text-align: left; padding: 6px 10px; border-bottom: 2px solid #ccc; }
+    td { padding: 5px 10px; border-bottom: 1px solid #eee; }
+    .section-title { font-size: 12px; font-weight: bold; color: #555; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .footer { margin-top: 16px; font-size: 10px; color: #aaa; text-align: right; }
+    .assinatura { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 28px; page-break-inside: avoid; break-inside: avoid; }
     .assinatura .bloco { text-align: center; }
-    .assinatura .traco { border-top: 1px solid #999; padding-top: 6px; font-size: 12px; color: #555; }
-    .assinatura img { display: block; margin: 0 auto -6px; height: 56px; object-fit: contain; }
-    .fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
-    .fotos img { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; }
-    @media print { body { padding: 0; } .fotos img, .assinatura img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    .assinatura .traco { border-top: 1px solid #999; padding-top: 5px; font-size: 12px; color: #555; }
+    .assinatura img { display: block; margin: 0 auto -4px; height: 48px; object-fit: contain; }
+    .fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; page-break-inside: avoid; break-inside: avoid; }
+    .fotos img { width: 100%; height: 92px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd; }
+    @media print { .fotos img, .assinatura img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
 <body>
