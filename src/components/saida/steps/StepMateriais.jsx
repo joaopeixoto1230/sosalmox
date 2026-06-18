@@ -12,6 +12,14 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onQ
   const [busca, setBusca] = useState('')
   const [novoAberto, setNovoAberto] = useState(false)
 
+  // Abas de categoria: padroes + categorias extras criadas pelo usuario.
+  const categoriasTabs = useMemo(() => {
+    const extras = [...new Set(materiais.map(m => m.categoria).filter(Boolean))]
+      .filter(c => !CATEGORIAS.includes(c))
+      .sort((a, b) => a.localeCompare(b))
+    return [...CATEGORIAS, ...extras]
+  }, [materiais])
+
   const filtrados = useMemo(() => {
     return materiais.filter(m => {
       const matchCategoria = busca ? true : m.categoria === categoriaAtiva
@@ -161,7 +169,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onQ
 
       {!busca && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {CATEGORIAS.map(cat => (
+          {categoriasTabs.map(cat => (
             <button
               key={cat}
               onClick={() => setCategoriaAtiva(cat)}

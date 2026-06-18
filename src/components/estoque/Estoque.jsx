@@ -23,6 +23,15 @@ export default function Estoque() {
   const [apenasEstoqueBaixo, setApenasEstoqueBaixo] = useState(false)
   const [novoMaterialAberto, setNovoMaterialAberto] = useState(false)
 
+  // Abas de categoria: padroes + categorias extras criadas pelo usuario
+  // (derivadas dos materiais ja cadastrados).
+  const categoriasTabs = useMemo(() => {
+    const extras = [...new Set(materiais.map(m => m.categoria).filter(Boolean))]
+      .filter(c => !CATEGORIAS.includes(c))
+      .sort((a, b) => a.localeCompare(b))
+    return [...CATEGORIAS, ...extras]
+  }, [materiais])
+
   const filtrados = useMemo(() => {
     return materiais.filter(m => {
       if (categoria !== 'Todos' && m.categoria !== categoria) return false
@@ -99,7 +108,7 @@ export default function Estoque() {
         />
 
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {CATEGORIAS.map(cat => (
+          {categoriasTabs.map(cat => (
             <button key={cat} onClick={() => setCategoria(cat)}
               className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors
                 ${categoria === cat ? 'bg-brand-red text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>

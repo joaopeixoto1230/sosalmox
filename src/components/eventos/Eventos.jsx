@@ -888,6 +888,13 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
   const [categoria, setCategoria] = useState('Todos')
   const [processando, setProcessando] = useState(null)
 
+  const categoriasFiltro = useMemo(() => {
+    const extras = [...new Set(todosMateriais.map(m => m.categoria).filter(Boolean))]
+      .filter(c => !CATEGORIAS_MAT.includes(c))
+      .sort((a, b) => a.localeCompare(b))
+    return [...CATEGORIAS_MAT, ...extras]
+  }, [todosMateriais])
+
   const materiaisDoEvento = todosMateriais.filter(m => m.eventoAtual === evento.id)
   const disponiveisFiltrados = todosMateriais.filter(m => {
     if (m.status !== 'disponivel') return false
@@ -977,7 +984,7 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
               className="input w-full mb-2"
             />
             <div className="flex gap-1.5 overflow-x-auto pb-2">
-              {CATEGORIAS_MAT.map(cat => (
+              {categoriasFiltro.map(cat => (
                 <button
                   key={cat}
                   onClick={() => setCategoria(cat)}
