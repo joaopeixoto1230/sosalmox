@@ -46,11 +46,26 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           }
         }
 
+        // Cria o evento agora, dentro da transacao: so passa a existir se a
+        // saida for confirmada. Voltar/abandonar o fluxo nao grava nada.
+        let eventoIdFinal = evento?.id || null
+        if (evento?.novo) {
+          const eventoRef = doc(collection(db, 'eventos'))
+          eventoIdFinal = eventoRef.id
+          tx.set(eventoRef, {
+            nome: evento.nome,
+            local: evento.local,
+            data: evento.data,
+            status: evento.status || 'ativo',
+            criadoEm: serverTimestamp(),
+          })
+        }
+
         const ordemRef = doc(ordensRef)
         tx.set(ordemRef, {
           numero: novoNumero,
           numeroFormatado: formatarNumeroOrdem(novoNumero),
-          eventoId: evento?.id || null,
+          eventoId: eventoIdFinal,
           eventoNome: evento?.nome || null,
           geradores: (geradores || []).map(g => ({ id: g.id, codigo: g.codigo })),
           geradorCodigo: geradores?.length > 0 ? geradores[0].codigo : null,
@@ -78,7 +93,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           const matRef = doc(db, 'materiais', item.id)
           tx.update(matRef, {
             status: 'em_evento',
-            eventoAtual: evento?.id || null,
+            eventoAtual: eventoIdFinal,
             estoqueAtual: 0,
           })
         }
@@ -90,7 +105,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           const ggRef = doc(db, 'geradores', gg.id)
           tx.update(ggRef, {
             status: 'em_evento',
-            eventoAtual: evento?.id || null,
+            eventoAtual: eventoIdFinal,
             eventoNome: evento?.nome || null,
             localizacao: localEvento,
           })

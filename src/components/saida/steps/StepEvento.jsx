@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
-import { db } from '../../../firebase/config'
 import DatePicker from '../../ui/DatePicker'
 
 const OPERADORES = [
@@ -28,32 +26,27 @@ export default function StepEvento({ onSelecionar, onResponsavel }) {
   const [operador, setOperador] = useState('')
   const [outroNome, setOutroNome] = useState('')
   const [mostrarOutro, setMostrarOutro] = useState(false)
-  const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
 
   const responsavelFinal = mostrarOutro ? outroNome.trim() : operador
 
-  async function criarEvento() {
+  // Nao grava o evento aqui: so leva os dados adiante. O evento so e criado
+  // de fato na confirmacao da saida (StepConfirmacao), para que voltar/abandonar
+  // o fluxo nao deixe eventos "fantasma" na aba de Eventos.
+  function criarEvento() {
     if (!form.nome.trim()) { setErro('Nome do evento é obrigatório'); return }
     if (!form.local.trim()) { setErro('Local é obrigatório'); return }
     if (!form.data) { setErro('Data é obrigatória'); return }
     if (!responsavelFinal) { setErro('Selecione o responsável pelo material'); return }
-    setSalvando(true)
     setErro('')
-    try {
-      const ref = await addDoc(collection(db, 'eventos'), {
-        nome: form.nome.trim(),
-        local: form.local.trim(),
-        data: form.data,
-        status: 'ativo',
-        criadoEm: serverTimestamp(),
-      })
-      onResponsavel(responsavelFinal)
-      onSelecionar({ id: ref.id, nome: form.nome.trim(), local: form.local.trim(), data: form.data, status: 'ativo' })
-    } catch (e) {
-      setErro('Erro ao criar evento: ' + e.message)
-      setSalvando(false)
-    }
+    onResponsavel(responsavelFinal)
+    onSelecionar({
+      novo: true,
+      nome: form.nome.trim(),
+      local: form.local.trim(),
+      data: form.data,
+      status: 'ativo',
+    })
   }
 
   return (
@@ -135,10 +128,9 @@ export default function StepEvento({ onSelecionar, onResponsavel }) {
 
         <button
           onClick={criarEvento}
-          disabled={salvando}
-          className="btn-primary w-full justify-center py-3 text-base disabled:opacity-50"
+          className="btn-primary w-full justify-center py-3 text-base"
         >
-          {salvando ? 'Criando evento...' : 'Criar e Continuar →'}
+          Continuar →
         </button>
       </div>
     </div>
