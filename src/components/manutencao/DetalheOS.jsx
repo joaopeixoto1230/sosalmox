@@ -73,6 +73,21 @@ export default function DetalheOS() {
   const [fotoAmpliada, setFotoAmpliada] = useState(null)
   const [progresso, setProgresso] = useState(null) // { atual, total, pct } durante envio das fotos
 
+  // local da manutenção e assinaturas (definidos/confirmados na conclusão)
+  const [localTipoConc, setLocalTipoConc] = useState('patio')
+  const [clienteNomeConc, setClienteNomeConc] = useState('')
+  const [tecnicoNome, setTecnicoNome] = useState('')
+  const [assinaturaTecnico, setAssinaturaTecnico] = useState('')
+  const [assinaturaCliente, setAssinaturaCliente] = useState('')
+
+  // ao carregar a OS, herda o local/cliente definidos na abertura e sugere o técnico
+  useEffect(() => {
+    if (!os) return
+    setLocalTipoConc(os.localTipo || 'patio')
+    setClienteNomeConc(os.clienteNome || '')
+    setTecnicoNome(os.mecanicoNome || '')
+  }, [os?.id])
+
   // libera as URLs de preview da memória quando o componente desmonta
   useEffect(() => {
     return () => fotos.forEach(f => URL.revokeObjectURL(f.preview))
@@ -107,6 +122,9 @@ export default function DetalheOS() {
     const usaKm = os?.equipamentoTipo === 'caminhao'
     if (!horimetroConc) { setErro(usaKm ? 'Informe o KM de conclusão.' : 'Informe o horímetro de conclusão.'); return }
     if (!relatorio.trim()) { setErro('Descreva o serviço executado.'); return }
+    if (!tecnicoNome.trim()) { setErro('Informe o técnico responsável.'); return }
+    if (!assinaturaTecnico) { setErro('Colete a assinatura do técnico responsável.'); return }
+    if (localTipoConc === 'locacao' && !clienteNomeConc.trim()) { setErro('Informe o nome do cliente.'); return }
     setSalvando(true); setErro('')
     try {
       const viaFiltros = os.origem === 'saida_filtros'
@@ -135,6 +153,7 @@ export default function DetalheOS() {
       await runTransaction(db, async (tx) => {
         const osRef = doc(db, 'ordens_servico', id)
 
+        const ehLocacao = localTipoConc === 'locacao'
         const baseUpdate = {
           status: 'concluida',
           horimetroConсlusao: parseInt(horimetroConc),
@@ -142,6 +161,12 @@ export default function DetalheOS() {
           problemasEncontrados: problemasEncontrados.trim() || null,
           proximaPreventiva: proximaPreventiva || null,
           qtdFotos: fotosOS.length + fotos.length,
+          localTipo: localTipoConc,
+          clienteNome: ehLocacao ? (clienteNomeConc.trim() || null) : (os.clienteNome || null),
+          assinaturaTecnico: assinaturaTecnico || null,
+          assinaturaTecnicoNome: tecnicoNome.trim() || null,
+          assinaturaCliente: ehLocacao ? (assinaturaCliente || null) : null,
+          assinaturaClienteNome: ehLocacao ? (clienteNomeConc.trim() || null) : null,
           dataConclusao: serverTimestamp(),
           concluidoPor: uid,
           concluidoPorNome: nome,
@@ -191,13 +216,18 @@ export default function DetalheOS() {
         }
 
         if (os?.equipamentoTipo === 'gerador' && os?.equipamentoId) {
-          tx.update(doc(db, 'geradores', os.equipamentoId), {
-            status: 'disponivel',
-            localizacao: 'Pátio SOS',
+          const updGerador = {
             horimetroAtual: parseInt(horimetroConc),
             ultimaManutencao: serverTimestamp(),
             ...(proximaPreventiva ? { proximaPreventiva } : {}),
-          })
+          }
+          // só gerador de pátio volta para "disponível / Pátio SOS".
+          // gerador em locação continua no cliente — não mexe no status/localização.
+          if (!ehLocacao) {
+            updGerador.status = 'disponivel'
+            updGerador.localizacao = 'Pátio SOS'
+          }
+          tx.update(doc(db, 'geradores', os.equipamentoId), updGerador)
         }
       })
       navigate('/manutencao')
@@ -321,10 +351,12 @@ export default function DetalheOS() {
     .section-title { font-size: 13px; font-weight: bold; color: #555; margin: 20px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
     .footer { margin-top: 32px; font-size: 11px; color: #aaa; text-align: right; }
     .assinatura { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; }
-    .assinatura div { border-top: 1px solid #999; padding-top: 6px; font-size: 12px; color: #555; text-align: center; }
+    .assinatura .bloco { text-align: center; }
+    .assinatura .traco { border-top: 1px solid #999; padding-top: 6px; font-size: 12px; color: #555; }
+    .assinatura img { display: block; margin: 0 auto -6px; height: 56px; object-fit: contain; }
     .fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
     .fotos img { width: 100%; height: 150px; object-fit: cover; border-radius: 6px; border: 1px solid #ddd; }
-    @media print { body { padding: 0; } .fotos img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    @media print { body { padding: 0; } .fotos img, .assinatura img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
 <body>
@@ -341,6 +373,8 @@ export default function DetalheOS() {
   <div class="grid">
     <div class="field"><label>Tipo</label><p>${os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'}</p></div>
     <div class="field"><label>Mecânico</label><p>${os.mecanicoNome || '—'}</p></div>
+    <div class="field"><label>Local</label><p>${os.localTipo === 'locacao' ? 'Em locação (cliente)' : 'No pátio (SOS)'}</p></div>
+    ${os.localTipo === 'locacao' ? `<div class="field"><label>Cliente</label><p>${os.clienteNome || '—'}</p></div>${os.localObra ? `<div class="field"><label>Local / Obra</label><p>${os.localObra}</p></div>` : ''}` : ''}
     <div class="field"><label>Data de abertura</label><p>${os.dataAbertura?.toDate ? os.dataAbertura.toDate().toLocaleString('pt-BR') : '—'}</p></div>
     ${os.status === 'concluida' ? `
     <div class="field"><label>Data de conclusão</label><p>${os.dataConclusao?.toDate ? os.dataConclusao.toDate().toLocaleString('pt-BR') : '—'}</p></div>
@@ -368,8 +402,14 @@ export default function DetalheOS() {
   ` : ''}
 
   <div class="assinatura">
-    <div>Mecânico: ${os.mecanicoNome || '_______________'}</div>
-    <div>Responsável: _______________</div>
+    <div class="bloco">
+      ${os.assinaturaTecnico ? `<img src="${os.assinaturaTecnico}" />` : ''}
+      <div class="traco">Técnico: ${os.assinaturaTecnicoNome || os.mecanicoNome || '_______________'}</div>
+    </div>
+    <div class="bloco">
+      ${os.assinaturaCliente ? `<img src="${os.assinaturaCliente}" />` : ''}
+      <div class="traco">${os.localTipo === 'locacao' ? `Cliente: ${os.assinaturaClienteNome || os.clienteNome || '_______________'}` : 'Responsável: _______________'}</div>
+    </div>
   </div>
 
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
@@ -500,6 +540,31 @@ export default function DetalheOS() {
             </div>
           </div>
         )}
+        {os.localTipo === 'locacao' && (os.clienteNome || os.localObra) && (
+          <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+            <p className="text-amber-700 text-xs font-semibold">🏢 Locação — {os.clienteNome || '—'}</p>
+            {os.localObra && <p className="text-amber-600 text-xs">{os.localObra}</p>}
+          </div>
+        )}
+        {concluida && (os.assinaturaTecnico || os.assinaturaCliente) && (
+          <div>
+            <p className="text-gray-400 text-xs mb-1.5">Assinaturas</p>
+            <div className="grid grid-cols-2 gap-3">
+              {os.assinaturaTecnico && (
+                <div className="border border-gray-200 rounded-xl p-2">
+                  <img src={os.assinaturaTecnico} alt="Assinatura do técnico" className="h-16 w-full object-contain" />
+                  <p className="text-xs text-gray-500 text-center mt-1 border-t border-gray-100 pt-1">Técnico: {os.assinaturaTecnicoNome || os.mecanicoNome || '—'}</p>
+                </div>
+              )}
+              {os.assinaturaCliente && (
+                <div className="border border-gray-200 rounded-xl p-2">
+                  <img src={os.assinaturaCliente} alt="Assinatura do cliente" className="h-16 w-full object-contain" />
+                  <p className="text-xs text-gray-500 text-center mt-1 border-t border-gray-100 pt-1">Cliente: {os.assinaturaClienteNome || os.clienteNome || '—'}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {!concluida && (
@@ -618,6 +683,56 @@ export default function DetalheOS() {
               />
             </div>
 
+            <div className="border-t border-gray-100 pt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Local da manutenção</label>
+                <div className="flex gap-2">
+                  {[['patio', 'No pátio (SOS)'], ['locacao', 'Em locação (cliente)']].map(([val, label]) => (
+                    <button key={val} type="button" onClick={() => setLocalTipoConc(val)}
+                      className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${localTipoConc === val ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600'}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {localTipoConc === 'locacao' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+                  <input value={clienteNomeConc} onChange={e => setClienteNomeConc(e.target.value)}
+                    className="input" placeholder="Ex: CM Hospitalar S.A." />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Técnico responsável *</label>
+                <div className="flex gap-2 mb-2">
+                  {['FRANÇA', 'FABIO'].map(t => (
+                    <button key={t} type="button" onClick={() => setTecnicoNome(t)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${tecnicoNome === t ? 'bg-brand-black text-white border-brand-black' : 'bg-white border-gray-200 text-gray-600'}`}>
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <input value={tecnicoNome} onChange={e => setTecnicoNome(e.target.value)}
+                  className="input" placeholder="Nome do técnico que fez a manutenção" />
+              </div>
+
+              <AssinaturaPad
+                titulo="Assinatura do técnico *"
+                valor={assinaturaTecnico}
+                onChange={setAssinaturaTecnico}
+              />
+
+              {localTipoConc === 'locacao' && (
+                <AssinaturaPad
+                  titulo="Assinatura do cliente (ciente do serviço)"
+                  valor={assinaturaCliente}
+                  onChange={setAssinaturaCliente}
+                />
+              )}
+            </div>
+
             {viaFiltros && (
               <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                 <p className="text-sm text-green-700 font-medium">
@@ -683,6 +798,85 @@ export default function DetalheOS() {
           <img src={fotoAmpliada} alt="Foto do serviço" className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
         </div>
       )}
+    </div>
+  )
+}
+
+// Prancheta de assinatura — desenha com o dedo (celular) ou mouse e devolve a imagem (data URL PNG).
+function AssinaturaPad({ titulo, valor, onChange }) {
+  const canvasRef = useRef(null)
+  const desenhando = useRef(false)
+  const temTraco = useRef(false)
+
+  useEffect(() => {
+    const c = canvasRef.current
+    if (!c) return
+    const ctx = c.getContext('2d')
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = '#0A0A0A'
+  }, [])
+
+  function ponto(e) {
+    const c = canvasRef.current
+    const rect = c.getBoundingClientRect()
+    return {
+      x: (e.clientX - rect.left) * (c.width / rect.width),
+      y: (e.clientY - rect.top) * (c.height / rect.height),
+    }
+  }
+  function iniciar(e) {
+    e.preventDefault()
+    canvasRef.current.setPointerCapture?.(e.pointerId)
+    desenhando.current = true
+    const ctx = canvasRef.current.getContext('2d')
+    const { x, y } = ponto(e)
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+  function mover(e) {
+    if (!desenhando.current) return
+    e.preventDefault()
+    const ctx = canvasRef.current.getContext('2d')
+    const { x, y } = ponto(e)
+    ctx.lineTo(x, y)
+    ctx.stroke()
+    temTraco.current = true
+  }
+  function terminar() {
+    if (!desenhando.current) return
+    desenhando.current = false
+    if (temTraco.current) onChange(canvasRef.current.toDataURL('image/png'))
+  }
+  function limpar() {
+    const c = canvasRef.current
+    c.getContext('2d').clearRect(0, 0, c.width, c.height)
+    temTraco.current = false
+    onChange('')
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="block text-sm font-medium text-gray-700">{titulo}</label>
+        {valor && <button type="button" onClick={limpar} className="text-xs text-brand-red font-medium">Limpar</button>}
+      </div>
+      <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={160}
+          className="w-full block touch-none"
+          style={{ height: '140px' }}
+          onPointerDown={iniciar}
+          onPointerMove={mover}
+          onPointerUp={terminar}
+          onPointerLeave={terminar}
+          onPointerCancel={terminar}
+        />
+      </div>
+      <p className="text-xs text-gray-400 mt-1">Assine com o dedo (celular) ou o mouse.</p>
     </div>
   )
 }

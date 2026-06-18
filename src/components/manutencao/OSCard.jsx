@@ -23,8 +23,16 @@ export default function OSCard({ os }) {
             {atrasada && (
               <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">ATRASADA</span>
             )}
+            {os.localTipo === 'locacao' ? (
+              <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">LOCAÇÃO</span>
+            ) : (
+              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">PÁTIO</span>
+            )}
           </div>
           <p className="font-semibold text-brand-black text-sm mt-0.5">{os.equipamentoLabel}</p>
+          {os.localTipo === 'locacao' && os.clienteNome && (
+            <p className="text-xs text-amber-700 font-medium">🏢 {os.clienteNome}</p>
+          )}
           <p className="text-xs text-gray-500">{os.descricao}</p>
         </div>
         <span className={`badge flex-shrink-0 ${statusOsCor(os.status)}`}>{statusOsLabel(os.status)}</span>

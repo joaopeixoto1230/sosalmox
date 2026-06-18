@@ -14,6 +14,9 @@ export default function NovaOS() {
     equipamentoTipo: 'gerador',
     equipamentoId: '',
     equipamentoLabel: '',
+    localTipo: 'patio',
+    clienteNome: '',
+    localObra: '',
     tipo: 'preventiva',
     descricao: '',
     horimetroAbertura: '',
@@ -33,6 +36,7 @@ export default function NovaOS() {
 
   async function confirmar() {
     if (!form.equipamentoLabel) { setErro('Selecione um equipamento.'); return }
+    if (form.localTipo === 'locacao' && !form.clienteNome.trim()) { setErro('Informe o cliente da locação.'); return }
     if (!form.descricao.trim()) { setErro('Descreva o serviço a realizar.'); return }
     setSalvando(true); setErro('')
     try {
@@ -57,6 +61,9 @@ export default function NovaOS() {
           equipamentoTipo: form.equipamentoTipo,
           equipamentoLabel: form.equipamentoLabel,
           tipo: form.tipo,
+          localTipo: form.localTipo,
+          clienteNome: form.localTipo === 'locacao' ? form.clienteNome.trim() : null,
+          localObra: form.localTipo === 'locacao' ? (form.localObra.trim() || null) : null,
           descricao: form.descricao,
           horimetroAbertura: form.horimetroAbertura ? parseInt(form.horimetroAbertura) : null,
           observacoes: form.observacoes,
@@ -70,7 +77,8 @@ export default function NovaOS() {
           criadoEm: serverTimestamp(),
         })
 
-        if (isGG) {
+        // gerador no pátio: marca em manutenção. Gerador em locação fica no cliente — não mexe no status/local.
+        if (isGG && form.localTipo === 'patio') {
           tx.update(doc(db, 'geradores', form.equipamentoId), {
             status: 'manutencao',
             localizacao: 'Em manutenção',
@@ -127,6 +135,33 @@ export default function NovaOS() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Identificação do equipamento *</label>
             <input value={form.equipamentoLabel} onChange={e => { set('equipamentoLabel', e.target.value); set('equipamentoId', '') }}
               className="input" placeholder={form.equipamentoTipo === 'caminhao' ? 'Ex: Placa ABC-1234' : 'Ex: Empilhadeira 01'} />
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Local da manutenção</label>
+          <div className="flex gap-2">
+            {[['patio', 'No pátio (SOS)'], ['locacao', 'Em locação (cliente)']].map(([val, label]) => (
+              <button key={val} onClick={() => set('localTipo', val)}
+                className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${form.localTipo === val ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {form.localTipo === 'locacao' && (
+          <div className="space-y-4 rounded-xl bg-gray-50 border border-gray-100 p-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+              <input value={form.clienteNome} onChange={e => set('clienteNome', e.target.value)}
+                className="input" placeholder="Ex: CM Hospitalar S.A." />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Local / Obra</label>
+              <input value={form.localObra} onChange={e => set('localObra', e.target.value)}
+                className="input" placeholder="Ex: Aeroporto Internacional de Brasília" />
+            </div>
           </div>
         )}
 
