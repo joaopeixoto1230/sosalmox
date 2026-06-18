@@ -355,8 +355,8 @@ export default function DetalheOS() {
     .assinatura .bloco { text-align: center; }
     .assinatura .traco { border-top: 1px solid #999; padding-top: 5px; font-size: 12px; color: #555; }
     .assinatura img { display: block; margin: 0 auto -4px; height: 48px; object-fit: contain; }
-    .fotos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 6px; page-break-inside: avoid; break-inside: avoid; }
-    .fotos img { width: 100%; height: 92px; object-fit: cover; border-radius: 5px; border: 1px solid #ddd; }
+    .fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; page-break-inside: avoid; break-inside: avoid; }
+    .fotos img { width: 100%; height: 140px; object-fit: contain; background: #f7f7f7; border-radius: 5px; border: 1px solid #ddd; }
     @media print { .fotos img, .assinatura img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
@@ -414,13 +414,21 @@ export default function DetalheOS() {
   </div>
 
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+  <script>
+    // a própria janela se imprime ao terminar de carregar (não trava a aba principal).
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.focus(); window.print(); }, 350);
+    });
+    window.addEventListener('afterprint', function () { window.close(); });
+  </script>
 </body>
 </html>`
 
     const win = window.open('', '_blank')
+    if (!win) { setErro('Permita pop-ups/janelas para imprimir o relatório.'); return }
+    win.document.open()
     win.document.write(html)
     win.document.close()
-    win.print()
   }
 
   if (carregando) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" /></div>
