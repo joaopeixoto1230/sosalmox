@@ -327,8 +327,11 @@ export default function DetalheOS() {
 
   function gerarPDF() {
     const usaKm = os.equipamentoTipo === 'caminhao'
+    // caminhão: a coluna do meio mostra o veículo (placa) em vez da potência GG
+    const colMeioLabel = usaKm ? 'Veículo' : 'Potência GG'
+    const colMeioValor = f => usaKm ? (os.equipamentoLabel || '—') : (f.potenciaGG || '—')
     const filtrosLista = os.filtrosUsados?.length
-      ? os.filtrosUsados.map(f => `<tr><td>${f.filtroNome || f.nome || '—'}</td><td>${f.potenciaGG || '—'}</td><td style="text-align:center">${f.quantidade || f.qtdUsada || 1}</td></tr>`).join('')
+      ? os.filtrosUsados.map(f => `<tr><td>${f.filtroNome || f.nome || '—'}</td><td>${colMeioValor(f)}</td><td style="text-align:center">${f.quantidade || f.qtdUsada || 1}</td></tr>`).join('')
       : '<tr><td colspan="3" style="color:#888">Nenhum filtro registrado</td></tr>'
 
     const html = `<!DOCTYPE html>
@@ -395,7 +398,7 @@ export default function DetalheOS() {
 
   <p class="section-title">Filtros utilizados</p>
   <table>
-    <thead><tr><th>Filtro</th><th>Potência GG</th><th style="text-align:center">Qtd</th></tr></thead>
+    <thead><tr><th>Filtro</th><th>${colMeioLabel}</th><th style="text-align:center">Qtd</th></tr></thead>
     <tbody>${filtrosLista}</tbody>
   </table>
 
@@ -544,7 +547,9 @@ export default function DetalheOS() {
               {os.filtrosUsados.map((f, i) => (
                 <p key={i} className="text-sm text-gray-600">
                   • {f.filtroNome || f.nome} — {f.quantidade || f.qtdUsada || 1} un
-                  {f.potenciaGG && <span className="text-gray-400 ml-1">({f.potenciaGG})</span>}
+                  {usaKm
+                    ? <span className="text-gray-400 ml-1">({os.equipamentoLabel})</span>
+                    : f.potenciaGG && <span className="text-gray-400 ml-1">({f.potenciaGG})</span>}
                 </p>
               ))}
             </div>
