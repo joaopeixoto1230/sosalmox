@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { db } from '../../firebase/config'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { useCollection } from '../../hooks/useFirestore'
+
+// Valor sentinela da opcao "criar categoria nova" no select de categoria.
+const NOVA_CATEGORIA = '__nova__'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
@@ -45,12 +49,27 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [novaCategoria, setNovaCategoria] = useState('')
+
+  // Categorias extras: derivadas dos materiais ja cadastrados. Assim, uma
+  // categoria criada aqui passa a aparecer no dropdown nas proximas vezes,
+  // sem precisar de colecao nova nem de mexer nas regras do Firestore.
+  const { dados: materiaisAll } = useCollection('materiais')
+  const categoriasNomes = useMemo(() => {
+    const extras = [...new Set(materiaisAll.map(m => m.categoria).filter(Boolean))]
+      .filter(c => !CATEGORIAS.includes(c))
+      .sort((a, b) => a.localeCompare(b))
+    return [...CATEGORIAS, ...extras]
+  }, [materiaisAll])
+
+  const categoriaFinal = form.categoria === NOVA_CATEGORIA ? novaCategoria.trim() : form.categoria
+  const tiposDaCategoria = TIPOS_POR_CATEGORIA[categoriaFinal] || []
 
   function set(field, value) {
     setForm(prev => {
       const next = { ...prev, [field]: value }
       if (field === 'categoria') {
-        next.tipo = TIPOS_POR_CATEGORIA[value][0]
+        next.tipo = TIPOS_POR_CATEGORIA[value]?.[0] || ''
       }
       return next
     })
@@ -59,14 +78,15 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
   async function salvar() {
     if (!form.nome.trim()) { setErro('Nome é obrigatório'); return }
     if (!form.codigo.trim()) { setErro('Código é obrigatório'); return }
+    if (!categoriaFinal) { setErro('Informe o nome da nova categoria'); return }
     setSalvando(true)
     setErro('')
     try {
       await addDoc(collection(db, 'materiais'), {
         nome: form.nome.trim(),
         codigo: form.codigo.trim().toUpperCase(),
-        categoria: form.categoria,
-        subcategoria: form.categoria.toLowerCase().replace(/ /g, '_'),
+        categoria: categoriaFinal,
+        subcategoria: categoriaFinal.toLowerCase().replace(/ /g, '_'),
         tipo: form.tipo,
         bitola: form.bitola.trim() || null,
         metragem: form.metragem.trim() || null,
@@ -103,15 +123,34 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Categoria</label>
             <select value={form.categoria} onChange={e => set('categoria', e.target.value)} className="input">
-              {CATEGORIAS.map(c => <option key={c}>{c}</option>)}
+              {categoriasNomes.map(c => <option key={c}>{c}</option>)}
+              <option value={NOVA_CATEGORIA}>+ Nova categoria…</option>
             </select>
+            {form.categoria === NOVA_CATEGORIA && (
+              <input
+                value={novaCategoria}
+                onChange={e => setNovaCategoria(e.target.value)}
+                placeholder="Nome da nova categoria"
+                className="input mt-2"
+                autoFocus
+              />
+            )}
           </div>
 
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-            <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input">
-              {(TIPOS_POR_CATEGORIA[form.categoria] || []).map(t => <option key={t}>{t}</option>)}
-            </select>
+            {tiposDaCategoria.length > 0 ? (
+              <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input">
+                {tiposDaCategoria.map(t => <option key={t}>{t}</option>)}
+              </select>
+            ) : (
+              <input
+                value={form.tipo}
+                onChange={e => set('tipo', e.target.value)}
+                placeholder="Ex: tipo do material (opcional)"
+                className="input"
+              />
+            )}
           </div>
 
           <div>
