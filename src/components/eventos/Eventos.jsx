@@ -994,15 +994,20 @@ function ModalEditarGeradorEvento({ evento, onFechar }) {
             ) : (
               <div className="space-y-2">
                 {geradoresDoEvento.map(g => (
-                  <div key={g.id} className="flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2.5">
-                    <div className="min-w-0">
+                  <div key={g.id} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-brand-red/10 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-brand-black truncate">{g.codigo}</p>
                       <p className="text-xs text-gray-500 truncate">{[g.potencia, g.marca, g.modelo].filter(Boolean).join(' • ')}</p>
                     </div>
                     <button
                       onClick={() => remover(g)}
                       disabled={processando === g.id}
-                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-red-200 text-brand-red rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold border border-red-200 text-brand-red rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
                     >
                       {processando === g.id ? '...' : 'Retirar'}
                     </button>
@@ -1032,15 +1037,20 @@ function ModalEditarGeradorEvento({ evento, onFechar }) {
             ) : (
               <div className="space-y-2">
                 {disponiveisFiltrados.map(g => (
-                  <div key={g.id} className="flex items-center justify-between gap-3 bg-white border border-gray-100 rounded-xl px-3 py-2.5">
-                    <div className="min-w-0">
+                  <div key={g.id} className="flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-3 py-2.5">
+                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-brand-black truncate">{g.codigo}</p>
                       <p className="text-xs text-gray-500 truncate">{[g.potencia, g.marca, g.modelo].filter(Boolean).join(' • ')}</p>
                     </div>
                     <button
                       onClick={() => adicionar(g)}
                       disabled={processando === g.id}
-                      className="flex-shrink-0 px-3 py-1.5 text-xs font-medium bg-white border border-green-200 text-green-700 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-40"
+                      className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold border border-green-300 text-green-600 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-40"
                     >
                       {processando === g.id ? '...' : 'Adicionar'}
                     </button>
