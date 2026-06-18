@@ -61,7 +61,10 @@ export default function GGCard({ gg }) {
   const [editObs, setEditObs] = useState(gg.observacao || '')
   const [salvandoObs, setSalvandoObs] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [fotoMenu, setFotoMenu] = useState(false)
+  const [fotoAberta, setFotoAberta] = useState(false)
   const fileInputRef = useRef(null)
+  const cameraInputRef = useRef(null)
 
   const diasParado = gg.ultimaAtividade ? (() => {
     const d = gg.ultimaAtividade?.toDate ? gg.ultimaAtividade.toDate() : new Date(gg.ultimaAtividade)
@@ -148,14 +151,69 @@ export default function GGCard({ gg }) {
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      if (cameraInputRef.current) cameraInputRef.current.value = ''
+    }
+  }
+
+  async function excluirFoto() {
+    setFotoMenu(false)
+    if (!window.confirm('Excluir a foto deste gerador?')) return
+    setUploading(true)
+    try {
+      await updateDoc(doc(db, 'geradores', gg.id), { fotoUrl: null })
+    } finally {
+      setUploading(false)
     }
   }
 
   return (
     <div className={`card transition-all hover:shadow-md relative ${alertaDefeito ? 'border-red-300' : alertaParado ? 'border-yellow-300' : ''}`}>
       {gg.fotoUrl && (
-        <div className="-mx-4 -mt-4 mb-3 rounded-t-xl overflow-hidden h-28">
-          <img src={gg.fotoUrl} alt={gg.codigo} className="w-full h-full object-cover" />
+        <div className="-mx-4 -mt-4 mb-3 rounded-t-xl overflow-hidden h-28 relative group">
+          <img
+            src={gg.fotoUrl}
+            alt={gg.codigo}
+            className="w-full h-full object-cover cursor-zoom-in"
+            onClick={() => setFotoAberta(true)}
+          />
+          <div className="absolute top-1.5 right-1.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); setFotoMenu(v => !v) }}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-black/45 text-white hover:bg-black/65 transition-colors backdrop-blur-sm"
+              title="Editar foto"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            {fotoMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setFotoMenu(false)} />
+                <div className="absolute right-0 top-8 z-40 bg-white border border-gray-200 rounded-xl shadow-lg w-44 py-1 overflow-hidden">
+                  <button
+                    onClick={() => { setFotoMenu(false); cameraInputRef.current?.click() }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    📷 Tirar outra foto
+                  </button>
+                  <button
+                    onClick={() => { setFotoMenu(false); fileInputRef.current?.click() }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    🖼️ Trocar foto (galeria)
+                  </button>
+                  <div className="border-t border-gray-100 mt-1 pt-1">
+                    <button
+                      onClick={excluirFoto}
+                      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      🗑️ Excluir foto
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -356,10 +414,43 @@ export default function GGCard({ gg }) {
         className="hidden"
         onChange={handleFotoSelecionada}
       />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFotoSelecionada}
+      />
 
       {uploading && (
         <div className="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-30">
           <div className="w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {fotoAberta && gg.fotoUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+          onClick={() => setFotoAberta(false)}
+        >
+          <button
+            onClick={() => setFotoAberta(false)}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/30 transition-colors text-2xl leading-none"
+            title="Fechar"
+          >
+            ×
+          </button>
+          <div className="flex flex-col items-center max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+            <img
+              src={gg.fotoUrl}
+              alt={gg.codigo}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+            <p className="mt-3 text-white text-sm font-medium">
+              {gg.codigo}{gg.potencia ? ` • ${gg.potencia}` : ''}
+            </p>
+          </div>
         </div>
       )}
     </div>
