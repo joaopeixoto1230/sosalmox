@@ -414,21 +414,31 @@ export default function DetalheOS() {
   </div>
 
   <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
-  <script>
-    // a própria janela se imprime ao terminar de carregar (não trava a aba principal).
-    window.addEventListener('load', function () {
-      setTimeout(function () { window.focus(); window.print(); }, 350);
-    });
-    window.addEventListener('afterprint', function () { window.close(); });
-  </script>
 </body>
 </html>`
 
-    const win = window.open('', '_blank')
-    if (!win) { setErro('Permita pop-ups/janelas para imprimir o relatório.'); return }
-    win.document.open()
-    win.document.write(html)
-    win.document.close()
+    // imprime por um iframe oculto na própria página — sem abrir aba/janela nova,
+    // que era o que travava o sistema no computador ao voltar.
+    const anterior = document.getElementById('os-print-frame')
+    if (anterior) anterior.remove()
+
+    const iframe = document.createElement('iframe')
+    iframe.id = 'os-print-frame'
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;'
+    iframe.onload = () => {
+      // pequena espera para as imagens (base64) renderizarem antes de imprimir
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus()
+          iframe.contentWindow.print()
+        } catch { /* ignore */ }
+        // remove o iframe depois da impressão (com folga para o diálogo)
+        setTimeout(() => iframe.remove(), 60000)
+      }, 400)
+    }
+    document.body.appendChild(iframe)
+    iframe.srcdoc = html
   }
 
   if (carregando) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" /></div>
