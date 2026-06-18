@@ -428,6 +428,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
             <tbody>${itensLinhas}</tbody>
           </table>
           ${o.observacoes ? `<p class="obs">"${o.observacoes}"</p>` : ''}
+          ${(fotosPorOrdem[o.id]?.length) ? `<div class="fotos">${fotosPorOrdem[o.id].map(f => `<img class="foto" src="${f.dataUrl}"/>`).join('')}</div>` : ''}
         </div>`
     }).join('')
 
@@ -484,6 +485,8 @@ function ModalDetalheEvento({ evento, onFechar }) {
     .row-par td { background: #fafafa; }
     .mono { font-family: monospace; font-size: 12px; color: #CC0000; }
     .obs { padding: 8px 14px; font-size: 12px; color: #888; font-style: italic; background: #fffbf0; border-top: 1px solid #f0e8c8; }
+    .fotos { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; border-top: 1px solid #f0f0f0; }
+    .foto { width: 130px; height: 130px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e5e5; }
 
     .footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #e5e5e5; display: flex; justify-content: space-between; font-size: 11px; color: #aaa; }
     .total { font-size: 13px; font-weight: 700; color: #1a1a1a; }
