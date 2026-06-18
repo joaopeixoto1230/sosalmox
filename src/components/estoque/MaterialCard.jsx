@@ -58,7 +58,7 @@ export default function MaterialCard({ material, evento }) {
     <div className={`card transition-all hover:shadow-md ${estoqueBaixo ? 'border-red-200' : ''} relative`}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-brand-black text-sm leading-tight truncate">{material.nome}</p>
+          <p className="font-bold text-brand-black text-sm leading-snug break-words">{material.nome}</p>
           <p className="text-xs text-brand-red font-mono mt-0.5">{material.codigo}</p>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
