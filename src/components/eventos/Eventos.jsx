@@ -152,7 +152,7 @@ export default function Eventos() {
           <p className="text-sm mt-1">Tente outro filtro ou crie um novo evento.</p>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {filtrados.map(evt => (
             <EventoCard
               key={evt.id}
@@ -227,12 +227,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-1">
-            <p className="font-semibold text-brand-black truncate min-w-0">{evento.nome}</p>
-            <span className={`badge flex-shrink-0 ${statusEventoCor(evento.status)}`}>
-              {statusEventoLabel(evento.status)}
-            </span>
-          </div>
+          <p className="font-semibold text-brand-black truncate mb-1">{evento.nome}</p>
           <p className="text-sm text-gray-500 flex items-center gap-1 min-w-0">
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -249,8 +244,12 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
           </div>
         </div>
 
-        {podeGerenciar && (
-          <div className="relative flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className={`badge ${statusEventoCor(evento.status)}`}>
+            {statusEventoLabel(evento.status)}
+          </span>
+          {podeGerenciar && (
+          <div className="relative" onClick={e => e.stopPropagation()}>
             <button
               onClick={e => { e.stopPropagation(); setMenuAberto(v => !v) }}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
@@ -314,7 +313,8 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
               </>
             )}
           </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
     </>
