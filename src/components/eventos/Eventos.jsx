@@ -228,16 +228,16 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2 mb-1">
-            <p className="font-semibold text-brand-black truncate">{evento.nome}</p>
+            <p className="font-semibold text-brand-black truncate min-w-0">{evento.nome}</p>
             <span className={`badge flex-shrink-0 ${statusEventoCor(evento.status)}`}>
               {statusEventoLabel(evento.status)}
             </span>
           </div>
-          <p className="text-sm text-gray-500 flex items-center gap-1 truncate">
+          <p className="text-sm text-gray-500 flex items-center gap-1 min-w-0">
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             </svg>
-            {evento.local}
+            <span className="truncate min-w-0">{evento.local}</span>
           </p>
           <div className="flex items-center gap-3 mt-1.5">
             <p className="text-xs text-gray-400">{evento.data ? new Date(evento.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
