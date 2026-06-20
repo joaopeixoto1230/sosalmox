@@ -95,6 +95,22 @@ export function statusGeradorCor(status) {
   return map[status] || 'bg-gray-100 text-gray-600'
 }
 
+// Veiculos sao separados em caminhao | carro. O campo `tipo` guarda isso. Para os
+// veiculos importados antes dessa separacao (sem `tipo`), inferimos pelo modelo:
+// Strada e Fiorino sao carros; o resto, caminhao. Veiculos novos/editados gravam o
+// `tipo` explicitamente, entao a inferencia so vale como fallback dos antigos.
+const MODELOS_CARRO = ['strada', 'fiorino']
+
+export function tipoVeiculo(v) {
+  if (v?.tipo === 'carro' || v?.tipo === 'caminhao') return v.tipo
+  const txt = `${v?.modelo || ''} ${v?.observacao || ''}`.toLowerCase()
+  return MODELOS_CARRO.some(m => txt.includes(m)) ? 'carro' : 'caminhao'
+}
+
+export function tipoVeiculoLabel(tipo) {
+  return tipo === 'carro' ? 'Carro' : 'Caminhão'
+}
+
 // Caminhao/carro mede KM (hodometro), nao horimetro. Os campos novos sao kmAtual
 // e semKm; estes helpers leem com fallback para os campos antigos (horimetroAtual/
 // semHorimetro) dos caminhoes importados antes da troca, evitando migracao.

@@ -4,7 +4,7 @@ import { doc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useDocument, useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
-import { statusGeradorLabel, statusGeradorCor, statusOsLabel, statusOsCor, formatarData, statusEfetivoCaminhao, caminhaoSemKm, caminhaoKm } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, statusOsLabel, statusOsCor, formatarData, statusEfetivoCaminhao, caminhaoSemKm, caminhaoKm, tipoVeiculo, tipoVeiculoLabel } from '../../utils/formatters'
 import { where } from 'firebase/firestore'
 
 export default function DetalheCaminhao() {
@@ -25,6 +25,7 @@ export default function DetalheCaminhao() {
 
   function iniciarEdicao() {
     setForm({
+      tipo: tipoVeiculo(caminhao),
       placa: caminhao.placa || '',
       marca: caminhao.marca || '',
       modelo: caminhao.modelo || '',
@@ -39,6 +40,7 @@ export default function DetalheCaminhao() {
     setSalvando(true)
     try {
       await updateDoc(doc(db, 'caminhoes', id), {
+        tipo: form.tipo,
         placa: form.placa,
         marca: form.marca,
         modelo: form.modelo,
@@ -69,7 +71,7 @@ export default function DetalheCaminhao() {
   }
 
   async function excluirCaminhao() {
-    if (!confirm(`Excluir o caminhão ${caminhao.placa} de vez? Esta ação não pode ser desfeita. Se ele só saiu da frota, prefira "Vendido".`)) return
+    if (!confirm(`Excluir o veículo ${caminhao.placa} de vez? Esta ação não pode ser desfeita. Se ele só saiu da frota, prefira "Vendido".`)) return
     await deleteDoc(doc(db, 'caminhoes', id))
     navigate('/caminhoes')
   }
@@ -85,12 +87,12 @@ export default function DetalheCaminhao() {
   }
 
   async function desvincularGerador() {
-    if (!confirm('Remover o vínculo com o gerador montado? O status do caminhão deixa de acompanhá-lo.')) return
+    if (!confirm('Remover o vínculo com o gerador montado? O status do veículo deixa de acompanhá-lo.')) return
     await updateDoc(doc(db, 'caminhoes', id), { geradorMontadoId: null, geradorMontadoCodigo: null })
   }
 
   if (carregando) return <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" /></div>
-  if (!caminhao) return <div className="text-center py-12 text-gray-400"><p>Caminhão não encontrado.</p></div>
+  if (!caminhao) return <div className="text-center py-12 text-gray-400"><p>Veículo não encontrado.</p></div>
 
   // Gerador montado (vinculo opcional) e status exibido derivado dele.
   const gerMontado = caminhao.geradorMontadoId ? geradores.find(g => g.id === caminhao.geradorMontadoId) : null
@@ -118,6 +120,7 @@ export default function DetalheCaminhao() {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-brand-black">{caminhao.placa}</h1>
+            <span className="badge bg-gray-100 text-gray-600">{tipoVeiculoLabel(tipoVeiculo(caminhao))}</span>
             <span className={`badge ${statusGeradorCor(statusEfetivo)}`}>{statusGeradorLabel(statusEfetivo)}</span>
           </div>
           <p className="text-gray-500 text-sm">{caminhao.marca} {caminhao.modelo} {caminhao.ano && `(${caminhao.ano})`}</p>
@@ -130,6 +133,17 @@ export default function DetalheCaminhao() {
       {editando ? (
         <div className="card space-y-3">
           <h2 className="font-semibold text-brand-black">Editar dados</h2>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Tipo</label>
+            <div className="flex gap-2">
+              {[{ v: 'caminhao', l: 'Caminhão' }, { v: 'carro', l: 'Carro' }].map(t => (
+                <button key={t.v} type="button" onClick={() => setForm(p => ({ ...p, tipo: t.v }))}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${form.tipo === t.v ? 'border-brand-red bg-red-50 text-brand-red' : 'border-gray-200 text-gray-600 hover:border-brand-red'}`}>
+                  {t.l}
+                </button>
+              ))}
+            </div>
+          </div>
           {[['placa', 'Placa', 'Ex: ABC-1234'], ['marca', 'Marca', 'Ex: Mercedes-Benz'], ['modelo', 'Modelo', 'Ex: Atego 2426'], ['ano', 'Ano', 'Ex: 2018']].map(([k, label, ph]) => (
             <div key={k}>
               <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
@@ -155,7 +169,7 @@ export default function DetalheCaminhao() {
                 onChange={e => setForm(p => ({ ...p, semKm: e.target.checked }))}
                 className="w-4 h-4 accent-brand-red"
               />
-              <span className="text-sm text-gray-600">Este caminhão não tem hodômetro (KM)</span>
+              <span className="text-sm text-gray-600">Este veículo não tem hodômetro (KM)</span>
             </label>
           </div>
 

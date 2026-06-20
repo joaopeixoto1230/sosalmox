@@ -86,7 +86,7 @@ export function getMenuItems(perfil) {
     { label: 'Estoque', path: '/estoque', modulo: MODULOS.ESTOQUE, icon: 'package' },
     { label: 'Filtros', path: '/filtros', modulo: MODULOS.FILTROS, icon: 'filter' },
     { label: 'Geradores', path: '/geradores', modulo: MODULOS.GERADORES, icon: 'zap' },
-    { label: 'Caminhões', path: '/caminhoes', modulo: MODULOS.CAMINHOES, icon: 'truck' },
+    { label: 'Veículos', path: '/caminhoes', modulo: MODULOS.CAMINHOES, icon: 'truck' },
     { label: 'Manutenção', path: '/manutencao', modulo: MODULOS.MANUTENCAO, icon: 'tool' },
     { label: 'Agente IA', path: '/agente', modulo: MODULOS.AGENTE_IA, icon: 'cpu' },
     { label: 'Relatórios', path: '/relatorios', modulo: MODULOS.RELATORIOS, icon: 'bar-chart' },

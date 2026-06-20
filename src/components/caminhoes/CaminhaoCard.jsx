@@ -164,7 +164,7 @@ export default function CaminhaoCard({ caminhao, gerador }) {
 
   async function excluirFoto() {
     setFotoMenu(false)
-    if (!window.confirm('Excluir a foto deste caminhão?')) return
+    if (!window.confirm('Excluir a foto deste veículo?')) return
     setUploading(true)
     try {
       await updateDoc(doc(db, 'caminhoes', caminhao.id), { fotoUrl: null })
@@ -357,7 +357,7 @@ export default function CaminhaoCard({ caminhao, gerador }) {
                   </button>
                   {subMenu === 'obs' && (
                     <div className="bg-amber-50 border-t border-b border-amber-100 px-3 py-2 space-y-2">
-                      <p className="text-xs font-medium text-amber-700">Observação do caminhão</p>
+                      <p className="text-xs font-medium text-amber-700">Observação do veículo</p>
                       <textarea
                         className="input text-sm w-full resize-none"
                         rows={3}

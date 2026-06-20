@@ -4,6 +4,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 
 export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
   const [form, setForm] = useState({
+    tipo: 'caminhao',
     placa: '',
     marca: '',
     modelo: '',
@@ -25,6 +26,7 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
     setErro('')
     try {
       await addDoc(collection(db, 'caminhoes'), {
+        tipo: form.tipo,
         placa: form.placa.trim().toUpperCase(),
         marca: form.marca.trim(),
         modelo: form.modelo.trim(),
@@ -59,7 +61,7 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
-          <h2 className="font-bold text-brand-black">Novo Caminhão</h2>
+          <h2 className="font-bold text-brand-black">Novo Veículo</h2>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -68,6 +70,18 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
         </div>
 
         <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
+            <div className="flex gap-2">
+              {[{ v: 'caminhao', l: 'Caminhão' }, { v: 'carro', l: 'Carro' }].map(t => (
+                <button key={t.v} type="button" onClick={() => set('tipo', t.v)}
+                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${form.tipo === t.v ? 'border-brand-red bg-red-50 text-brand-red' : 'border-gray-200 text-gray-600 hover:border-brand-red'}`}>
+                  {t.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Placa *</label>
             <input value={form.placa} onChange={e => set('placa', e.target.value)}
@@ -111,7 +125,7 @@ export default function NovoCaminhaoModal({ onFechar, onSalvo }) {
                 onChange={e => set('semKm', e.target.checked)}
                 className="w-4 h-4 accent-brand-red"
               />
-              <span className="text-sm text-gray-600">Este caminhão não tem hodômetro (KM)</span>
+              <span className="text-sm text-gray-600">Este veículo não tem hodômetro (KM)</span>
             </label>
           </div>
 

@@ -5,13 +5,18 @@ import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
-import { statusGeradorLabel, statusGeradorCor, statusEfetivoCaminhao, caminhaoKm } from '../../utils/formatters'
+import { statusGeradorLabel, statusGeradorCor, statusEfetivoCaminhao, caminhaoKm, tipoVeiculo } from '../../utils/formatters'
 import CaminhaoCard from './CaminhaoCard'
 import NovoCaminhaoModal from './NovoCaminhaoModal'
 import { FROTA_INICIAL } from './frotaInicial'
 
 const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Manutenção', 'Defeito']
 const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
+const TIPO_OPCOES = [
+  { value: 'todos', label: 'Todos' },
+  { value: 'caminhao', label: 'Caminhões' },
+  { value: 'carro', label: 'Carros' },
+]
 
 export default function Caminhoes() {
   const navigate = useNavigate()
@@ -20,6 +25,7 @@ export default function Caminhoes() {
   const { dados: geradores } = useCollection('geradores')
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
+  const [tipoFiltro, setTipoFiltro] = useState('todos')
   const [vista, setVista] = useState('grid')
   const [importando, setImportando] = useState(false)
   const [modalNovo, setModalNovo] = useState(false)
@@ -32,7 +38,7 @@ export default function Caminhoes() {
 
   async function importarFrota() {
     if (caminhoes.length > 0) return
-    if (!window.confirm(`Importar ${FROTA_INICIAL.length} caminhões da Relação de Veículos? Isso só deve ser feito uma vez.`)) return
+    if (!window.confirm(`Importar ${FROTA_INICIAL.length} veículos da Relação de Veículos? Isso só deve ser feito uma vez.`)) return
     setImportando(true)
     try {
       const batch = writeBatch(db)
@@ -56,8 +62,14 @@ export default function Caminhoes() {
 
   const ativos = useMemo(() => caminhoes.filter(c => c.ativo !== false && c.status !== 'inativo'), [caminhoes])
 
+  // Recorte por tipo (Caminhões / Carros / Todos): vale para os stats e a lista.
+  const daFrota = useMemo(
+    () => (tipoFiltro === 'todos' ? ativos : ativos.filter(c => tipoVeiculo(c) === tipoFiltro)),
+    [ativos, tipoFiltro]
+  )
+
   const filtrados = useMemo(() => {
-    return ativos.filter(c => {
+    return daFrota.filter(c => {
       if (statusFiltro !== 'Todos' && statusDe(c) !== STATUS_MAP[statusFiltro]) return false
       if (busca) {
         const q = busca.toLowerCase()
@@ -65,21 +77,23 @@ export default function Caminhoes() {
       }
       return true
     }).sort((a, b) => (a.placa || '').localeCompare(b.placa || ''))
-  }, [ativos, busca, statusFiltro, gerMap])
+  }, [daFrota, busca, statusFiltro, gerMap])
 
   const stats = useMemo(() => ({
-    total: ativos.length,
-    disponiveis: ativos.filter(c => statusDe(c) === 'disponivel').length,
-    emEvento: ativos.filter(c => statusDe(c) === 'em_evento').length,
-    comDefeito: ativos.filter(c => statusDe(c) === 'defeito').length,
-  }), [ativos, gerMap])
+    total: daFrota.length,
+    disponiveis: daFrota.filter(c => statusDe(c) === 'disponivel').length,
+    emEvento: daFrota.filter(c => statusDe(c) === 'em_evento').length,
+    comDefeito: daFrota.filter(c => statusDe(c) === 'defeito').length,
+  }), [daFrota, gerMap])
+
+  const totalGeral = ativos.length
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-brand-black">Frota de Caminhões</h1>
-          <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} caminhões ativos.</p>
+          <h1 className="text-2xl font-bold text-brand-black">Frota de Veículos</h1>
+          <p className="text-gray-500 text-sm mt-1">Frota completa — {totalGeral} veículos ativos.</p>
         </div>
         {podeAdministrar && (
           <div className="flex gap-2 flex-shrink-0">
@@ -87,10 +101,19 @@ export default function Caminhoes() {
               + Nova OS
             </button>
             <button onClick={() => setModalNovo(true)} className="btn-primary text-sm">
-              + Novo caminhão
+              + Novo veículo
             </button>
           </div>
         )}
+      </div>
+
+      <div className="inline-flex rounded-xl bg-gray-100 p-1 gap-1">
+        {TIPO_OPCOES.map(t => (
+          <button key={t.value} onClick={() => setTipoFiltro(t.value)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${tipoFiltro === t.value ? 'bg-white text-brand-red shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -133,16 +156,16 @@ export default function Caminhoes() {
       ) : filtrados.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p className="text-4xl mb-3">🚚</p>
-          <p>Nenhum caminhão encontrado.</p>
+          <p>Nenhum veículo encontrado.</p>
           {mostrarImportar && (
             <button onClick={importarFrota} disabled={importando} className="btn-primary mt-4 disabled:opacity-60">
-              {importando ? 'Importando...' : `Importar frota inicial (${FROTA_INICIAL.length} caminhões)`}
+              {importando ? 'Importando...' : `Importar frota inicial (${FROTA_INICIAL.length} veículos)`}
             </button>
           )}
         </div>
       ) : (
         <>
-          <p className="text-sm text-gray-500">{filtrados.length} {filtrados.length === 1 ? 'caminhão' : 'caminhões'}</p>
+          <p className="text-sm text-gray-500">{filtrados.length} {filtrados.length === 1 ? 'veículo' : 'veículos'}</p>
           {vista === 'grid' ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {filtrados.map(c => <CaminhaoCard key={c.id} caminhao={c} gerador={geradorDe(c)} />)}
