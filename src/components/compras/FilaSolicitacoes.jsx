@@ -82,6 +82,7 @@ function numeroSolicitacao(s) {
 export default function FilaSolicitacoes() {
   const { uid, nome } = useAuth()
   const { dados: solicitacoes, carregando } = useCollection('solicitacoes_compra')
+  const { dados: tiposCol } = useCollection('tipos_solicitacao')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [busca, setBusca] = useState('')
   const [atualizando, setAtualizando] = useState(null)
@@ -120,12 +121,12 @@ export default function FilaSolicitacoes() {
     entregue: solicitacoes.filter(s => s.status === 'entregue').length,
   }), [solicitacoes])
 
-  // sugestões de tipo: padrões fixos + todos os tipos já usados (sem repetir),
-  // assim o que um colaborador digita uma vez vira sugestão para os próximos.
+  // tipos disponíveis no seletor: padrões fixos + os salvos pelos colaboradores
+  // (coleção tipos_solicitacao), sem repetir. Novos tipos são adicionados pelo botão "+ Novo".
   const tiposSugeridos = useMemo(() => {
     const seen = new Set()
     const out = []
-    for (const t of ['Material', 'Filtro', 'Outro', ...solicitacoes.map(s => s.tipo)]) {
+    for (const t of ['Material', 'Filtro', 'Outro', ...tiposCol.map(t => t.nome)]) {
       if (!t) continue
       const k = String(t).trim().toLowerCase()
       if (!k || seen.has(k)) continue
@@ -133,7 +134,7 @@ export default function FilaSolicitacoes() {
       out.push(String(t).trim())
     }
     return out
-  }, [solicitacoes])
+  }, [tiposCol])
 
   async function avancarStatus(sol) {
     const proximo = PROXIMOS[sol.status]
@@ -592,16 +593,7 @@ function ModalEditarSolicitacao({ solicitacao: s, tiposSugeridos = [], onFechar 
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-              <input
-                list="tipos-solicitacao-editar"
-                value={form.tipo}
-                onChange={e => set('tipo', e.target.value)}
-                placeholder="Escolha ou digite..."
-                className="input"
-              />
-              <datalist id="tipos-solicitacao-editar">
-                {tiposSugeridos.map(t => <option key={t} value={t} />)}
-              </datalist>
+              <SeletorTipo value={form.tipo} onChange={v => set('tipo', v)} opcoes={tiposSugeridos} />
             </div>
           </div>
 
@@ -758,6 +750,65 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   )
 }
 
+// Seletor de tipo: dropdown com os tipos salvos + botão "+ Novo" para ADICIONAR
+// um tipo novo, que é gravado na coleção tipos_solicitacao e passa a valer para todos.
+function SeletorTipo({ value, onChange, opcoes = [] }) {
+  const [adicionando, setAdicionando] = useState(false)
+  const [novo, setNovo] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  // garante que o valor atual apareça no select mesmo se não estiver na lista (tipos antigos)
+  const lista = useMemo(() => {
+    if (value && !opcoes.some(o => o.toLowerCase() === value.toLowerCase())) return [value, ...opcoes]
+    return opcoes
+  }, [value, opcoes])
+
+  async function adicionar() {
+    const nome = novo.trim()
+    if (!nome) return
+    setSalvando(true)
+    try {
+      const jaExiste = opcoes.some(o => o.toLowerCase() === nome.toLowerCase())
+      if (!jaExiste) await addDoc(collection(db, 'tipos_solicitacao'), { nome, criadoEm: serverTimestamp() })
+      onChange(nome)
+      setNovo('')
+      setAdicionando(false)
+    } catch (e) {
+      alert('Não foi possível adicionar o tipo: ' + e.message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  if (adicionando) {
+    return (
+      <div className="flex gap-2">
+        <input
+          autoFocus
+          value={novo}
+          onChange={e => setNovo(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); adicionar() } }}
+          placeholder="Novo tipo (ex: Filtro de óleo)"
+          className="input flex-1"
+        />
+        <button type="button" onClick={adicionar} disabled={salvando} className="btn-primary px-3 text-sm flex-shrink-0 disabled:opacity-50">
+          {salvando ? '...' : 'Adicionar'}
+        </button>
+        <button type="button" onClick={() => { setAdicionando(false); setNovo('') }} className="btn-secondary px-3 text-sm flex-shrink-0">Cancelar</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex gap-2">
+      <select value={value} onChange={e => onChange(e.target.value)} className="input flex-1">
+        {lista.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <button type="button" onClick={() => setAdicionando(true)} className="btn-secondary px-3 text-sm flex-shrink-0">+ Novo</button>
+    </div>
+  )
+}
+
 function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
   const [form, setForm] = useState({
     itemNome: '',
@@ -888,16 +939,7 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-              <input
-                list="tipos-solicitacao"
-                value={form.tipo}
-                onChange={e => set('tipo', e.target.value)}
-                placeholder="Escolha ou digite..."
-                className="input"
-              />
-              <datalist id="tipos-solicitacao">
-                {tiposSugeridos.map(t => <option key={t} value={t} />)}
-              </datalist>
+              <SeletorTipo value={form.tipo} onChange={v => set('tipo', v)} opcoes={tiposSugeridos} />
             </div>
           </div>
 

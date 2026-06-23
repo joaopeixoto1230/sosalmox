@@ -78,6 +78,13 @@ service cloud.firestore {
       allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
     }
 
+    // Tipos de material da solicitação (lista de padrões criada pelos colaboradores)
+    match /tipos_solicitacao/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'compras']) && isActive();
+    }
+
     // Fotos da solicitação de compra (uma foto por documento, base64 no campo dataUrl)
     match /fotos_solicitacao/{docId} {
       allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
