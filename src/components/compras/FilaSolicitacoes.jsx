@@ -121,12 +121,12 @@ export default function FilaSolicitacoes() {
     entregue: solicitacoes.filter(s => s.status === 'entregue').length,
   }), [solicitacoes])
 
-  // tipos disponíveis no seletor: padrões fixos + os salvos pelos colaboradores
-  // (coleção tipos_solicitacao), sem repetir. Novos tipos são adicionados pelo botão "+ Novo".
+  // tipos disponíveis no seletor: padrões fixos + os salvos (coleção tipos_solicitacao)
+  // + os já usados em solicitações, sem repetir. Um tipo novo digitado vira padrão ao salvar.
   const tiposSugeridos = useMemo(() => {
     const seen = new Set()
     const out = []
-    for (const t of ['Material', 'Filtro', 'Outro', ...tiposCol.map(t => t.nome)]) {
+    for (const t of ['Material', 'Filtro', 'Outro', ...tiposCol.map(t => t.nome), ...solicitacoes.map(s => s.tipo)]) {
       if (!t) continue
       const k = String(t).trim().toLowerCase()
       if (!k || seen.has(k)) continue
@@ -134,7 +134,7 @@ export default function FilaSolicitacoes() {
       out.push(String(t).trim())
     }
     return out
-  }, [tiposCol])
+  }, [tiposCol, solicitacoes])
 
   async function avancarStatus(sol) {
     const proximo = PROXIMOS[sol.status]
@@ -750,62 +750,49 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   )
 }
 
-// Seletor de tipo: dropdown com os tipos salvos + botão "+ Novo" para ADICIONAR
-// um tipo novo, que é gravado na coleção tipos_solicitacao e passa a valer para todos.
+// Seletor de tipo: dropdown com a opção "+ Novo tipo…" dentro da própria lista
+// (mesmo padrão do NovoMaterialModal). Ao escolher, aparece um campo para digitar.
+// O tipo novo é salvo junto com a solicitação e vira padrão para as próximas.
+const NOVO_TIPO = '__novo_tipo__'
 function SeletorTipo({ value, onChange, opcoes = [] }) {
-  const [adicionando, setAdicionando] = useState(false)
-  const [novo, setNovo] = useState('')
-  const [salvando, setSalvando] = useState(false)
+  const [modoNovo, setModoNovo] = useState(false)
 
   // garante que o valor atual apareça no select mesmo se não estiver na lista (tipos antigos)
-  const lista = useMemo(() => {
-    if (value && !opcoes.some(o => o.toLowerCase() === value.toLowerCase())) return [value, ...opcoes]
-    return opcoes
-  }, [value, opcoes])
+  const lista = value && !opcoes.some(o => o.toLowerCase() === value.toLowerCase())
+    ? [value, ...opcoes]
+    : opcoes
 
-  async function adicionar() {
-    const nome = novo.trim()
-    if (!nome) return
-    setSalvando(true)
-    try {
-      const jaExiste = opcoes.some(o => o.toLowerCase() === nome.toLowerCase())
-      if (!jaExiste) await addDoc(collection(db, 'tipos_solicitacao'), { nome, criadoEm: serverTimestamp() })
-      onChange(nome)
-      setNovo('')
-      setAdicionando(false)
-    } catch (e) {
-      alert('Não foi possível adicionar o tipo: ' + e.message)
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  if (adicionando) {
+  if (modoNovo) {
     return (
-      <div className="flex gap-2">
+      <div>
         <input
           autoFocus
-          value={novo}
-          onChange={e => setNovo(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); adicionar() } }}
-          placeholder="Novo tipo (ex: Filtro de óleo)"
-          className="input flex-1"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="Nome do novo tipo (ex: Filtro de óleo)"
+          className="input"
         />
-        <button type="button" onClick={adicionar} disabled={salvando} className="btn-primary px-3 text-sm flex-shrink-0 disabled:opacity-50">
-          {salvando ? '...' : 'Adicionar'}
-        </button>
-        <button type="button" onClick={() => { setAdicionando(false); setNovo('') }} className="btn-secondary px-3 text-sm flex-shrink-0">Cancelar</button>
+        <button
+          type="button"
+          onClick={() => { setModoNovo(false); onChange(opcoes[0] || 'Material') }}
+          className="text-xs text-gray-400 hover:text-gray-600 mt-1"
+        >← Escolher da lista</button>
       </div>
     )
   }
 
   return (
-    <div className="flex gap-2">
-      <select value={value} onChange={e => onChange(e.target.value)} className="input flex-1">
-        {lista.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-      <button type="button" onClick={() => setAdicionando(true)} className="btn-secondary px-3 text-sm flex-shrink-0">+ Novo</button>
-    </div>
+    <select
+      value={value}
+      onChange={e => {
+        if (e.target.value === NOVO_TIPO) { setModoNovo(true); onChange('') }
+        else onChange(e.target.value)
+      }}
+      className="input"
+    >
+      {lista.map(o => <option key={o} value={o}>{o}</option>)}
+      <option value={NOVO_TIPO}>+ Novo tipo…</option>
+    </select>
   )
 }
 
