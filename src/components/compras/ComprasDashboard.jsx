@@ -17,6 +17,21 @@ const STATUS_LABEL = {
   entregue: 'Entregue',
 }
 
+// data que conta para o gasto: quando foi entregue/comprada (entregueEm),
+// caindo para criadoEm só se não houver data de entrega.
+function dataEntregaDe(s) {
+  const v = s.entregueEm || s.criadoEm
+  return v?.toDate ? v.toDate() : new Date(v || 0)
+}
+// valor da compra: usa o total gravado na entrega; senão calcula preço × quantidade.
+function valorCompra(s) {
+  if (s.total != null) return s.total
+  return (s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)
+}
+function fmtBRL(n) {
+  return 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export default function ComprasDashboard() {
   const [aba, setAba] = useState('visao')
   const { dados: solicitacoes } = useCollection('solicitacoes_compra')
@@ -28,19 +43,15 @@ export default function ComprasDashboard() {
     const mesAnteriorInicio = new Date(agora.getFullYear(), agora.getMonth() - 1, 1)
     const mesAnteriorFim = new Date(agora.getFullYear(), agora.getMonth(), 0)
 
-    const entreguesMes = solicitacoes.filter(s => {
-      if (s.status !== 'entregue') return false
-      const d = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm)
-      return d >= inicioMes
-    })
+    const entreguesMes = solicitacoes.filter(s => s.status === 'entregue' && dataEntregaDe(s) >= inicioMes)
     const entreguesMesAnterior = solicitacoes.filter(s => {
       if (s.status !== 'entregue') return false
-      const d = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm)
+      const d = dataEntregaDe(s)
       return d >= mesAnteriorInicio && d <= mesAnteriorFim
     })
 
-    const gastoMes = entreguesMes.reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)), 0)
-    const gastoAnterior = entreguesMesAnterior.reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)), 0)
+    const gastoMes = entreguesMes.reduce((acc, s) => acc + valorCompra(s), 0)
+    const gastoAnterior = entreguesMesAnterior.reduce((acc, s) => acc + valorCompra(s), 0)
 
     const gastos6Meses = Array.from({ length: 6 }, (_, i) => {
       const d = new Date(agora.getFullYear(), agora.getMonth() - (5 - i), 1)
@@ -48,10 +59,10 @@ export default function ComprasDashboard() {
       const total = solicitacoes
         .filter(s => {
           if (s.status !== 'entregue') return false
-          const sd = s.entregueEm?.toDate ? s.entregueEm.toDate() : s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm)
+          const sd = dataEntregaDe(s)
           return sd >= d && sd <= fim
         })
-        .reduce((acc, s) => acc + ((s.precoUnitario || 0) * (s.quantidadeEntregue || s.quantidadeSugerida || 1)), 0)
+        .reduce((acc, s) => acc + valorCompra(s), 0)
       return {
         label: d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', ''),
         total,
@@ -129,7 +140,7 @@ export default function ComprasDashboard() {
             <div className="card">
               <p className="text-xs text-gray-500 mb-1">Gasto este mês</p>
               <p className="text-2xl font-bold text-brand-black">
-                {stats.gastoMes > 0 ? `R$ ${stats.gastoMes.toLocaleString('pt-BR')}` : '—'}
+                {stats.gastoMes > 0 ? fmtBRL(stats.gastoMes) : '—'}
               </p>
               {stats.variacaoGasto !== null && stats.gastoMes > 0 && (
                 <p className={`text-xs mt-1 ${Number(stats.variacaoGasto) > 0 ? 'text-red-500' : 'text-green-600'}`}>

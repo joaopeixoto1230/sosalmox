@@ -83,6 +83,7 @@ export default function FilaSolicitacoes() {
   const { uid, nome } = useAuth()
   const { dados: solicitacoes, carregando } = useCollection('solicitacoes_compra')
   const { dados: tiposCol } = useCollection('tipos_solicitacao')
+  const { dados: fornecedoresCol } = useCollection('fornecedores')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [busca, setBusca] = useState('')
   const [atualizando, setAtualizando] = useState(null)
@@ -136,6 +137,14 @@ export default function FilaSolicitacoes() {
     return out
   }, [tiposCol, solicitacoes])
 
+  // nomes de fornecedores cadastrados (ativos) para o seletor da solicitação
+  const fornecedoresNomes = useMemo(() => (
+    fornecedoresCol
+      .filter(f => f.ativo !== false && f.nome)
+      .map(f => f.nome.trim())
+      .sort((a, b) => a.localeCompare(b))
+  ), [fornecedoresCol])
+
   async function avancarStatus(sol) {
     const proximo = PROXIMOS[sol.status]
     if (!proximo) return
@@ -151,7 +160,7 @@ export default function FilaSolicitacoes() {
     }
   }
 
-  async function confirmarEntrega(sol, qtdEntregue, preco) {
+  async function confirmarEntrega(sol, qtdEntregue, preco, notaFiscalFile) {
     setAtualizando(sol.id)
     try {
       await runTransaction(db, async (tx) => {
@@ -183,6 +192,18 @@ export default function FilaSolicitacoes() {
           }
         }
       })
+      // nota fiscal (opcional): guarda como foto na coleção fotos_solicitacao,
+      // marcada com notaFiscal=true para aparecer separada nas fotos comuns.
+      if (notaFiscalFile) {
+        const dataUrl = await comprimirParaDataUrl(notaFiscalFile)
+        await addDoc(collection(db, 'fotos_solicitacao'), {
+          solicitacaoId: sol.id,
+          notaFiscal: true,
+          ordem: -1,
+          dataUrl,
+          criadoEm: serverTimestamp(),
+        })
+      }
       setModalEntrega(null)
     } finally {
       setAtualizando(null)
@@ -218,7 +239,7 @@ export default function FilaSolicitacoes() {
     }
   }
 
-  function gerarRelatorio(sol, fotos = []) {
+  function gerarRelatorio(sol, fotos = [], notaFiscal = null) {
     const dt = (v) => v?.toDate ? v.toDate().toLocaleString('pt-BR') : '—'
     const numero = numeroSolicitacao(sol)
     const origem = sol.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
@@ -286,6 +307,11 @@ export default function FilaSolicitacoes() {
   ${fotos && fotos.length ? `
   <p class="section-title">Fotos da solicitação</p>
   <div class="fotos">${fotos.map(f => `<img src="${f.dataUrl}" />`).join('')}</div>
+  ` : ''}
+
+  ${notaFiscal ? `
+  <p class="section-title">Nota fiscal</p>
+  <div class="fotos"><img src="${notaFiscal.dataUrl}" /></div>
   ` : ''}
 
   <div class="assinatura">
@@ -456,7 +482,7 @@ export default function FilaSolicitacoes() {
       {modalEntrega && (
         <ModalConfirmarEntrega
           solicitacao={modalEntrega}
-          onConfirmar={(qtd, preco) => confirmarEntrega(modalEntrega, qtd, preco)}
+          onConfirmar={(qtd, preco, nf) => confirmarEntrega(modalEntrega, qtd, preco, nf)}
           onFechar={() => setModalEntrega(null)}
           salvando={atualizando === modalEntrega.id}
         />
@@ -467,6 +493,8 @@ export default function FilaSolicitacoes() {
           uid={uid}
           nome={nome}
           tiposSugeridos={tiposSugeridos}
+          fornecedoresNomes={fornecedoresNomes}
+          solicitacoes={solicitacoes}
           onFechar={() => setModalNova(false)}
         />
       )}
@@ -475,7 +503,7 @@ export default function FilaSolicitacoes() {
         <ModalDetalheSolicitacao
           solicitacao={modalDetalhe}
           onFechar={() => setModalDetalhe(null)}
-          onGerarRelatorio={(fotos) => gerarRelatorio(modalDetalhe, fotos)}
+          onGerarRelatorio={(fotos, nf) => gerarRelatorio(modalDetalhe, fotos, nf)}
           onAvancar={() => { const s = modalDetalhe; setModalDetalhe(null); avancarStatus(s) }}
         />
       )}
@@ -484,6 +512,7 @@ export default function FilaSolicitacoes() {
         <ModalEditarSolicitacao
           solicitacao={modalEditar}
           tiposSugeridos={tiposSugeridos}
+          fornecedoresNomes={fornecedoresNomes}
           onFechar={() => setModalEditar(null)}
         />
       )}
@@ -530,7 +559,7 @@ function ModalMudarStatus({ solicitacao: s, onSelecionar, onFechar }) {
   )
 }
 
-function ModalEditarSolicitacao({ solicitacao: s, tiposSugeridos = [], onFechar }) {
+function ModalEditarSolicitacao({ solicitacao: s, tiposSugeridos = [], fornecedoresNomes = [], onFechar }) {
   const [form, setForm] = useState({
     itemNome: s.itemNome || '',
     quantidadeSugerida: s.quantidadeSugerida || 1,
@@ -593,13 +622,21 @@ function ModalEditarSolicitacao({ solicitacao: s, tiposSugeridos = [], onFechar 
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-              <SeletorTipo value={form.tipo} onChange={v => set('tipo', v)} opcoes={tiposSugeridos} />
+              <SeletorComNovo value={form.tipo} onChange={v => set('tipo', v)} opcoes={tiposSugeridos} labelNovo="+ Novo tipo…" placeholder="Nome do novo tipo (ex: Filtro de óleo)" voltarPara="Material" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Fornecedor sugerido</label>
-            <input value={form.fornecedor} onChange={e => set('fornecedor', e.target.value)} placeholder="Ex: Fleetguard, Tecfil..." className="input" />
+            <label className="text-xs font-medium text-gray-600 block mb-1">Fornecedor</label>
+            <SeletorComNovo
+              value={form.fornecedor}
+              onChange={v => set('fornecedor', v)}
+              opcoes={fornecedoresNomes}
+              labelNovo="+ Outro fornecedor…"
+              placeholder="Nome do fornecedor"
+              permitirVazio
+              vazioLabel="— Selecione —"
+            />
           </div>
 
           <div>
@@ -636,7 +673,8 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   const origem = s.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
   const proximo = PROXIMOS[s.status]
   const { dados: fotosRaw } = useCollection('fotos_solicitacao', useMemo(() => [where('solicitacaoId', '==', s.id)], [s.id]), s.id)
-  const fotos = useMemo(() => [...fotosRaw].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)), [fotosRaw])
+  const fotos = useMemo(() => fotosRaw.filter(f => !f.notaFiscal).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)), [fotosRaw])
+  const notaFiscal = useMemo(() => fotosRaw.find(f => f.notaFiscal) || null, [fotosRaw])
   const [fotoAmpliada, setFotoAmpliada] = useState(null)
 
   const Campo = ({ label, valor, destaque }) => (valor || valor === 0) ? (
@@ -712,6 +750,15 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
             </div>
           )}
 
+          {notaFiscal && (
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">Nota fiscal</p>
+              <button type="button" onClick={() => setFotoAmpliada(notaFiscal.dataUrl)} className="block w-32 aspect-square rounded-lg overflow-hidden border border-gray-200 cursor-zoom-in">
+                <img src={notaFiscal.dataUrl} alt="Nota fiscal" className="w-full h-full object-cover" />
+              </button>
+            </div>
+          )}
+
           {s.assinaturaSolicitante && (
             <div>
               <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Assinatura do solicitante</p>
@@ -723,7 +770,7 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
           )}
 
           <div className="flex gap-3 pt-1">
-            <button onClick={() => onGerarRelatorio(fotos)} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
+            <button onClick={() => onGerarRelatorio(fotos, notaFiscal)} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
@@ -750,14 +797,14 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   )
 }
 
-// Seletor de tipo: dropdown com a opção "+ Novo tipo…" dentro da própria lista
-// (mesmo padrão do NovoMaterialModal). Ao escolher, aparece um campo para digitar.
-// O tipo novo é salvo junto com a solicitação e vira padrão para as próximas.
-const NOVO_TIPO = '__novo_tipo__'
-function SeletorTipo({ value, onChange, opcoes = [] }) {
+// Seletor reutilizável: dropdown com a opção "+ Novo…" dentro da própria lista
+// (mesmo padrão do NovoMaterialModal). Ao escolher, vira um campo para digitar.
+// Usado para Tipo e para Fornecedor.
+const VALOR_NOVO = '__novo__'
+function SeletorComNovo({ value, onChange, opcoes = [], labelNovo = '+ Novo…', placeholder = '', permitirVazio = false, vazioLabel = '—', voltarPara = '' }) {
   const [modoNovo, setModoNovo] = useState(false)
 
-  // garante que o valor atual apareça no select mesmo se não estiver na lista (tipos antigos)
+  // garante que o valor atual apareça no select mesmo se não estiver na lista
   const lista = value && !opcoes.some(o => o.toLowerCase() === value.toLowerCase())
     ? [value, ...opcoes]
     : opcoes
@@ -769,12 +816,12 @@ function SeletorTipo({ value, onChange, opcoes = [] }) {
           autoFocus
           value={value}
           onChange={e => onChange(e.target.value)}
-          placeholder="Nome do novo tipo (ex: Filtro de óleo)"
+          placeholder={placeholder}
           className="input"
         />
         <button
           type="button"
-          onClick={() => { setModoNovo(false); onChange(opcoes[0] || 'Material') }}
+          onClick={() => { setModoNovo(false); onChange(permitirVazio ? '' : (opcoes[0] || voltarPara)) }}
           className="text-xs text-gray-400 hover:text-gray-600 mt-1"
         >← Escolher da lista</button>
       </div>
@@ -783,20 +830,35 @@ function SeletorTipo({ value, onChange, opcoes = [] }) {
 
   return (
     <select
-      value={value}
+      value={value || ''}
       onChange={e => {
-        if (e.target.value === NOVO_TIPO) { setModoNovo(true); onChange('') }
+        if (e.target.value === VALOR_NOVO) { setModoNovo(true); onChange('') }
         else onChange(e.target.value)
       }}
       className="input"
     >
+      {permitirVazio && <option value="">{vazioLabel}</option>}
       {lista.map(o => <option key={o} value={o}>{o}</option>)}
-      <option value={NOVO_TIPO}>+ Novo tipo…</option>
+      <option value={VALOR_NOVO}>{labelNovo}</option>
     </select>
   )
 }
 
-function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
+// última compra entregue do mesmo item (preço/data/fornecedor), p/ ajudar na cotação
+function ultimaCompraDoItem(solicitacoes, itemNome, excluirId) {
+  const nome = (itemNome || '').trim().toLowerCase()
+  if (!nome) return null
+  const candidatas = solicitacoes
+    .filter(s => s.id !== excluirId && s.status === 'entregue' && s.precoUnitario > 0 && (s.itemNome || '').trim().toLowerCase() === nome)
+    .sort((a, b) => {
+      const da = a.entregueEm?.toDate ? a.entregueEm.toDate() : new Date(a.entregueEm || a.criadoEm || 0)
+      const db2 = b.entregueEm?.toDate ? b.entregueEm.toDate() : new Date(b.entregueEm || b.criadoEm || 0)
+      return db2 - da
+    })
+  return candidatas[0] || null
+}
+
+function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], fornecedoresNomes = [], solicitacoes = [], onFechar }) {
   const [form, setForm] = useState({
     itemNome: '',
     quantidadeSugerida: 1,
@@ -811,6 +873,9 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
   const [assinatura, setAssinatura] = useState('')
   const [progresso, setProgresso] = useState(null)
   const fotoInputRef = useRef(null)
+
+  // histórico: última compra entregue do mesmo item, para ajudar a cotar
+  const ultima = useMemo(() => ultimaCompraDoItem(solicitacoes, form.itemNome), [solicitacoes, form.itemNome])
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -911,6 +976,12 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
               className="input"
               autoFocus
             />
+            {ultima && (
+              <p className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 mt-1.5">
+                Última compra: <strong>R$ {Number(ultima.precoUnitario).toFixed(2)}</strong> em {formatarData(ultima.entregueEm || ultima.criadoEm)}
+                {ultima.fornecedor ? ` — ${ultima.fornecedor}` : ''}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -926,17 +997,20 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-              <SeletorTipo value={form.tipo} onChange={v => set('tipo', v)} opcoes={tiposSugeridos} />
+              <SeletorComNovo value={form.tipo} onChange={v => set('tipo', v)} opcoes={tiposSugeridos} labelNovo="+ Novo tipo…" placeholder="Nome do novo tipo (ex: Filtro de óleo)" voltarPara="Material" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Fornecedor sugerido</label>
-            <input
+            <label className="text-xs font-medium text-gray-600 block mb-1">Fornecedor</label>
+            <SeletorComNovo
               value={form.fornecedor}
-              onChange={e => set('fornecedor', e.target.value)}
-              placeholder="Ex: Fleetguard, Tecfil..."
-              className="input"
+              onChange={v => set('fornecedor', v)}
+              opcoes={fornecedoresNomes}
+              labelNovo="+ Outro fornecedor…"
+              placeholder="Nome do fornecedor"
+              permitirVazio
+              vazioLabel="— Selecione —"
             />
           </div>
 
@@ -1021,6 +1095,9 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
 function ModalConfirmarEntrega({ solicitacao, onConfirmar, onFechar, salvando }) {
   const [qtd, setQtd] = useState(String(solicitacao.quantidadeSugerida || 1))
   const [preco, setPreco] = useState('')
+  const [nf, setNf] = useState(null)
+  const nfRef = useRef(null)
+  const total = (parseFloat(preco) || 0) * (parseInt(qtd) || 0)
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -1043,6 +1120,31 @@ function ModalConfirmarEntrega({ solicitacao, onConfirmar, onFechar, salvando })
             <label className="block text-sm font-medium text-gray-700 mb-1">Preço unitário (R$)</label>
             <input type="number" min="0" step="0.01" className="input w-full" value={preco} onChange={e => setPreco(e.target.value)} placeholder="0,00" />
           </div>
+
+          {total > 0 && (
+            <p className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
+              Total: <strong className="text-brand-black">R$ {total.toFixed(2)}</strong>
+            </p>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nota fiscal (opcional)</label>
+            {nf ? (
+              <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                <span className="text-sm text-gray-600 truncate flex-1">📎 {nf.name}</span>
+                <button type="button" onClick={() => { setNf(null); if (nfRef.current) nfRef.current.value = '' }} className="text-xs text-brand-red font-medium">Remover</button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => nfRef.current?.click()} className="btn-secondary w-full text-sm flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                Anexar nota fiscal
+              </button>
+            )}
+            <input ref={nfRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => setNf(e.target.files?.[0] || null)} />
+          </div>
+
           {solicitacao.tipo === 'filtro' && (
             <p className="text-xs text-green-600 bg-green-50 px-3 py-2 rounded-lg">
               ✅ O estoque de filtros será atualizado automaticamente.
@@ -1051,7 +1153,7 @@ function ModalConfirmarEntrega({ solicitacao, onConfirmar, onFechar, salvando })
           <div className="flex gap-3">
             <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
             <button
-              onClick={() => onConfirmar(parseInt(qtd) || 1, parseFloat(preco) || 0)}
+              onClick={() => onConfirmar(parseInt(qtd) || 1, parseFloat(preco) || 0, nf)}
               disabled={salvando}
               className="btn-primary flex-1 disabled:opacity-50"
             >
