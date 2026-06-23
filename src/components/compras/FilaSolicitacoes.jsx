@@ -1,9 +1,48 @@
-import { useState, useMemo } from 'react'
-import { doc, updateDoc, serverTimestamp, runTransaction, collection, addDoc } from 'firebase/firestore'
+import { useState, useMemo, useRef } from 'react'
+import { doc, updateDoc, serverTimestamp, runTransaction, collection, addDoc, where } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatarData } from '../../utils/formatters'
+import SignaturePad from '../ui/SignaturePad'
+
+// Carrega uma imagem (File) num elemento <img> — funciona em qualquer celular.
+function carregarImagem(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Falha ao ler a imagem')) }
+    img.src = url
+  })
+}
+
+// Comprime a foto e devolve um data URL (JPEG base64) para guardar no Firestore.
+// Mesmo padrão das fotos da OS — sem Storage/plano pago, cabe abaixo do limite de 1 MB do doc.
+async function comprimirParaDataUrl(file, maxBytes = 650000) {
+  if (!file?.type?.startsWith('image/')) throw new Error('O arquivo selecionado não é uma imagem.')
+  const img = await carregarImagem(file)
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  let maxLado = 1280
+  let qualidade = 0.6
+  let dataUrl = ''
+  for (let i = 0; i < 9; i++) {
+    let { width, height } = img
+    const escala = Math.min(1, maxLado / Math.max(width, height))
+    width = Math.round(width * escala)
+    height = Math.round(height * escala)
+    canvas.width = width
+    canvas.height = height
+    ctx.clearRect(0, 0, width, height)
+    ctx.drawImage(img, 0, 0, width, height)
+    dataUrl = canvas.toDataURL('image/jpeg', qualidade)
+    if (dataUrl.length <= maxBytes) return dataUrl
+    if (qualidade > 0.4) qualidade -= 0.1
+    else maxLado = Math.round(maxLado * 0.85)
+  }
+  return dataUrl
+}
 
 const STATUS_COR = {
   pendente: 'bg-yellow-100 text-yellow-700',
@@ -122,7 +161,7 @@ export default function FilaSolicitacoes() {
     }
   }
 
-  function gerarRelatorio(sol) {
+  function gerarRelatorio(sol, fotos = []) {
     const dt = (v) => v?.toDate ? v.toDate().toLocaleString('pt-BR') : '—'
     const numero = `#${(sol.id || '').slice(0, 6).toUpperCase()}`
     const origem = sol.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
@@ -149,6 +188,10 @@ export default function FilaSolicitacoes() {
     .assinatura { display: grid; grid-template-columns: 1fr; justify-items: center; margin-top: 40px; page-break-inside: avoid; }
     .assinatura .bloco { width: 60%; max-width: 320px; text-align: center; }
     .assinatura .traco { border-top: 1px solid #999; padding-top: 5px; font-size: 12px; color: #555; }
+    .assinatura img { display: block; margin: 0 auto -4px; height: 48px; object-fit: contain; }
+    .fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; page-break-inside: avoid; break-inside: avoid; }
+    .fotos img { width: 100%; height: 140px; object-fit: contain; background: #f7f7f7; border-radius: 5px; border: 1px solid #ddd; }
+    @media print { .fotos img, .assinatura img { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
   </style>
 </head>
 <body>
@@ -183,9 +226,15 @@ export default function FilaSolicitacoes() {
 
   ${sol.observacao ? `<p class="section-title">Observação</p><p style="font-size:13px;color:#555;white-space:pre-wrap">${sol.observacao}</p>` : ''}
 
+  ${fotos && fotos.length ? `
+  <p class="section-title">Fotos da solicitação</p>
+  <div class="fotos">${fotos.map(f => `<img src="${f.dataUrl}" />`).join('')}</div>
+  ` : ''}
+
   <div class="assinatura">
     <div class="bloco">
-      <div class="traco">Responsável pela compra</div>
+      ${sol.assinaturaSolicitante ? `<img src="${sol.assinaturaSolicitante}" />` : ''}
+      <div class="traco">Solicitante: ${sol.assinaturaSolicitanteNome || sol.solicitanteNome || '_______________'}</div>
     </div>
   </div>
 
@@ -342,7 +391,7 @@ export default function FilaSolicitacoes() {
         <ModalDetalheSolicitacao
           solicitacao={modalDetalhe}
           onFechar={() => setModalDetalhe(null)}
-          onGerarRelatorio={() => gerarRelatorio(modalDetalhe)}
+          onGerarRelatorio={(fotos) => gerarRelatorio(modalDetalhe, fotos)}
           onAvancar={() => { const s = modalDetalhe; setModalDetalhe(null); avancarStatus(s) }}
         />
       )}
@@ -354,6 +403,8 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   const urgenteZerado = s.quantidadeAtual <= 0 && s.status !== 'entregue'
   const origem = s.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
   const proximo = PROXIMOS[s.status]
+  const { dados: fotosRaw } = useCollection('fotos_solicitacao', useMemo(() => [where('solicitacaoId', '==', s.id)], [s.id]), s.id)
+  const fotos = useMemo(() => [...fotosRaw].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)), [fotosRaw])
 
   const Campo = ({ label, valor, destaque }) => (valor || valor === 0) ? (
     <div>
@@ -412,8 +463,31 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
             </div>
           )}
 
+          {fotos.length > 0 && (
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">Fotos ({fotos.length})</p>
+              <div className="grid grid-cols-3 gap-2">
+                {fotos.map(f => (
+                  <a key={f.id} href={f.dataUrl} target="_blank" rel="noreferrer" className="block aspect-square rounded-lg overflow-hidden border border-gray-200">
+                    <img src={f.dataUrl} alt="" className="w-full h-full object-cover" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {s.assinaturaSolicitante && (
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Assinatura do solicitante</p>
+              <div className="rounded-lg border border-gray-200 bg-white p-2 inline-block">
+                <img src={s.assinaturaSolicitante} alt="Assinatura" className="h-16 object-contain" />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">{s.assinaturaSolicitanteNome || s.solicitanteNome}</p>
+            </div>
+          )}
+
           <div className="flex gap-3 pt-1">
-            <button onClick={onGerarRelatorio} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
+            <button onClick={() => onGerarRelatorio(fotos)} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
@@ -440,18 +514,38 @@ function ModalNovaSolicitacao({ uid, nome, onFechar }) {
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [fotos, setFotos] = useState([])
+  const [assinatura, setAssinatura] = useState('')
+  const [progresso, setProgresso] = useState(null)
+  const fotoInputRef = useRef(null)
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
+  function adicionarFotos(e) {
+    const arquivos = Array.from(e.target.files || [])
+    if (arquivos.length === 0) return
+    setFotos(prev => [...prev, ...arquivos.map(file => ({ file, preview: URL.createObjectURL(file) }))])
+    if (fotoInputRef.current) fotoInputRef.current.value = ''
+  }
+
+  function removerFoto(idx) {
+    setFotos(prev => {
+      const f = prev[idx]
+      if (f) URL.revokeObjectURL(f.preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
+
   async function salvar() {
     if (!form.itemNome.trim()) { setErro('Nome do item é obrigatório'); return }
     if (!form.quantidadeSugerida || form.quantidadeSugerida < 1) { setErro('Quantidade deve ser maior que zero'); return }
+    if (!assinatura) { setErro('A assinatura do solicitante é obrigatória.'); return }
     setSalvando(true)
     setErro('')
     try {
-      await addDoc(collection(db, 'solicitacoes_compra'), {
+      const ref = await addDoc(collection(db, 'solicitacoes_compra'), {
         itemNome: form.itemNome.trim(),
         quantidadeSugerida: Number(form.quantidadeSugerida),
         quantidadeAtual: 0,
@@ -464,13 +558,29 @@ function ModalNovaSolicitacao({ uid, nome, onFechar }) {
         origem: 'manual',
         solicitanteUid: uid,
         solicitanteNome: nome,
+        assinaturaSolicitante: assinatura,
+        assinaturaSolicitanteNome: nome,
         criadoEm: serverTimestamp(),
         atualizadoEm: serverTimestamp(),
       })
+
+      // fotos: uma por documento na coleção fotos_solicitacao (comprimidas, base64),
+      // mesmo padrão das fotos da OS — sem Storage/plano pago.
+      for (let i = 0; i < fotos.length; i++) {
+        setProgresso({ atual: i + 1, total: fotos.length })
+        const dataUrl = await comprimirParaDataUrl(fotos[i].file)
+        await addDoc(collection(db, 'fotos_solicitacao'), {
+          solicitacaoId: ref.id,
+          ordem: i,
+          dataUrl,
+          criadoEm: serverTimestamp(),
+        })
+      }
       onFechar()
     } catch (e) {
       setErro('Erro ao salvar: ' + e.message)
       setSalvando(false)
+      setProgresso(null)
     }
   }
 
@@ -551,12 +661,54 @@ function ModalNovaSolicitacao({ uid, nome, onFechar }) {
             {form.urgente && <span className="badge bg-red-100 text-brand-red text-xs">Aparece no topo da fila</span>}
           </label>
 
+          <div className="border-t border-gray-100 pt-4">
+            <label className="text-xs font-medium text-gray-600 block mb-2">Fotos (comprovação)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {fotos.map((f, idx) => (
+                <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                  <img src={f.preview} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removerFoto(idx)}
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center text-xs"
+                  >✕</button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => fotoInputRef.current?.click()}
+                className="aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 hover:border-brand-red hover:text-brand-red transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[10px] mt-1">Adicionar</span>
+              </button>
+            </div>
+            <input
+              ref={fotoInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={adicionarFotos}
+              className="hidden"
+            />
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <SignaturePad titulo="Assinatura do solicitante *" valor={assinatura} onChange={setAssinatura} />
+          </div>
+
           {erro && <p className="text-sm text-brand-red">{erro}</p>}
 
           <div className="flex gap-3 pt-1">
-            <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={onFechar} disabled={salvando} className="btn-secondary flex-1 disabled:opacity-50">Cancelar</button>
             <button onClick={salvar} disabled={salvando} className="btn-primary flex-1 disabled:opacity-50">
-              {salvando ? 'Salvando...' : 'Criar Solicitação'}
+              {salvando
+                ? (progresso ? `Enviando foto ${progresso.atual}/${progresso.total}...` : 'Salvando...')
+                : 'Criar Solicitação'}
             </button>
           </div>
         </div>
