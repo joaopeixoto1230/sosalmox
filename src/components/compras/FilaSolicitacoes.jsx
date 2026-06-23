@@ -69,6 +69,15 @@ const STATUS_FILTRO_LABEL = {
   entregue: 'Entregue',
 }
 const TIPO_LABEL = { material: 'Material', filtro: 'Filtro', outro: 'Outro' }
+// número sequencial legível da solicitação: SOL-ANO-NNN (ex: SOL-2026-001)
+function formatarNumeroSolicitacao(numero) {
+  const ano = new Date().getFullYear()
+  return `SOL-${ano}-${String(numero).padStart(3, '0')}`
+}
+// rótulo do número exibido: usa o número novo se houver, senão cai no id curto (solicitações antigas)
+function numeroSolicitacao(s) {
+  return s.numero || `#${(s.id || '').slice(0, 6).toUpperCase()}`
+}
 
 export default function FilaSolicitacoes() {
   const { uid, nome } = useAuth()
@@ -163,7 +172,7 @@ export default function FilaSolicitacoes() {
 
   function gerarRelatorio(sol, fotos = []) {
     const dt = (v) => v?.toDate ? v.toDate().toLocaleString('pt-BR') : '—'
-    const numero = `#${(sol.id || '').slice(0, 6).toUpperCase()}`
+    const numero = numeroSolicitacao(sol)
     const origem = sol.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
     const linha = (label, valor) => valor || valor === 0
       ? `<div class="field"><label>${label}</label><p>${valor}</p></div>` : ''
@@ -334,6 +343,7 @@ export default function FilaSolicitacoes() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-brand-black truncate">{s.itemNome}</p>
                   {s.potenciaGG && <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">{s.potenciaGG}</span>}
+                  <span className="text-[11px] text-gray-400 font-medium flex-shrink-0">{numeroSolicitacao(s)}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`badge ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -425,7 +435,10 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
               {s.urgente && <span className="badge bg-orange-100 text-orange-700 text-xs">Urgente</span>}
               {urgenteZerado && <span className="badge bg-red-100 text-brand-red text-xs">Estoque zerado</span>}
             </div>
-            <p className="text-xs text-gray-400 mt-1">Solicitação #{(s.id || '').slice(0, 6).toUpperCase()}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              <span className="font-semibold text-gray-500">{numeroSolicitacao(s)}</span>
+              <span className="text-gray-300"> • {formatarData(s.criadoEm)}</span>
+            </p>
           </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 ml-2">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -557,23 +570,35 @@ function ModalNovaSolicitacao({ uid, nome, onFechar }) {
     setSalvando(true)
     setErro('')
     try {
-      const ref = await addDoc(collection(db, 'solicitacoes_compra'), {
-        itemNome: form.itemNome.trim(),
-        quantidadeSugerida: Number(form.quantidadeSugerida),
-        quantidadeAtual: 0,
-        estoqueMin: 0,
-        tipo: form.tipo,
-        fornecedor: form.fornecedor.trim() || null,
-        urgente: form.urgente,
-        observacao: form.observacao.trim() || null,
-        status: 'pendente',
-        origem: 'manual',
-        solicitanteUid: uid,
-        solicitanteNome: nome,
-        assinaturaSolicitante: assinatura,
-        assinaturaSolicitanteNome: nome,
-        criadoEm: serverTimestamp(),
-        atualizadoEm: serverTimestamp(),
+      // número sequencial SOL-ANO-NNN via contador transacional (igual às OS):
+      // lê o contador, incrementa e grava a solicitação com o número, tudo atômico.
+      const ref = doc(collection(db, 'solicitacoes_compra'))
+      await runTransaction(db, async (tx) => {
+        const contRef = doc(db, 'contadores', 'solicitacoes_compra')
+        const contSnap = await tx.get(contRef)
+        const ultimo = contSnap.exists() ? (contSnap.data().ultimo || 0) : 0
+        const proximo = ultimo + 1
+        tx.set(contRef, { ultimo: proximo }, { merge: true })
+        tx.set(ref, {
+          numero: formatarNumeroSolicitacao(proximo),
+          numeroSeq: proximo,
+          itemNome: form.itemNome.trim(),
+          quantidadeSugerida: Number(form.quantidadeSugerida),
+          quantidadeAtual: 0,
+          estoqueMin: 0,
+          tipo: form.tipo,
+          fornecedor: form.fornecedor.trim() || null,
+          urgente: form.urgente,
+          observacao: form.observacao.trim() || null,
+          status: 'pendente',
+          origem: 'manual',
+          solicitanteUid: uid,
+          solicitanteNome: nome,
+          assinaturaSolicitante: assinatura,
+          assinaturaSolicitanteNome: nome,
+          criadoEm: serverTimestamp(),
+          atualizadoEm: serverTimestamp(),
+        })
       })
 
       // fotos: uma por documento na coleção fotos_solicitacao (comprimidas, base64),
