@@ -102,6 +102,7 @@ export default function FilaSolicitacoes() {
         if (!busca) return true
         const q = busca.toLowerCase()
         return s.itemNome?.toLowerCase().includes(q) || s.referencia?.toLowerCase().includes(q) || s.potenciaGG?.toLowerCase().includes(q)
+          || s.numero?.toLowerCase().includes(q) || s.fornecedor?.toLowerCase().includes(q)
       })
       .sort((a, b) => {
         const urgA = (a.urgente || (a.quantidadeAtual <= 0)) && a.status !== 'entregue' ? 0 : 1
@@ -382,7 +383,7 @@ export default function FilaSolicitacoes() {
       <div className="flex gap-3 flex-wrap">
         <input
           className="input flex-1 min-w-40"
-          placeholder="Buscar item, referência, potência..."
+          placeholder="Buscar nº, item, fornecedor, referência..."
           value={busca}
           onChange={e => setBusca(e.target.value)}
         />

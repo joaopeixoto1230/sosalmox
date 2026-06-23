@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useCollection } from '../../hooks/useFirestore'
 import { formatarData } from '../../utils/formatters'
 import Fornecedores from './Fornecedores'
@@ -34,6 +34,7 @@ function fmtBRL(n) {
 
 export default function ComprasDashboard() {
   const [aba, setAba] = useState('visao')
+  const navigate = useNavigate()
   const { dados: solicitacoes } = useCollection('solicitacoes_compra')
   const { dados: fornecedores } = useCollection('fornecedores')
 
@@ -76,6 +77,16 @@ export default function ComprasDashboard() {
       { key: 'entregue',   label: 'Entregue',    cor: '#22C55E', count: solicitacoes.filter(s => s.status === 'entregue').length },
     ]
 
+    // gasto por tipo no mês (entregues), do maior para o menor
+    const mapaTipo = {}
+    for (const s of entreguesMes) {
+      const t = (s.tipo || 'Outro').trim() || 'Outro'
+      mapaTipo[t] = (mapaTipo[t] || 0) + valorCompra(s)
+    }
+    const gastoPorTipo = Object.entries(mapaTipo)
+      .map(([tipo, total]) => ({ tipo, total }))
+      .sort((a, b) => b.total - a.total)
+
     return {
       pendentes: solicitacoes.filter(s => s.status === 'pendente').length,
       criticos: solicitacoes.filter(s => s.status === 'pendente' && s.quantidadeAtual <= 0).length,
@@ -85,6 +96,7 @@ export default function ComprasDashboard() {
       variacaoGasto: gastoAnterior > 0 ? ((gastoMes - gastoAnterior) / gastoAnterior * 100).toFixed(0) : null,
       gastos6Meses,
       statusDist,
+      gastoPorTipo,
       total: solicitacoes.length,
       recentes: [...solicitacoes]
         .sort((a, b) => {
@@ -173,6 +185,28 @@ export default function ComprasDashboard() {
             )}
           </div>
 
+          {stats.gastoPorTipo.length > 0 && (
+            <div className="card">
+              <h2 className="font-semibold text-brand-black mb-4">Gasto por tipo — este mês</h2>
+              <div className="space-y-2.5">
+                {stats.gastoPorTipo.map(({ tipo, total }) => {
+                  const pct = stats.gastoMes > 0 ? (total / stats.gastoMes) * 100 : 0
+                  return (
+                    <div key={tipo}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-gray-600 truncate">{tipo}</span>
+                        <span className="font-semibold text-brand-black whitespace-nowrap ml-2">{fmtBRL(total)}</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-brand-red rounded-full" style={{ width: `${Math.max(pct, 2)}%` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="card">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-brand-black">Solicitações recentes</h2>
@@ -188,28 +222,34 @@ export default function ComprasDashboard() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Nº</th>
                       <th className="text-left py-2 text-gray-500 font-medium">Item</th>
-                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Referência</th>
-                      <th className="text-left py-2 text-gray-500 font-medium">Qtd sugerida</th>
                       <th className="text-left py-2 text-gray-500 font-medium">Status</th>
-                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Data</th>
+                      <th className="text-right py-2 text-gray-500 font-medium">Valor</th>
+                      <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell pl-3">Data</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.recentes.map(s => (
-                      <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <tr
+                        key={s.id}
+                        onClick={() => navigate('/solicitacoes')}
+                        className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <td className="py-2.5 text-gray-400 text-xs font-medium hidden sm:table-cell">{s.numero || '—'}</td>
                         <td className="py-2.5 font-medium text-brand-black">
                           {s.itemNome}
                           {s.potenciaGG && <span className="text-xs text-gray-400 ml-1">({s.potenciaGG})</span>}
                         </td>
-                        <td className="py-2.5 text-gray-500 hidden sm:table-cell">{s.referencia || '—'}</td>
-                        <td className="py-2.5 text-gray-600">{s.quantidadeSugerida}</td>
                         <td className="py-2.5">
                           <span className={`badge ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>
                             {STATUS_LABEL[s.status] || s.status}
                           </span>
                         </td>
-                        <td className="py-2.5 text-gray-400 text-xs hidden sm:table-cell">
+                        <td className="py-2.5 text-right text-gray-600 whitespace-nowrap">
+                          {s.status === 'entregue' ? fmtBRL(valorCompra(s)) : '—'}
+                        </td>
+                        <td className="py-2.5 text-gray-400 text-xs hidden sm:table-cell pl-3">
                           {formatarData(s.criadoEm)}
                         </td>
                       </tr>
