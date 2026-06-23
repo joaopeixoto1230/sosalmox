@@ -67,6 +67,17 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isActive();
     }
 
+    // Fase 3 — Compras (todos menos o franca/mecanico)
+    match /solicitacoes_compra/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+    }
+
+    match /fornecedores/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+    }
+
     // Fase 2 — Filtros
     match /filtros/{docId} {
       allow read: if isAuthenticated() && isActive();
