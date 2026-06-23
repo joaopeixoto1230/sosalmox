@@ -280,33 +280,37 @@ export default function FilaSolicitacoes() {
           {filtradas.map(s => {
             const urgente = s.quantidadeAtual <= 0 && s.status !== 'entregue'
             return (
-            <div key={s.id} onClick={() => setModalDetalhe(s)} className={`card flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow ${urgente ? 'border border-red-200 bg-red-50/40' : ''}`}>
-              <div className="flex-1 min-w-0">
+            <div key={s.id} onClick={() => setModalDetalhe(s)} className={`card flex items-start justify-between gap-3 sm:gap-4 cursor-pointer hover:shadow-md transition-shadow ${urgente ? 'border border-red-200 bg-red-50/40' : ''}`}>
+              <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-brand-black text-sm">{s.itemNome}</p>
-                  {s.potenciaGG && <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded">{s.potenciaGG}</span>}
-                  {s.urgente && <span className="badge bg-orange-100 text-orange-700 text-xs">Urgente</span>}
-                  {urgente && <span className="badge bg-red-100 text-brand-red text-xs">Estoque zerado</span>}
+                  <p className="font-semibold text-brand-black truncate">{s.itemNome}</p>
+                  {s.potenciaGG && <span className="text-[11px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex-shrink-0">{s.potenciaGG}</span>}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`badge ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>
                     {STATUS_LABEL[s.status] || s.status}
                   </span>
+                  {s.urgente && <span className="badge bg-orange-100 text-orange-700">Urgente</span>}
+                  {urgente && <span className="badge bg-red-100 text-brand-red">Estoque zerado</span>}
                 </div>
-                <div className="flex items-center gap-4 mt-0.5 flex-wrap">
-                  {s.referencia && <p className="text-xs text-gray-400">Ref: {s.referencia}</p>}
-                  <p className="text-xs text-gray-400">
-                    Estoque: <span className={s.quantidadeAtual <= 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}>{s.quantidadeAtual}</span>
-                    {' / min '}{s.estoqueMin}
-                  </p>
-                  <p className="text-xs text-gray-400">Sugerido: <strong className="text-gray-600">{s.quantidadeSugerida}</strong></p>
-                  {s.fornecedor && <p className="text-xs text-gray-400">Fornecedor: {s.fornecedor}</p>}
-                  <p className="text-xs text-gray-300">{formatarData(s.criadoEm)}</p>
+                <div className="flex items-center gap-x-2.5 gap-y-1 flex-wrap text-xs text-gray-400">
+                  <span>
+                    Estoque <span className={s.quantidadeAtual <= 0 ? 'text-red-600 font-semibold' : 'text-gray-600 font-medium'}>{s.quantidadeAtual}</span>
+                    <span className="text-gray-300"> / mín {s.estoqueMin}</span>
+                  </span>
+                  <span className="text-gray-300">•</span>
+                  <span>Sugerido <strong className="text-gray-600">{s.quantidadeSugerida}</strong></span>
+                  {s.referencia && <><span className="text-gray-300">•</span><span>Ref: {s.referencia}</span></>}
+                  {s.fornecedor && <><span className="text-gray-300">•</span><span>{s.fornecedor}</span></>}
+                  <span className="text-gray-300">•</span>
+                  <span className="text-gray-300">{formatarData(s.criadoEm)}</span>
                 </div>
               </div>
               {PROXIMOS[s.status] && (
                 <button
                   onClick={(e) => { e.stopPropagation(); avancarStatus(s) }}
                   disabled={atualizando === s.id}
-                  className="btn-primary text-xs px-3 py-1.5 flex-shrink-0 disabled:opacity-50"
+                  className="btn-primary text-xs px-4 py-2 flex-shrink-0 self-center disabled:opacity-50"
                 >
                   {atualizando === s.id ? '...' : PROXIMOS[s.status].label}
                 </button>
