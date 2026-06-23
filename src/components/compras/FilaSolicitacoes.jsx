@@ -22,6 +22,14 @@ const PROXIMOS = {
   em_cotacao: { label: 'Marcar Comprado', value: 'comprado' },
   comprado: { label: 'Confirmar Entrega', value: 'entregue' },
 }
+// liga o card de contador (chave do status) ao label usado no filtro de pills
+const STATUS_FILTRO_LABEL = {
+  pendente: 'Pendente',
+  em_cotacao: 'Em Cotação',
+  comprado: 'Comprado',
+  entregue: 'Entregue',
+}
+const TIPO_LABEL = { material: 'Material', filtro: 'Filtro', outro: 'Outro' }
 
 export default function FilaSolicitacoes() {
   const { uid, nome } = useAuth()
@@ -31,6 +39,7 @@ export default function FilaSolicitacoes() {
   const [atualizando, setAtualizando] = useState(null)
   const [modalEntrega, setModalEntrega] = useState(null)
   const [modalNova, setModalNova] = useState(false)
+  const [modalDetalhe, setModalDetalhe] = useState(null)
 
   const filtradas = useMemo(() => {
     const statusMap = { 'Pendente': 'pendente', 'Em Cotação': 'em_cotacao', 'Comprado': 'comprado', 'Entregue': 'entregue' }
@@ -113,6 +122,99 @@ export default function FilaSolicitacoes() {
     }
   }
 
+  function gerarRelatorio(sol) {
+    const dt = (v) => v?.toDate ? v.toDate().toLocaleString('pt-BR') : '—'
+    const numero = `#${(sol.id || '').slice(0, 6).toUpperCase()}`
+    const origem = sol.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
+    const linha = (label, valor) => valor || valor === 0
+      ? `<div class="field"><label>${label}</label><p>${valor}</p></div>` : ''
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Solicitação ${numero}</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial, sans-serif; padding: 0; color: #111; max-width: 700px; margin: 0 auto; font-size: 13px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 16px; border-bottom: 2px solid #CC0000; padding-bottom: 12px; }
+    .header h1 { color: #CC0000; margin: 0; font-size: 19px; }
+    .header p { margin: 2px 0; color: #555; font-size: 12px; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #f0f0f0; color: #444; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin: 12px 0; }
+    .field label { font-size: 10px; color: #888; display: block; margin-bottom: 1px; }
+    .field p { font-size: 13px; font-weight: 600; margin: 0; }
+    .section-title { font-size: 12px; font-weight: bold; color: #555; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .footer { margin-top: 16px; font-size: 10px; color: #aaa; text-align: right; }
+    .assinatura { display: grid; grid-template-columns: 1fr; justify-items: center; margin-top: 40px; page-break-inside: avoid; }
+    .assinatura .bloco { width: 60%; max-width: 320px; text-align: center; }
+    .assinatura .traco { border-top: 1px solid #999; padding-top: 5px; font-size: 12px; color: #555; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>SOS Energia — Solicitação de Compra</h1>
+      <p>${numero} &nbsp;•&nbsp; ${sol.itemNome || '—'}</p>
+    </div>
+    <div><span class="badge">${STATUS_LABEL[sol.status] || sol.status}</span></div>
+  </div>
+
+  <div class="grid">
+    ${linha('Item / Produto', sol.itemNome)}
+    ${linha('Tipo', TIPO_LABEL[sol.tipo] || sol.tipo)}
+    ${linha('Potência GG', sol.potenciaGG)}
+    ${linha('Referência', sol.referencia)}
+    ${linha('Fornecedor', sol.fornecedor)}
+    ${linha('Quantidade sugerida', sol.quantidadeSugerida)}
+    ${linha('Estoque atual', sol.quantidadeAtual)}
+    ${linha('Estoque mínimo', sol.estoqueMin)}
+    ${linha('Origem', origem)}
+    ${linha('Urgente', sol.urgente ? 'Sim' : '')}
+    ${linha('Solicitante', sol.solicitanteNome)}
+    ${linha('Criada em', dt(sol.criadoEm))}
+    ${sol.status === 'entregue' ? `
+    ${linha('Quantidade entregue', sol.quantidadeEntregue)}
+    ${linha('Preço unitário', sol.precoUnitario != null ? 'R$ ' + Number(sol.precoUnitario).toFixed(2) : '')}
+    ${linha('Total', sol.total != null ? 'R$ ' + Number(sol.total).toFixed(2) : '')}
+    ${linha('Entregue em', dt(sol.entregueEm))}
+    ` : ''}
+  </div>
+
+  ${sol.observacao ? `<p class="section-title">Observação</p><p style="font-size:13px;color:#555;white-space:pre-wrap">${sol.observacao}</p>` : ''}
+
+  <div class="assinatura">
+    <div class="bloco">
+      <div class="traco">Responsável pela compra</div>
+    </div>
+  </div>
+
+  <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+</body>
+</html>`
+
+    // imprime por um iframe oculto na própria página (mesmo padrão da Manutenção),
+    // sem abrir aba nova — que travava o sistema ao voltar.
+    const anterior = document.getElementById('solicitacao-print-frame')
+    if (anterior) anterior.remove()
+
+    const iframe = document.createElement('iframe')
+    iframe.id = 'solicitacao-print-frame'
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
+    iframe.onload = () => {
+      setTimeout(() => {
+        try {
+          iframe.contentWindow.focus()
+          iframe.contentWindow.print()
+        } catch { /* ignore */ }
+        setTimeout(() => iframe.remove(), 60000)
+      }, 300)
+    }
+    document.body.appendChild(iframe)
+    iframe.srcdoc = html
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -129,12 +231,20 @@ export default function FilaSolicitacoes() {
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        {[['pendente', 'Pendentes', 'bg-yellow-50 border-yellow-200'], ['em_cotacao', 'Em Cotação', 'bg-blue-50 border-blue-200'], ['comprado', 'Comprado', 'bg-purple-50 border-purple-200'], ['entregue', 'Entregue', 'bg-green-50 border-green-200']].map(([status, label, cls]) => (
-          <div key={status} className={`card border ${cls} text-center py-3`}>
-            <p className="text-xl font-bold text-brand-black">{contadores[status]}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{label}</p>
-          </div>
-        ))}
+        {[['pendente', 'Pendentes', 'bg-yellow-50 border-yellow-200'], ['em_cotacao', 'Em Cotação', 'bg-blue-50 border-blue-200'], ['comprado', 'Comprado', 'bg-purple-50 border-purple-200'], ['entregue', 'Entregue', 'bg-green-50 border-green-200']].map(([status, label, cls]) => {
+          const ativo = statusFiltro === STATUS_FILTRO_LABEL[status]
+          return (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setStatusFiltro(ativo ? 'Todos' : STATUS_FILTRO_LABEL[status])}
+              className={`card border ${cls} text-center py-3 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${ativo ? 'ring-2 ring-brand-red ring-offset-1' : ''}`}
+            >
+              <p className="text-xl font-bold text-brand-black">{contadores[status]}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+            </button>
+          )
+        })}
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -170,7 +280,7 @@ export default function FilaSolicitacoes() {
           {filtradas.map(s => {
             const urgente = s.quantidadeAtual <= 0 && s.status !== 'entregue'
             return (
-            <div key={s.id} className={`card flex items-center gap-4 ${urgente ? 'border border-red-200 bg-red-50/40' : ''}`}>
+            <div key={s.id} onClick={() => setModalDetalhe(s)} className={`card flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow ${urgente ? 'border border-red-200 bg-red-50/40' : ''}`}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="font-semibold text-brand-black text-sm">{s.itemNome}</p>
@@ -194,7 +304,7 @@ export default function FilaSolicitacoes() {
               </div>
               {PROXIMOS[s.status] && (
                 <button
-                  onClick={() => avancarStatus(s)}
+                  onClick={(e) => { e.stopPropagation(); avancarStatus(s) }}
                   disabled={atualizando === s.id}
                   className="btn-primary text-xs px-3 py-1.5 flex-shrink-0 disabled:opacity-50"
                 >
@@ -223,6 +333,94 @@ export default function FilaSolicitacoes() {
           onFechar={() => setModalNova(false)}
         />
       )}
+
+      {modalDetalhe && (
+        <ModalDetalheSolicitacao
+          solicitacao={modalDetalhe}
+          onFechar={() => setModalDetalhe(null)}
+          onGerarRelatorio={() => gerarRelatorio(modalDetalhe)}
+          onAvancar={() => { const s = modalDetalhe; setModalDetalhe(null); avancarStatus(s) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, onAvancar }) {
+  const urgenteZerado = s.quantidadeAtual <= 0 && s.status !== 'entregue'
+  const origem = s.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
+  const proximo = PROXIMOS[s.status]
+
+  const Campo = ({ label, valor, destaque }) => (valor || valor === 0) ? (
+    <div>
+      <p className="text-[11px] uppercase tracking-wide text-gray-400">{label}</p>
+      <p className={`text-sm font-semibold ${destaque || 'text-brand-black'}`}>{valor}</p>
+    </div>
+  ) : null
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="font-bold text-brand-black">{s.itemNome}</h2>
+              <span className={`badge ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>{STATUS_LABEL[s.status] || s.status}</span>
+              {s.urgente && <span className="badge bg-orange-100 text-orange-700 text-xs">Urgente</span>}
+              {urgenteZerado && <span className="badge bg-red-100 text-brand-red text-xs">Estoque zerado</span>}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Solicitação #{(s.id || '').slice(0, 6).toUpperCase()}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 ml-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Campo label="Tipo" valor={TIPO_LABEL[s.tipo] || s.tipo} />
+            <Campo label="Potência GG" valor={s.potenciaGG} />
+            <Campo label="Referência" valor={s.referencia} />
+            <Campo label="Fornecedor" valor={s.fornecedor} />
+            <Campo label="Qtd. sugerida" valor={s.quantidadeSugerida} />
+            <Campo label="Estoque atual" valor={s.quantidadeAtual} destaque={s.quantidadeAtual <= 0 ? 'text-brand-red' : ''} />
+            <Campo label="Estoque mínimo" valor={s.estoqueMin} />
+            <Campo label="Origem" valor={origem} />
+            <Campo label="Solicitante" valor={s.solicitanteNome} />
+            <Campo label="Criada em" valor={formatarData(s.criadoEm)} />
+          </div>
+
+          {s.status === 'entregue' && (
+            <div className="grid grid-cols-2 gap-4 bg-green-50 rounded-xl p-3">
+              <Campo label="Qtd. entregue" valor={s.quantidadeEntregue} />
+              <Campo label="Preço unitário" valor={s.precoUnitario != null ? `R$ ${Number(s.precoUnitario).toFixed(2)}` : null} />
+              <Campo label="Total" valor={s.total != null ? `R$ ${Number(s.total).toFixed(2)}` : null} />
+              <Campo label="Entregue em" valor={formatarData(s.entregueEm)} />
+            </div>
+          )}
+
+          {s.observacao && (
+            <div>
+              <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Observação</p>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 rounded-lg px-3 py-2">{s.observacao}</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onGerarRelatorio} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Gerar Relatório
+            </button>
+            {proximo && (
+              <button onClick={onAvancar} className="btn-primary flex-1">{proximo.label}</button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
