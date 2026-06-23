@@ -30,6 +30,24 @@ export async function criarNotificacao(uid, mensagem, tipo = 'info', link = '') 
   } catch { /* silently fail */ }
 }
 
+// Notifica todos os usuários de certos perfis (ex: ['admin','compras']).
+// É uma notificação coletiva: o sininho mostra para quem tem o perfil e a
+// leitura é por usuário (campo lidoPor preenchido no Header).
+export async function notificarPerfis(perfis, mensagem, tipo = 'info', link = '') {
+  try {
+    await addDoc(collection(db, 'notificacoes'), {
+      uid: null,
+      paraPerfis: perfis,
+      mensagem,
+      tipo,
+      link,
+      lida: false,
+      lidoPor: [],
+      criadoEm: serverTimestamp(),
+    })
+  } catch { /* silently fail */ }
+}
+
 export async function notificarEstoqueBaixo(item) {
   await criarNotificacao('all', `⚠️ Estoque baixo: ${item.nome} (${item.quantidadeAtual} restantes)`, 'aviso', '/filtros')
 }

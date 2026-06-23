@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, updateDoc, doc, writeBatch, arrayUnion } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTheme } from '../../contexts/ThemeContext'
 import { PERFIL_LABELS, PERFIL_CORES } from '../../utils/permissions'
 
-function useNotificacoes(uid) {
+function useNotificacoes(uid, tipoPerfil) {
   const [notificacoes, setNotificacoes] = useState([])
   useEffect(() => {
     if (!uid) return
@@ -14,12 +14,18 @@ function useNotificacoes(uid) {
     const unsub = onSnapshot(q, snap => {
       const todas = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(n => n.uid === uid || n.uid === 'all')
+        .filter(n => {
+          // é para mim? (direta, geral, ou pelo meu perfil)
+          const minha = n.uid === uid || n.uid === 'all' || (Array.isArray(n.paraPerfis) && n.paraPerfis.includes(tipoPerfil))
+          if (!minha) return false
+          // notificações coletivas guardam quem já leu em lidoPor (leitura por usuário)
+          return !(Array.isArray(n.lidoPor) && n.lidoPor.includes(uid))
+        })
         .sort((a, b) => (b.criadoEm?.toDate?.()?.getTime() || 0) - (a.criadoEm?.toDate?.()?.getTime() || 0))
       setNotificacoes(todas)
     }, () => {})
     return unsub
-  }, [uid])
+  }, [uid, tipoPerfil])
   return notificacoes
 }
 
@@ -34,7 +40,7 @@ export default function Header({ onAbrirMenu }) {
   const { uid, nome, tipoPerfil, logout } = useAuth()
   const { tema, alternarTema } = useTheme()
   const navigate = useNavigate()
-  const notificacoes = useNotificacoes(uid)
+  const notificacoes = useNotificacoes(uid, tipoPerfil)
   const [aberto, setAberto] = useState(false)
   const dropRef = useRef(null)
 
@@ -46,15 +52,24 @@ export default function Header({ onAbrirMenu }) {
     return () => document.removeEventListener('mousedown', fechar)
   }, [aberto])
 
+  // coletiva (geral / por perfil) marca leitura só para este usuário (lidoPor);
+  // direta (uid próprio) marca lida de vez.
+  const ehColetiva = n => n.uid === 'all' || Array.isArray(n.paraPerfis)
+
   async function marcarTodasLidas() {
     if (!notificacoes.length) return
     const batch = writeBatch(db)
-    notificacoes.forEach(n => batch.update(doc(db, 'notificacoes', n.id), { lida: true }))
+    notificacoes.forEach(n => {
+      const ref = doc(db, 'notificacoes', n.id)
+      if (ehColetiva(n)) batch.update(ref, { lidoPor: arrayUnion(uid) })
+      else batch.update(ref, { lida: true })
+    })
     await batch.commit()
   }
 
   async function clicarNotificacao(n) {
-    await updateDoc(doc(db, 'notificacoes', n.id), { lida: true })
+    if (ehColetiva(n)) await updateDoc(doc(db, 'notificacoes', n.id), { lidoPor: arrayUnion(uid) })
+    else await updateDoc(doc(db, 'notificacoes', n.id), { lida: true })
     setAberto(false)
     if (n.link) navigate(n.link)
   }

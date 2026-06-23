@@ -4,6 +4,7 @@ import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { formatarData } from '../../utils/formatters'
+import { notificarPerfis } from '../../utils/notificacoes'
 import SignaturePad from '../ui/SignaturePad'
 
 // Carrega uma imagem (File) num elemento <img> — funciona em qualquer celular.
@@ -231,16 +232,18 @@ export default function FilaSolicitacoes() {
     if (!window.confirm(`Excluir a solicitação ${numeroSolicitacao(s)} (${s.itemNome})? Esta ação não pode ser desfeita.`)) return
     setAtualizando(s.id)
     try {
-      // remove também as fotos da solicitação (docs da coleção fotos_solicitacao)
+      // remove também as fotos e a assinatura vinculadas à solicitação
       const fotosSnap = await getDocs(query(collection(db, 'fotos_solicitacao'), where('solicitacaoId', '==', s.id)))
       await Promise.all(fotosSnap.docs.map(d => deleteDoc(d.ref)))
+      const assinSnap = await getDocs(query(collection(db, 'assinaturas_solicitacao'), where('solicitacaoId', '==', s.id)))
+      await Promise.all(assinSnap.docs.map(d => deleteDoc(d.ref)))
       await deleteDoc(doc(db, 'solicitacoes_compra', s.id))
     } finally {
       setAtualizando(null)
     }
   }
 
-  function gerarRelatorio(sol, fotos = [], notaFiscal = null) {
+  function gerarRelatorio(sol, fotos = [], notaFiscal = null, assinatura = '') {
     const dt = (v) => v?.toDate ? v.toDate().toLocaleString('pt-BR') : '—'
     const numero = numeroSolicitacao(sol)
     const origem = sol.origem === 'manual' ? 'Manual' : 'Automática (estoque mínimo)'
@@ -317,7 +320,7 @@ export default function FilaSolicitacoes() {
 
   <div class="assinatura">
     <div class="bloco">
-      ${sol.assinaturaSolicitante ? `<img src="${sol.assinaturaSolicitante}" />` : ''}
+      ${assinatura ? `<img src="${assinatura}" />` : ''}
       <div class="traco">Solicitante: ${sol.assinaturaSolicitanteNome || sol.solicitanteNome || '_______________'}</div>
     </div>
   </div>
@@ -504,7 +507,7 @@ export default function FilaSolicitacoes() {
         <ModalDetalheSolicitacao
           solicitacao={modalDetalhe}
           onFechar={() => setModalDetalhe(null)}
-          onGerarRelatorio={(fotos, nf) => gerarRelatorio(modalDetalhe, fotos, nf)}
+          onGerarRelatorio={(fotos, nf, assinatura) => gerarRelatorio(modalDetalhe, fotos, nf, assinatura)}
           onAvancar={() => { const s = modalDetalhe; setModalDetalhe(null); avancarStatus(s) }}
         />
       )}
@@ -676,6 +679,9 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   const { dados: fotosRaw } = useCollection('fotos_solicitacao', useMemo(() => [where('solicitacaoId', '==', s.id)], [s.id]), s.id)
   const fotos = useMemo(() => fotosRaw.filter(f => !f.notaFiscal).sort((a, b) => (a.ordem || 0) - (b.ordem || 0)), [fotosRaw])
   const notaFiscal = useMemo(() => fotosRaw.find(f => f.notaFiscal) || null, [fotosRaw])
+  // assinatura vem da coleção separada; cai para o campo antigo no doc (solicitações antigas)
+  const { dados: assinaturasRaw } = useCollection('assinaturas_solicitacao', useMemo(() => [where('solicitacaoId', '==', s.id)], [s.id]), s.id)
+  const assinaturaUrl = assinaturasRaw[0]?.dataUrl || s.assinaturaSolicitante || ''
   const [fotoAmpliada, setFotoAmpliada] = useState(null)
 
   const Campo = ({ label, valor, destaque }) => (valor || valor === 0) ? (
@@ -760,18 +766,18 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
             </div>
           )}
 
-          {s.assinaturaSolicitante && (
+          {assinaturaUrl && (
             <div>
               <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-1">Assinatura do solicitante</p>
               <div className="rounded-lg border border-gray-200 bg-white p-2 inline-block">
-                <img src={s.assinaturaSolicitante} alt="Assinatura" className="h-16 object-contain" />
+                <img src={assinaturaUrl} alt="Assinatura" className="h-16 object-contain" />
               </div>
               <p className="text-xs text-gray-500 mt-1">{s.assinaturaSolicitanteNome || s.solicitanteNome}</p>
             </div>
           )}
 
           <div className="flex gap-3 pt-1">
-            <button onClick={() => onGerarRelatorio(fotos, notaFiscal)} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
+            <button onClick={() => onGerarRelatorio(fotos, notaFiscal, assinaturaUrl)} className="btn-secondary flex-1 flex items-center justify-center gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
@@ -907,14 +913,16 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], fornecedoresNome
       // número sequencial SOL-ANO-NNN via contador transacional (igual às OS):
       // lê o contador, incrementa e grava a solicitação com o número, tudo atômico.
       const ref = doc(collection(db, 'solicitacoes_compra'))
+      let numeroGerado = ''
       await runTransaction(db, async (tx) => {
         const contRef = doc(db, 'contadores', 'solicitacoes_compra')
         const contSnap = await tx.get(contRef)
         const ultimo = contSnap.exists() ? (contSnap.data().ultimo || 0) : 0
         const proximo = ultimo + 1
+        numeroGerado = formatarNumeroSolicitacao(proximo)
         tx.set(contRef, { ultimo: proximo }, { merge: true })
         tx.set(ref, {
-          numero: formatarNumeroSolicitacao(proximo),
+          numero: numeroGerado,
           numeroSeq: proximo,
           itemNome: form.itemNome.trim(),
           quantidadeSugerida: Number(form.quantidadeSugerida),
@@ -928,11 +936,19 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], fornecedoresNome
           origem: 'manual',
           solicitanteUid: uid,
           solicitanteNome: nome,
-          assinaturaSolicitante: assinatura,
           assinaturaSolicitanteNome: nome,
           criadoEm: serverTimestamp(),
           atualizadoEm: serverTimestamp(),
         })
+      })
+
+      // assinatura fica numa coleção separada (assinaturas_solicitacao) e não no
+      // documento — assim a fila não carrega a imagem base64 de cada solicitação.
+      await addDoc(collection(db, 'assinaturas_solicitacao'), {
+        solicitacaoId: ref.id,
+        dataUrl: assinatura,
+        nome,
+        criadoEm: serverTimestamp(),
       })
 
       // fotos: uma por documento na coleção fotos_solicitacao (comprimidas, base64),
@@ -947,6 +963,15 @@ function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], fornecedoresNome
           criadoEm: serverTimestamp(),
         })
       }
+
+      // avisa o setor de compras (admin, gerência e compras) no sininho do app
+      await notificarPerfis(
+        ['admin', 'gerente', 'compras'],
+        `🛒 Nova solicitação ${numeroGerado}: ${form.itemNome.trim()}${form.urgente ? ' (URGENTE)' : ''} — por ${nome}`,
+        form.urgente ? 'urgente' : 'info',
+        '/solicitacoes',
+      )
+
       onFechar()
     } catch (e) {
       setErro('Erro ao salvar: ' + e.message)

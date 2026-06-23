@@ -67,6 +67,15 @@ service cloud.firestore {
       allow write: if isAuthenticated() && isActive();
     }
 
+    // Notificações do sininho. Leitura/escrita para qualquer usuário ativo;
+    // o filtro de quem vê o quê é feito no app (uid, 'all' ou paraPerfis).
+    match /notificacoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if isAuthenticated() && isActive();
+      allow update: if isAuthenticated() && isActive();
+      allow delete: if hasRole(['admin', 'gerente']) && isActive();
+    }
+
     // Fase 3 — Compras (todos menos o franca/mecanico)
     match /solicitacoes_compra/{docId} {
       allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
@@ -83,6 +92,13 @@ service cloud.firestore {
       allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
       allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
       allow delete: if hasRole(['admin', 'gerente', 'compras']) && isActive();
+    }
+
+    // Assinatura do solicitante (fora do doc da solicitação, p/ não pesar a fila)
+    match /assinaturas_solicitacao/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
     }
 
     // Fotos da solicitação de compra (uma foto por documento, base64 no campo dataUrl)
