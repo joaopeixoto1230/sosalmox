@@ -31,9 +31,17 @@ function valorCompra(s) {
 function fmtBRL(n) {
   return 'R$ ' + Number(n || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
+function porDataDesc(lista) {
+  return [...lista].sort((a, b) => {
+    const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm || 0)
+    const db2 = b.criadoEm?.toDate ? b.criadoEm.toDate() : new Date(b.criadoEm || 0)
+    return db2 - da
+  })
+}
 
 export default function ComprasDashboard() {
   const [aba, setAba] = useState('visao')
+  const [historico, setHistorico] = useState(null)
   const navigate = useNavigate()
   const { dados: solicitacoes } = useCollection('solicitacoes_compra')
   const { dados: fornecedores } = useCollection('fornecedores')
@@ -98,13 +106,16 @@ export default function ComprasDashboard() {
       statusDist,
       gastoPorTipo,
       total: solicitacoes.length,
-      recentes: [...solicitacoes]
-        .sort((a, b) => {
-          const da = a.criadoEm?.toDate ? a.criadoEm.toDate() : new Date(a.criadoEm || 0)
-          const db2 = b.criadoEm?.toDate ? b.criadoEm.toDate() : new Date(b.criadoEm || 0)
-          return db2 - da
-        })
-        .slice(0, 8),
+      recentes: porDataDesc(solicitacoes).slice(0, 8),
+      // listas para o histórico ao clicar nos cards
+      pendentesList: [...solicitacoes.filter(s => s.status === 'pendente')].sort((a, b) => {
+        const ca = a.quantidadeAtual <= 0 ? 0 : 1
+        const cb = b.quantidadeAtual <= 0 ? 0 : 1
+        if (ca !== cb) return ca - cb
+        return dataEntregaDe(b) - dataEntregaDe(a)
+      }),
+      entreguesMesList: [...entreguesMes].sort((a, b) => dataEntregaDe(b) - dataEntregaDe(a)),
+      todasList: porDataDesc(solicitacoes),
     }
   }, [solicitacoes, fornecedores])
 
@@ -138,18 +149,28 @@ export default function ComprasDashboard() {
       {aba === 'visao' && (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="card">
+            <button
+              onClick={() => setHistorico({ titulo: 'Solicitações pendentes', itens: stats.pendentesList, mostrarValor: false })}
+              className="card text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+            >
               <p className="text-xs text-gray-500 mb-1">Pendentes</p>
               <p className="text-2xl font-bold text-brand-black">{stats.pendentes}</p>
               {stats.criticos > 0 && (
                 <p className="text-xs text-red-600 mt-1">{stats.criticos} críticos (zerado)</p>
               )}
-            </div>
-            <div className="card">
+            </button>
+            <button
+              onClick={() => setAba('fornecedores')}
+              className="card text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+            >
               <p className="text-xs text-gray-500 mb-1">Fornecedores ativos</p>
               <p className="text-2xl font-bold text-brand-black">{stats.fornecedoresAtivos}</p>
-            </div>
-            <div className="card">
+              <p className="text-xs text-brand-red mt-1">ver fornecedores →</p>
+            </button>
+            <button
+              onClick={() => setHistorico({ titulo: 'Compras deste mês', itens: stats.entreguesMesList, mostrarValor: true })}
+              className="card text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+            >
               <p className="text-xs text-gray-500 mb-1">Gasto este mês</p>
               <p className="text-2xl font-bold text-brand-black">
                 {stats.gastoMes > 0 ? fmtBRL(stats.gastoMes) : '—'}
@@ -159,11 +180,15 @@ export default function ComprasDashboard() {
                   {Number(stats.variacaoGasto) > 0 ? '+' : ''}{stats.variacaoGasto}% vs. mês anterior
                 </p>
               )}
-            </div>
-            <div className="card">
+            </button>
+            <button
+              onClick={() => setHistorico({ titulo: 'Todas as solicitações', itens: stats.todasList, mostrarValor: true })}
+              className="card text-left cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all"
+            >
               <p className="text-xs text-gray-500 mb-1">Total de solicitações</p>
               <p className="text-2xl font-bold text-brand-black">{solicitacoes.length}</p>
-            </div>
+              <p className="text-xs text-brand-red mt-1">ver histórico →</p>
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -263,6 +288,81 @@ export default function ComprasDashboard() {
       )}
 
       {aba === 'fornecedores' && <Fornecedores />}
+
+      {historico && (
+        <ModalHistorico
+          titulo={historico.titulo}
+          itens={historico.itens}
+          mostrarValor={historico.mostrarValor}
+          onFechar={() => setHistorico(null)}
+          onAbrirFila={() => { setHistorico(null); navigate('/solicitacoes') }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ModalHistorico({ titulo, itens, mostrarValor, onFechar, onAbrirFila }) {
+  const totalValor = mostrarValor
+    ? itens.filter(s => s.status === 'entregue').reduce((acc, s) => acc + valorCompra(s), 0)
+    : 0
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-bold text-brand-black">{titulo}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {itens.length} {itens.length === 1 ? 'solicitação' : 'solicitações'}
+              {mostrarValor && totalValor > 0 ? ` • ${fmtBRL(totalValor)}` : ''}
+            </p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-3 space-y-2">
+          {itens.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10">Nada por aqui.</p>
+          ) : (
+            itens.map(s => {
+              const zerado = s.quantidadeAtual <= 0 && s.status !== 'entregue'
+              return (
+                <button
+                  key={s.id}
+                  onClick={onAbrirFila}
+                  className="w-full text-left rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors px-3 py-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                      {s.numero && <span className="text-[11px] text-gray-400 font-medium">{s.numero}</span>}
+                      <span className="font-semibold text-brand-black text-sm truncate">{s.itemNome}</span>
+                      {s.urgente && <span className="badge bg-orange-100 text-orange-700 text-xs">Urgente</span>}
+                      {zerado && <span className="badge bg-red-100 text-brand-red text-xs">Zerado</span>}
+                    </div>
+                    <span className={`badge flex-shrink-0 ${STATUS_COR[s.status] || 'bg-gray-100 text-gray-600'}`}>
+                      {STATUS_LABEL[s.status] || s.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-x-3 mt-1 text-xs text-gray-400 flex-wrap">
+                    <span>Qtd sugerida: {s.quantidadeSugerida}</span>
+                    {s.fornecedor && <span>• {s.fornecedor}</span>}
+                    {mostrarValor && s.status === 'entregue' && <span className="text-gray-600 font-medium">• {fmtBRL(valorCompra(s))}</span>}
+                    <span className="text-gray-300">• {formatarData(s.criadoEm)}</span>
+                  </div>
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100">
+          <button onClick={onAbrirFila} className="btn-primary w-full">Abrir fila de solicitações</button>
+        </div>
+      </div>
     </div>
   )
 }
