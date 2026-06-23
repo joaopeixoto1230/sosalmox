@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
-import { doc, updateDoc, serverTimestamp, runTransaction, collection, addDoc, where } from 'firebase/firestore'
+import { doc, updateDoc, serverTimestamp, runTransaction, collection, addDoc, where, getDocs, query, deleteDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -88,6 +88,9 @@ export default function FilaSolicitacoes() {
   const [modalEntrega, setModalEntrega] = useState(null)
   const [modalNova, setModalNova] = useState(false)
   const [modalDetalhe, setModalDetalhe] = useState(null)
+  const [modalEditar, setModalEditar] = useState(null)
+  const [modalStatus, setModalStatus] = useState(null)
+  const [menuAberto, setMenuAberto] = useState(null)
 
   const filtradas = useMemo(() => {
     const statusMap = { 'Pendente': 'pendente', 'Em Cotação': 'em_cotacao', 'Comprado': 'comprado', 'Entregue': 'entregue' }
@@ -165,6 +168,35 @@ export default function FilaSolicitacoes() {
         }
       })
       setModalEntrega(null)
+    } finally {
+      setAtualizando(null)
+    }
+  }
+
+  async function definirStatus(s, novoStatus) {
+    setModalStatus(null)
+    if (novoStatus === s.status) return
+    if (novoStatus === 'entregue') { setModalEntrega(s); return }
+    setAtualizando(s.id)
+    try {
+      await updateDoc(doc(db, 'solicitacoes_compra', s.id), {
+        status: novoStatus,
+        atualizadoEm: serverTimestamp(),
+      })
+    } finally {
+      setAtualizando(null)
+    }
+  }
+
+  async function excluirSolicitacao(s) {
+    setMenuAberto(null)
+    if (!window.confirm(`Excluir a solicitação ${numeroSolicitacao(s)} (${s.itemNome})? Esta ação não pode ser desfeita.`)) return
+    setAtualizando(s.id)
+    try {
+      // remove também as fotos da solicitação (docs da coleção fotos_solicitacao)
+      const fotosSnap = await getDocs(query(collection(db, 'fotos_solicitacao'), where('solicitacaoId', '==', s.id)))
+      await Promise.all(fotosSnap.docs.map(d => deleteDoc(d.ref)))
+      await deleteDoc(doc(db, 'solicitacoes_compra', s.id))
     } finally {
       setAtualizando(null)
     }
@@ -365,15 +397,40 @@ export default function FilaSolicitacoes() {
                   <span className="text-gray-300">{formatarData(s.criadoEm)}</span>
                 </div>
               </div>
-              {PROXIMOS[s.status] && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); avancarStatus(s) }}
-                  disabled={atualizando === s.id}
-                  className="btn-primary text-xs px-4 py-2 flex-shrink-0 self-center disabled:opacity-50"
-                >
-                  {atualizando === s.id ? '...' : PROXIMOS[s.status].label}
-                </button>
-              )}
+              <div className="flex items-center gap-1.5 flex-shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
+                {PROXIMOS[s.status] && (
+                  <button
+                    onClick={() => avancarStatus(s)}
+                    disabled={atualizando === s.id}
+                    className="btn-primary text-xs px-4 py-2 disabled:opacity-50"
+                  >
+                    {atualizando === s.id ? '...' : PROXIMOS[s.status].label}
+                  </button>
+                )}
+                <div className="relative">
+                  <button
+                    onClick={() => setMenuAberto(v => v === s.id ? null : s.id)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                    aria-label="Mais opções"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 8a2 2 0 100-4 2 2 0 000 4zm0 2a2 2 0 100 4 2 2 0 000-4zm0 6a2 2 0 100 4 2 2 0 000-4z" />
+                    </svg>
+                  </button>
+                  {menuAberto === s.id && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setMenuAberto(null)} />
+                      <div className="absolute right-0 top-9 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-52 py-1 overflow-hidden">
+                        <button onClick={() => { setMenuAberto(null); setModalDetalhe(s) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">Ver detalhes</button>
+                        <button onClick={() => { setMenuAberto(null); setModalEditar(s) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">Editar solicitação</button>
+                        <button onClick={() => { setMenuAberto(null); setModalStatus(s) }} className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">Mudar status</button>
+                        <div className="h-px bg-gray-100 my-1" />
+                        <button onClick={() => excluirSolicitacao(s)} className="w-full text-left px-3 py-2 text-sm text-brand-red hover:bg-red-50 transition-colors">Excluir solicitação</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           )
           })}
@@ -405,6 +462,157 @@ export default function FilaSolicitacoes() {
           onAvancar={() => { const s = modalDetalhe; setModalDetalhe(null); avancarStatus(s) }}
         />
       )}
+
+      {modalEditar && (
+        <ModalEditarSolicitacao
+          solicitacao={modalEditar}
+          onFechar={() => setModalEditar(null)}
+        />
+      )}
+
+      {modalStatus && (
+        <ModalMudarStatus
+          solicitacao={modalStatus}
+          onSelecionar={(novo) => definirStatus(modalStatus, novo)}
+          onFechar={() => setModalStatus(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function ModalMudarStatus({ solicitacao: s, onSelecionar, onFechar }) {
+  const ordem = ['pendente', 'em_cotacao', 'comprado', 'entregue']
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <h2 className="font-bold text-brand-black">Mudar status</h2>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-4 space-y-1.5">
+          {ordem.map(st => (
+            <button
+              key={st}
+              onClick={() => onSelecionar(st)}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors ${st === s.status ? 'border-brand-red bg-red-50/50' : 'border-gray-200 hover:bg-gray-50'}`}
+            >
+              <span className={`badge ${STATUS_COR[st]}`}>{STATUS_LABEL[st]}</span>
+              {st === s.status && <span className="text-xs text-brand-red font-medium">atual</span>}
+            </button>
+          ))}
+          <p className="text-xs text-gray-400 pt-1 px-1">Ao escolher "Entregue", será pedida a quantidade e o preço.</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ModalEditarSolicitacao({ solicitacao: s, onFechar }) {
+  const [form, setForm] = useState({
+    itemNome: s.itemNome || '',
+    quantidadeSugerida: s.quantidadeSugerida || 1,
+    tipo: s.tipo || 'material',
+    fornecedor: s.fornecedor || '',
+    urgente: !!s.urgente,
+    observacao: s.observacao || '',
+  })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  function set(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function salvar() {
+    if (!form.itemNome.trim()) { setErro('Nome do item é obrigatório'); return }
+    if (!form.quantidadeSugerida || form.quantidadeSugerida < 1) { setErro('Quantidade deve ser maior que zero'); return }
+    setSalvando(true)
+    setErro('')
+    try {
+      await updateDoc(doc(db, 'solicitacoes_compra', s.id), {
+        itemNome: form.itemNome.trim(),
+        quantidadeSugerida: Number(form.quantidadeSugerida),
+        tipo: form.tipo,
+        fornecedor: form.fornecedor.trim() || null,
+        urgente: form.urgente,
+        observacao: form.observacao.trim() || null,
+        atualizadoEm: serverTimestamp(),
+      })
+      onFechar()
+    } catch (e) {
+      setErro('Erro ao salvar: ' + e.message)
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <h2 className="font-bold text-brand-black">Editar solicitação</h2>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Item / Produto *</label>
+            <input value={form.itemNome} onChange={e => set('itemNome', e.target.value)} className="input" autoFocus />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Quantidade *</label>
+              <input type="number" min="1" value={form.quantidadeSugerida} onChange={e => set('quantidadeSugerida', e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
+              <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input">
+                <option value="material">Material</option>
+                <option value="filtro">Filtro</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Fornecedor sugerido</label>
+            <input value={form.fornecedor} onChange={e => set('fornecedor', e.target.value)} placeholder="Ex: Fleetguard, Tecfil..." className="input" />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Observação</label>
+            <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)} rows={3} className="input resize-none" />
+          </div>
+
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div
+              onClick={() => set('urgente', !form.urgente)}
+              className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${form.urgente ? 'bg-brand-red' : 'bg-gray-200'}`}
+            >
+              <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${form.urgente ? 'translate-x-4' : 'translate-x-0'}`} />
+            </div>
+            <span className="text-sm font-medium text-gray-700">Urgente</span>
+          </label>
+
+          {erro && <p className="text-sm text-brand-red">{erro}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="btn-primary flex-1 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
