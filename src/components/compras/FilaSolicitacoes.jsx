@@ -120,6 +120,21 @@ export default function FilaSolicitacoes() {
     entregue: solicitacoes.filter(s => s.status === 'entregue').length,
   }), [solicitacoes])
 
+  // sugestões de tipo: padrões fixos + todos os tipos já usados (sem repetir),
+  // assim o que um colaborador digita uma vez vira sugestão para os próximos.
+  const tiposSugeridos = useMemo(() => {
+    const seen = new Set()
+    const out = []
+    for (const t of ['Material', 'Filtro', 'Outro', ...solicitacoes.map(s => s.tipo)]) {
+      if (!t) continue
+      const k = String(t).trim().toLowerCase()
+      if (!k || seen.has(k)) continue
+      seen.add(k)
+      out.push(String(t).trim())
+    }
+    return out
+  }, [solicitacoes])
+
   async function avancarStatus(sol) {
     const proximo = PROXIMOS[sol.status]
     if (!proximo) return
@@ -450,6 +465,7 @@ export default function FilaSolicitacoes() {
         <ModalNovaSolicitacao
           uid={uid}
           nome={nome}
+          tiposSugeridos={tiposSugeridos}
           onFechar={() => setModalNova(false)}
         />
       )}
@@ -466,6 +482,7 @@ export default function FilaSolicitacoes() {
       {modalEditar && (
         <ModalEditarSolicitacao
           solicitacao={modalEditar}
+          tiposSugeridos={tiposSugeridos}
           onFechar={() => setModalEditar(null)}
         />
       )}
@@ -512,11 +529,11 @@ function ModalMudarStatus({ solicitacao: s, onSelecionar, onFechar }) {
   )
 }
 
-function ModalEditarSolicitacao({ solicitacao: s, onFechar }) {
+function ModalEditarSolicitacao({ solicitacao: s, tiposSugeridos = [], onFechar }) {
   const [form, setForm] = useState({
     itemNome: s.itemNome || '',
     quantidadeSugerida: s.quantidadeSugerida || 1,
-    tipo: s.tipo || 'material',
+    tipo: s.tipo || 'Material',
     fornecedor: s.fornecedor || '',
     urgente: !!s.urgente,
     observacao: s.observacao || '',
@@ -575,11 +592,16 @@ function ModalEditarSolicitacao({ solicitacao: s, onFechar }) {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-              <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input">
-                <option value="material">Material</option>
-                <option value="filtro">Filtro</option>
-                <option value="outro">Outro</option>
-              </select>
+              <input
+                list="tipos-solicitacao-editar"
+                value={form.tipo}
+                onChange={e => set('tipo', e.target.value)}
+                placeholder="Escolha ou digite..."
+                className="input"
+              />
+              <datalist id="tipos-solicitacao-editar">
+                {tiposSugeridos.map(t => <option key={t} value={t} />)}
+              </datalist>
             </div>
           </div>
 
@@ -736,11 +758,11 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   )
 }
 
-function ModalNovaSolicitacao({ uid, nome, onFechar }) {
+function ModalNovaSolicitacao({ uid, nome, tiposSugeridos = [], onFechar }) {
   const [form, setForm] = useState({
     itemNome: '',
     quantidadeSugerida: 1,
-    tipo: 'material',
+    tipo: 'Material',
     fornecedor: '',
     urgente: false,
     observacao: '',
@@ -866,11 +888,16 @@ function ModalNovaSolicitacao({ uid, nome, onFechar }) {
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo</label>
-              <select value={form.tipo} onChange={e => set('tipo', e.target.value)} className="input">
-                <option value="material">Material</option>
-                <option value="filtro">Filtro</option>
-                <option value="outro">Outro</option>
-              </select>
+              <input
+                list="tipos-solicitacao"
+                value={form.tipo}
+                onChange={e => set('tipo', e.target.value)}
+                placeholder="Escolha ou digite..."
+                className="input"
+              />
+              <datalist id="tipos-solicitacao">
+                {tiposSugeridos.map(t => <option key={t} value={t} />)}
+              </datalist>
             </div>
           </div>
 
