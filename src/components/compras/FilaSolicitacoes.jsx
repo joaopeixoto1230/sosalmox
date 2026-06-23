@@ -405,6 +405,7 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
   const proximo = PROXIMOS[s.status]
   const { dados: fotosRaw } = useCollection('fotos_solicitacao', useMemo(() => [where('solicitacaoId', '==', s.id)], [s.id]), s.id)
   const fotos = useMemo(() => [...fotosRaw].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)), [fotosRaw])
+  const [fotoAmpliada, setFotoAmpliada] = useState(null)
 
   const Campo = ({ label, valor, destaque }) => (valor || valor === 0) ? (
     <div>
@@ -468,9 +469,9 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
               <p className="text-[11px] uppercase tracking-wide text-gray-400 mb-2">Fotos ({fotos.length})</p>
               <div className="grid grid-cols-3 gap-2">
                 {fotos.map(f => (
-                  <a key={f.id} href={f.dataUrl} target="_blank" rel="noreferrer" className="block aspect-square rounded-lg overflow-hidden border border-gray-200">
+                  <button key={f.id} type="button" onClick={() => setFotoAmpliada(f.dataUrl)} className="block aspect-square rounded-lg overflow-hidden border border-gray-200 cursor-zoom-in">
                     <img src={f.dataUrl} alt="" className="w-full h-full object-cover" />
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -499,6 +500,17 @@ function ModalDetalheSolicitacao({ solicitacao: s, onFechar, onGerarRelatorio, o
           </div>
         </div>
       </div>
+
+      {fotoAmpliada && (
+        <div className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4" onClick={() => setFotoAmpliada(null)}>
+          <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors" aria-label="Fechar">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img src={fotoAmpliada} alt="Foto da solicitação" className="max-w-full max-h-[90vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   )
 }
