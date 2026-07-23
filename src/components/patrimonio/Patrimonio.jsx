@@ -76,7 +76,7 @@ export default function Patrimonio() {
           <button
             key={s.label}
             onClick={() => setStatusFiltro(s.filtro)}
-            className={`card ${s.cor} border-0 text-left transition-all hover:shadow-md hover:-translate-y-0.5 ${statusFiltro === s.filtro ? 'ring-2 ring-brand-red ring-offset-1' : ''}`}
+            className={`card ${s.cor} border-0 text-left transition-all hover:shadow-md hover:-translate-y-0.5 ${statusFiltro === s.filtro && s.filtro !== 'Todos' ? 'ring-2 ring-brand-red ring-offset-1' : ''}`}
           >
             <p className="text-2xl font-bold">{s.valor}</p>
             <p className="text-xs font-medium">{s.label}</p>
