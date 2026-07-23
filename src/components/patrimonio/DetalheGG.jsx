@@ -162,6 +162,37 @@ export default function DetalheGG() {
         </div>
       )}
 
+      {(() => {
+        const campos = [
+          ['fabricante', 'Fabricante'],
+          ['alternador', 'Alternador'],
+          ['painel', 'Painel'],
+          ['cor', 'Cor'],
+          ['tensao', 'Tensão'],
+          ['frequencia', 'Frequência'],
+          ['fatorPotencia', 'Fator de potência'],
+          ['corrente', 'Corrente'],
+          ['peso', 'Peso'],
+          ['numSerie', 'Nº de série'],
+          ['numSerieMotor', 'Nº série motor'],
+          ['numSerieAlternador', 'Nº série alternador'],
+        ].filter(([k]) => gg[k] != null && String(gg[k]).trim() !== '')
+        if (!campos.length) return null
+        return (
+          <div className="card">
+            <h2 className="font-semibold text-brand-black mb-3">Ficha técnica</h2>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {campos.map(([k, label]) => (
+                <div key={k}>
+                  <p className="text-gray-400 text-xs">{label}</p>
+                  <p className="font-medium break-words">{String(gg[k])}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })()}
+
       <div className="card">
         <h2 className="font-semibold text-brand-black mb-3">Histórico de Manutenção ({historico.length})</h2>
         {historico.length === 0 ? (

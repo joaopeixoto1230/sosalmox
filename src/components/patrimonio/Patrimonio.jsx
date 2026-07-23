@@ -50,7 +50,7 @@ export default function Patrimonio() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Patrimônio de Geradores</h1>
-          <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} geradores ativos.</p>
+          <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} geradores.</p>
         </div>
         {podeAdministrar && (
           <div className="flex gap-2 flex-shrink-0">
@@ -66,7 +66,7 @@ export default function Patrimonio() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total ativo', valor: stats.total, cor: 'bg-blue-50 text-blue-700' },
+          { label: 'Total geral', valor: stats.total, cor: 'bg-blue-50 text-blue-700' },
           { label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700' },
           { label: 'Em evento', valor: stats.emEvento, cor: 'bg-yellow-50 text-yellow-700' },
           { label: 'Com defeito', valor: stats.comDefeito, cor: stats.comDefeito > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700' },
