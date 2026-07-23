@@ -4,7 +4,7 @@ import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import ItemDevolucao from './ItemDevolucao'
-import { formatarData, statusEventoCor, statusEventoLabel, formatarNumeroOrdem, statusGeradorLabel } from '../../utils/formatters'
+import { formatarData, statusEventoCor, statusEventoLabel, formatarNumeroOrdem, statusGeradorLabel, materialPorQuantidade } from '../../utils/formatters'
 
 export default function DevolucaoMaterial() {
   const { uid, nome } = useAuth()
@@ -95,13 +95,17 @@ export default function DevolucaoMaterial() {
     try {
       await runTransaction(db, async (tx) => {
         // ===== LEITURAS (todas antes de qualquer escrita) =====
+        // Guarda o status atual de cada material. Consumíveis (protetor de cabo)
+        // não ficam "em_evento" ao sair, então são ignorados aqui. Materiais que
+        // já voltaram por outro caminho (conclusão de evento etc.) também não
+        // travam a devolução — apenas não têm o estoque alterado de novo.
+        const statusAtualMat = {}
         for (const item of todosItens) {
+          if (materialPorQuantidade(item)) continue
           const matRef = doc(db, 'materiais', item.id)
           const snap = await tx.get(matRef)
           if (!snap.exists()) throw new Error(`Material ${item.nome} não encontrado.`)
-          if (snap.data().status !== 'em_evento') {
-            throw new Error(`${item.nome} já foi devolvido ou está em outro estado. Recarregue a página.`)
-          }
+          statusAtualMat[item.id] = snap.data().status
         }
 
         // Se algum gerador vai ser transferido para outro evento, cada um gera
@@ -133,6 +137,11 @@ export default function DevolucaoMaterial() {
         })
 
         for (const item of todosItens) {
+          // Consumível por quantidade: não prende estoque, nada a alterar aqui.
+          if (materialPorQuantidade(item)) continue
+          // Só devolve o que ainda está no evento. Se já voltou por outro
+          // fluxo, segue no registro sem mexer no estoque de novo.
+          if (statusAtualMat[item.id] !== 'em_evento') continue
           const s = statusItens[item.id] || 'aguardando'
           const matRef = doc(db, 'materiais', item.id)
           if (s === 'ok' || s === 'cortado') {
