@@ -1,0 +1,173 @@
+import { useState, useMemo } from 'react'
+import { db } from '../../firebase/config'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+
+// Sugere o próximo código GG-XXX a partir do maior número já existente
+// (considera também os inativos/vendidos, para nunca reaproveitar um código).
+function proximoCodigo(geradores) {
+  let maior = 0
+  for (const g of geradores) {
+    const m = /GG-?0*(\d+)/i.exec(g.codigo || '')
+    if (m) maior = Math.max(maior, parseInt(m[1], 10))
+  }
+  return `GG-${String(maior + 1).padStart(3, '0')}`
+}
+
+export default function NovoGeradorModal({ geradores = [], onFechar, onSalvo }) {
+  const sugerido = useMemo(() => proximoCodigo(geradores), [geradores])
+  const [form, setForm] = useState({
+    codigo: sugerido,
+    potencia: '',
+    marca: '',
+    modelo: '',
+    motor: '',
+    ano: '',
+    horimetroAtual: '',
+    semHorimetro: false,
+    observacao: '',
+  })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  function set(field, value) {
+    setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  async function salvar() {
+    const codigo = form.codigo.trim().toUpperCase()
+    if (!codigo) { setErro('O código do gerador é obrigatório.'); return }
+    const duplicado = geradores.some(g => (g.codigo || '').trim().toUpperCase() === codigo)
+    if (duplicado) { setErro(`Já existe um gerador com o código ${codigo}.`); return }
+
+    setSalvando(true)
+    setErro('')
+    try {
+      await addDoc(collection(db, 'geradores'), {
+        codigo,
+        potencia: form.potencia.trim(),
+        marca: form.marca.trim(),
+        modelo: form.modelo.trim(),
+        motor: form.motor.trim(),
+        ano: form.ano.trim(),
+        status: 'disponivel',
+        localizacao: 'Pátio SOS',
+        semHorimetro: form.semHorimetro,
+        horimetroAtual: form.semHorimetro ? null : (form.horimetroAtual === '' ? null : Number(form.horimetroAtual)),
+        observacao: form.observacao.trim(),
+        temDefeito: false,
+        defeito: '',
+        eventoAtual: null,
+        eventoNome: null,
+        ultimaManutencao: null,
+        proximaPreventiva: null,
+        fotoUrl: null,
+        ativo: true,
+        criadoEm: serverTimestamp(),
+      })
+      onSalvo?.()
+      onFechar()
+    } catch (e) {
+      setErro('Erro ao salvar: ' + e.message)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <h2 className="font-bold text-brand-black">Novo Gerador</h2>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Código *</label>
+            <input value={form.codigo} onChange={e => set('codigo', e.target.value)}
+              placeholder="Ex: GG-108" className="input" autoFocus />
+            <p className="text-xs text-gray-400 mt-1">Sugestão automática: {sugerido}. O gerador nasce como Disponível no Pátio SOS.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Potência</label>
+              <input value={form.potencia} onChange={e => set('potencia', e.target.value)}
+                placeholder="Ex: 180kVA" className="input" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Ano</label>
+              <input value={form.ano} onChange={e => set('ano', e.target.value)}
+                placeholder="Ex: 2018" className="input" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Marca</label>
+              <input value={form.marca} onChange={e => set('marca', e.target.value)}
+                placeholder="Ex: Cummins" className="input" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Modelo</label>
+              <input value={form.modelo} onChange={e => set('modelo', e.target.value)}
+                placeholder="Ex: C180D5" className="input" />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Motor</label>
+            <input value={form.motor} onChange={e => set('motor', e.target.value)}
+              placeholder="Ex: John Deere, MWM..." className="input" />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Horímetro</label>
+            <input
+              type="number"
+              min="0"
+              value={form.semHorimetro ? '' : form.horimetroAtual}
+              onChange={e => set('horimetroAtual', e.target.value)}
+              disabled={form.semHorimetro}
+              className="input disabled:bg-gray-100 disabled:text-gray-400"
+              placeholder={form.semHorimetro ? 'Sem horímetro' : 'Ex: 1230'}
+            />
+            <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={form.semHorimetro}
+                onChange={e => set('semHorimetro', e.target.checked)}
+                className="w-4 h-4 accent-brand-red"
+              />
+              <span className="text-sm text-gray-600">Este gerador não possui horímetro</span>
+            </label>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Observação</label>
+            <textarea
+              value={form.observacao}
+              onChange={e => set('observacao', e.target.value)}
+              placeholder="Ex: Painel com botão emperrado, usar chave reserva..."
+              rows={2}
+              className="input resize-none"
+            />
+          </div>
+
+          {erro && <p className="text-sm text-brand-red">{erro}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+            <button onClick={salvar} disabled={salvando} className="btn-primary flex-1 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
 import { statusGeradorLabel, statusGeradorCor } from '../../utils/formatters'
 import GGCard from './GGCard'
+import NovoGeradorModal from './NovoGeradorModal'
 
 const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Manutenção', 'Defeito']
 const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
@@ -16,6 +17,7 @@ export default function Patrimonio() {
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [vista, setVista] = useState('grid')
+  const [modalNovo, setModalNovo] = useState(false)
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.GERADORES) && tipoPerfil !== 'franca'
 
@@ -51,9 +53,14 @@ export default function Patrimonio() {
           <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} geradores ativos.</p>
         </div>
         {podeAdministrar && (
-          <button onClick={() => navigate('/manutencao/nova')} className="btn-secondary flex-shrink-0 text-sm">
-            + Nova OS
-          </button>
+          <div className="flex gap-2 flex-shrink-0">
+            <button onClick={() => navigate('/manutencao/nova')} className="btn-secondary text-sm">
+              + Nova OS
+            </button>
+            <button onClick={() => setModalNovo(true)} className="btn-primary text-sm">
+              + Novo gerador
+            </button>
+          </div>
         )}
       </div>
 
@@ -125,6 +132,14 @@ export default function Patrimonio() {
             </div>
           )}
         </>
+      )}
+
+      {modalNovo && (
+        <NovoGeradorModal
+          geradores={geradores}
+          onFechar={() => setModalNovo(false)}
+          onSalvo={() => setModalNovo(false)}
+        />
       )}
     </div>
   )
