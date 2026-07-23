@@ -43,6 +43,7 @@ export default function Patrimonio() {
     disponiveis: ativos.filter(g => g.status === 'disponivel').length,
     emEvento: ativos.filter(g => g.status === 'em_evento').length,
     emLocacao: ativos.filter(g => g.status === 'locacao').length,
+    emManutencao: ativos.filter(g => g.status === 'manutencao').length,
     comDefeito: ativos.filter(g => g.temDefeito).length,
   }), [ativos])
 
@@ -65,12 +66,13 @@ export default function Patrimonio() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
           { label: 'Total geral', valor: stats.total, cor: 'bg-blue-50 text-blue-700', filtro: 'Todos' },
           { label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700', filtro: 'Disponível' },
           { label: 'Em evento', valor: stats.emEvento, cor: 'bg-yellow-50 text-yellow-700', filtro: 'Em Evento' },
           { label: 'Em locação', valor: stats.emLocacao, cor: 'bg-purple-50 text-purple-700', filtro: 'Em Locação' },
+          { label: 'Em manutenção', valor: stats.emManutencao, cor: 'bg-orange-50 text-orange-700', filtro: 'Manutenção' },
           { label: 'Com defeito', valor: stats.comDefeito, cor: stats.comDefeito > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700', filtro: 'Defeito' },
         ].map(s => (
           <button
