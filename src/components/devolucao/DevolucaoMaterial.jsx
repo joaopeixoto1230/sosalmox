@@ -4,16 +4,18 @@ import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import ItemDevolucao from './ItemDevolucao'
-import { formatarData, statusEventoCor, statusEventoLabel } from '../../utils/formatters'
+import { formatarData, statusEventoCor, statusEventoLabel, formatarNumeroOrdem, statusGeradorLabel } from '../../utils/formatters'
 
 export default function DevolucaoMaterial() {
   const { uid, nome } = useAuth()
   const { dados: eventos } = useCollection('eventos')
   const { dados: ordens } = useCollection('ordens_saida')
+  const { dados: geradores } = useCollection('geradores')
 
   const [eventoSelecionado, setEventoSelecionado] = useState(null)
   const [statusItens, setStatusItens] = useState({})
   const [descricoes, setDescricoes] = useState({})
+  const [destinoGeradores, setDestinoGeradores] = useState({})
   const [salvando, setSalvando] = useState(false)
   const [concluido, setConcluido] = useState(false)
   const [erro, setErro] = useState('')
@@ -39,6 +41,18 @@ export default function DevolucaoMaterial() {
     return Array.from(mapa.values())
   }, [ordensDoEvento])
 
+  const geradoresDoEvento = useMemo(() => {
+    if (!eventoSelecionado) return []
+    return geradores.filter(g => g.eventoAtual === eventoSelecionado.id)
+  }, [geradores, eventoSelecionado])
+
+  const eventosDestino = useMemo(() => {
+    if (!eventoSelecionado) return []
+    return eventos
+      .filter(e => e.id !== eventoSelecionado.id && e.status !== 'concluido')
+      .sort((a, b) => new Date(b.data) - new Date(a.data))
+  }, [eventos, eventoSelecionado])
+
   function handleStatus(itemId, valor) {
     setStatusItens(prev => ({ ...prev, [itemId]: valor }))
   }
@@ -46,6 +60,18 @@ export default function DevolucaoMaterial() {
   function handleDescricao(itemId, valor) {
     setDescricoes(prev => ({ ...prev, [itemId]: valor }))
   }
+
+  function setDestino(ggId, patch) {
+    setDestinoGeradores(prev => ({ ...prev, [ggId]: { ...prev[ggId], ...patch } }))
+  }
+
+  const geradoresValidos = geradoresDoEvento.every(g => {
+    const d = destinoGeradores[g.id]
+    if (!d || d.tipo === 'devolver') return true
+    if (d.tipo === 'evento') return !!d.eventoDestinoId
+    if (d.tipo === 'locacao') return !!d.localLocacao?.trim()
+    return true
+  })
 
   const statusResumo = useMemo(() => {
     const totais = { ok: 0, problema: 0, cortado: 0, perdido: 0, parcial: 0, aguardando: 0 }
@@ -56,7 +82,7 @@ export default function DevolucaoMaterial() {
     return totais
   }, [todosItens, statusItens])
 
-  const podeConcluir = todosItens.length > 0 && todosItens.every(item => {
+  const podeConcluir = todosItens.length > 0 && geradoresValidos && todosItens.every(item => {
     const s = statusItens[item.id]
     if (!s || s === 'aguardando') return false
     if ((s === 'problema' || s === 'cortado') && !descricoes[item.id]?.trim()) return false
@@ -68,6 +94,7 @@ export default function DevolucaoMaterial() {
     setErro('')
     try {
       await runTransaction(db, async (tx) => {
+        // ===== LEITURAS (todas antes de qualquer escrita) =====
         for (const item of todosItens) {
           const matRef = doc(db, 'materiais', item.id)
           const snap = await tx.get(matRef)
@@ -77,6 +104,20 @@ export default function DevolucaoMaterial() {
           }
         }
 
+        // Se algum gerador vai ser transferido para outro evento, cada um gera
+        // uma nova ordem de saída — lê o contador uma vez antes das escritas.
+        const transferenciasEvento = geradoresDoEvento.filter(g => {
+          const d = destinoGeradores[g.id]
+          return d?.tipo === 'evento' && d.eventoDestinoId
+        })
+        const contadorRef = doc(db, 'contadores', 'ordens_saida')
+        let proximoNumero = null
+        if (transferenciasEvento.length > 0) {
+          const contSnap = await tx.get(contadorRef)
+          proximoNumero = contSnap.exists() ? contSnap.data().ultimo : 0
+        }
+
+        // ===== ESCRITAS =====
         const devRef = doc(collection(db, 'devolucoes'))
         tx.set(devRef, {
           eventoId: eventoSelecionado.id,
@@ -106,6 +147,60 @@ export default function DevolucaoMaterial() {
         for (const ordem of ordensDoEvento) {
           const ordemRef = doc(db, 'ordens_saida', ordem.id)
           tx.update(ordemRef, { status: 'devolvida' })
+        }
+
+        // Destino de cada gerador que estava no evento. Sem escolha = devolver.
+        for (const gg of geradoresDoEvento) {
+          const ggRef = doc(db, 'geradores', gg.id)
+          const destino = destinoGeradores[gg.id] || { tipo: 'devolver' }
+
+          if (destino.tipo === 'evento' && destino.eventoDestinoId) {
+            const eventoDest = eventos.find(e => e.id === destino.eventoDestinoId)
+            proximoNumero += 1
+            const localDest = eventoDest
+              ? `${eventoDest.nome}${eventoDest.local ? ' · ' + eventoDest.local : ''}`
+              : 'Em evento'
+            const novaOrdemRef = doc(collection(db, 'ordens_saida'))
+            tx.set(novaOrdemRef, {
+              numero: proximoNumero,
+              numeroFormatado: formatarNumeroOrdem(proximoNumero),
+              eventoId: destino.eventoDestinoId,
+              eventoNome: eventoDest?.nome || null,
+              geradores: [{ id: gg.id, codigo: gg.codigo }],
+              geradorCodigo: gg.codigo,
+              itens: [],
+              observacoes: `Transferido do evento "${eventoSelecionado.nome}" via devolução.`,
+              responsavelNome: null,
+              operadorUid: uid,
+              operadorNome: nome,
+              status: 'ativo',
+              criadoEm: serverTimestamp(),
+            })
+            tx.update(ggRef, {
+              status: 'em_evento',
+              eventoAtual: destino.eventoDestinoId,
+              eventoNome: eventoDest?.nome || null,
+              localizacao: localDest,
+            })
+          } else if (destino.tipo === 'locacao') {
+            tx.update(ggRef, {
+              status: 'locacao',
+              eventoAtual: null,
+              eventoNome: null,
+              localizacao: destino.localLocacao?.trim() || 'Locação',
+            })
+          } else {
+            tx.update(ggRef, {
+              status: 'disponivel',
+              eventoAtual: null,
+              eventoNome: null,
+              localizacao: 'Pátio SOS',
+            })
+          }
+        }
+
+        if (transferenciasEvento.length > 0) {
+          tx.set(contadorRef, { ultimo: proximoNumero }, { merge: true })
         }
 
         // Devolvido todo o material do evento → conclui o evento (Ativo → Concluído)
@@ -150,6 +245,7 @@ export default function DevolucaoMaterial() {
               setEventoSelecionado(null)
               setStatusItens({})
               setDescricoes({})
+              setDestinoGeradores({})
               setConcluido(false)
             }}
             className="btn-primary mx-auto"
@@ -215,7 +311,7 @@ export default function DevolucaoMaterial() {
                 <p className="text-xs text-gray-500">{todosItens.length} itens para devolver</p>
               </div>
               <button
-                onClick={() => { setEventoSelecionado(null); setStatusItens({}); setDescricoes({}) }}
+                onClick={() => { setEventoSelecionado(null); setStatusItens({}); setDescricoes({}); setDestinoGeradores({}) }}
                 className="text-sm text-brand-red hover:underline"
               >
                 Trocar
@@ -235,6 +331,90 @@ export default function DevolucaoMaterial() {
               />
             ))}
           </div>
+
+          {geradoresDoEvento.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 pt-2">
+                <svg className="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <h2 className="font-semibold text-brand-black">Geradores do evento</h2>
+                <span className="text-xs text-gray-400">({geradoresDoEvento.length})</span>
+              </div>
+              <p className="text-xs text-gray-500 -mt-1">
+                Defina o destino de cada gerador. Sem escolher, o gerador volta ao Pátio como disponível.
+              </p>
+
+              {geradoresDoEvento.map(gg => {
+                const destino = destinoGeradores[gg.id] || { tipo: 'devolver' }
+                const opcoes = [
+                  { tipo: 'devolver', label: 'Devolver ao Pátio' },
+                  { tipo: 'evento', label: 'Transferir p/ evento' },
+                  { tipo: 'locacao', label: 'Transferir p/ locação' },
+                ]
+                return (
+                  <div key={gg.id} className="card space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-brand-black">{gg.codigo}</p>
+                        <p className="text-xs text-gray-500">
+                          {gg.potencia || '—'}{gg.marca ? ` · ${gg.marca}` : ''}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-400">{statusGeradorLabel(gg.status)}</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {opcoes.map(op => {
+                        const ativo = destino.tipo === op.tipo
+                        return (
+                          <button
+                            key={op.tipo}
+                            onClick={() => setDestino(gg.id, { tipo: op.tipo })}
+                            className={`py-2 px-1 rounded-lg text-xs font-semibold border transition-colors
+                              ${ativo ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}
+                          >
+                            {op.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {destino.tipo === 'evento' && (
+                      eventosDestino.length === 0 ? (
+                        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                          Nenhum outro evento ativo/agendado disponível para transferência.
+                        </p>
+                      ) : (
+                        <select
+                          value={destino.eventoDestinoId || ''}
+                          onChange={e => setDestino(gg.id, { eventoDestinoId: e.target.value })}
+                          className="input"
+                        >
+                          <option value="">Selecione o evento de destino...</option>
+                          {eventosDestino.map(e => (
+                            <option key={e.id} value={e.id}>
+                              {e.nome}{e.local ? ` — ${e.local}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )
+                    )}
+
+                    {destino.tipo === 'locacao' && (
+                      <input
+                        type="text"
+                        placeholder="Local da locação (ex: Cliente XYZ — Obra Centro)"
+                        value={destino.localLocacao || ''}
+                        onChange={e => setDestino(gg.id, { localLocacao: e.target.value })}
+                        className="input"
+                      />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {erro && (
             <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
