@@ -42,6 +42,7 @@ export default function Patrimonio() {
     total: ativos.length,
     disponiveis: ativos.filter(g => g.status === 'disponivel').length,
     emEvento: ativos.filter(g => g.status === 'em_evento').length,
+    emLocacao: ativos.filter(g => g.status === 'locacao').length,
     comDefeito: ativos.filter(g => g.temDefeito).length,
   }), [ativos])
 
@@ -50,7 +51,7 @@ export default function Patrimonio() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Patrimônio de Geradores</h1>
-          <p className="text-gray-500 text-sm mt-1">Frota completa — {stats.total} geradores.</p>
+          <p className="text-gray-500 text-sm mt-1">Frota completa com {stats.total} geradores.</p>
         </div>
         {podeAdministrar && (
           <div className="flex gap-2 flex-shrink-0">
@@ -64,17 +65,22 @@ export default function Patrimonio() {
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
-          { label: 'Total geral', valor: stats.total, cor: 'bg-blue-50 text-blue-700' },
-          { label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700' },
-          { label: 'Em evento', valor: stats.emEvento, cor: 'bg-yellow-50 text-yellow-700' },
-          { label: 'Com defeito', valor: stats.comDefeito, cor: stats.comDefeito > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700' },
+          { label: 'Total geral', valor: stats.total, cor: 'bg-blue-50 text-blue-700', filtro: 'Todos' },
+          { label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700', filtro: 'Disponível' },
+          { label: 'Em evento', valor: stats.emEvento, cor: 'bg-yellow-50 text-yellow-700', filtro: 'Em Evento' },
+          { label: 'Em locação', valor: stats.emLocacao, cor: 'bg-purple-50 text-purple-700', filtro: 'Em Locação' },
+          { label: 'Com defeito', valor: stats.comDefeito, cor: stats.comDefeito > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700', filtro: 'Defeito' },
         ].map(s => (
-          <div key={s.label} className={`card ${s.cor} border-0`}>
+          <button
+            key={s.label}
+            onClick={() => setStatusFiltro(s.filtro)}
+            className={`card ${s.cor} border-0 text-left transition-all hover:shadow-md hover:-translate-y-0.5 ${statusFiltro === s.filtro ? 'ring-2 ring-brand-red ring-offset-1' : ''}`}
+          >
             <p className="text-2xl font-bold">{s.valor}</p>
             <p className="text-xs font-medium">{s.label}</p>
-          </div>
+          </button>
         ))}
       </div>
 
