@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { escanearRomaneio, casarMaterial } from '../../utils/scanRomaneio'
 import { materialPorQuantidade } from '../../utils/formatters'
 import { comprimirParaDataUrl } from '../../utils/imagem'
@@ -27,6 +27,11 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
   const jaSelecionado = id => itensSelecionados.some(i => i.id === id)
 
   const [preparando, setPreparando] = useState(false)
+  const fileInputRef = useRef(null)
+
+  function abrirSeletor() {
+    if (!preparando) fileInputRef.current?.click()
+  }
 
   async function aoEscolherFoto(e) {
     const file = e.target.files?.[0]
@@ -121,10 +126,26 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
           {/* --- Passo 1: escolher a foto --- */}
           {fase === 'upload' && (
             <div className="space-y-4">
+              {/* Input unico controlado por ref. Padrao identico ao StepConfirmacao
+                  (fotos da saida), que funciona no mobile — ao contrario de um input
+                  display:none dentro de <label>, que o iOS/alguns navegadores ignoram. */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={aoEscolherFoto}
+              />
+
               {foto ? (
                 <img src={foto.dataUrl} alt="Prévia do romaneio" className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-gray-50" />
               ) : (
-                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-10 transition-colors text-gray-500 ${preparando ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:border-brand-red hover:bg-red-50/40'}`}>
+                <button
+                  type="button"
+                  onClick={abrirSeletor}
+                  disabled={preparando}
+                  className={`w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-10 transition-colors text-gray-500 ${preparando ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:border-brand-red hover:bg-red-50/40'}`}
+                >
                   {preparando ? (
                     <>
                       <div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
@@ -140,18 +161,21 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
                       <span className="text-xs text-gray-400">Toque para abrir a câmera ou os seus arquivos</span>
                     </>
                   )}
-                  <input type="file" accept="image/*" className="hidden" disabled={preparando} onChange={aoEscolherFoto} />
-                </label>
+                </button>
               )}
 
               {erro && <p className="text-sm text-brand-red">{erro}</p>}
 
               {foto && (
                 <div className="flex gap-3">
-                  <label className={`btn-secondary flex-1 justify-center ${preparando ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}>
+                  <button
+                    type="button"
+                    onClick={abrirSeletor}
+                    disabled={preparando}
+                    className="btn-secondary flex-1 justify-center disabled:opacity-60"
+                  >
                     {preparando ? 'Preparando…' : 'Trocar foto'}
-                    <input type="file" accept="image/*" className="hidden" disabled={preparando} onChange={aoEscolherFoto} />
-                  </label>
+                  </button>
                   <button onClick={lerPapel} disabled={preparando} className="btn-primary flex-1 justify-center gap-1.5 disabled:opacity-50">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
