@@ -106,9 +106,9 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           const eventoRef = doc(collection(db, 'eventos'))
           eventoIdFinal = eventoRef.id
           tx.set(eventoRef, {
-            nome: evento.nome,
-            local: evento.local,
-            data: evento.data,
+            nome: evento.nome || null,
+            local: evento.local || null,
+            data: evento.data || null,
             status: evento.status || 'ativo',
             criadoEm: serverTimestamp(),
           })
@@ -122,19 +122,19 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           qtdFotos: fotos.length,
           tokenAssinatura: tokenAssinatura,
           assinaturaStatus: assinaturaRecebeu ? 'assinada' : 'pendente',
-          geradores: (geradores || []).map(g => ({ id: g.id, codigo: g.codigo })),
-          geradorCodigo: geradores?.length > 0 ? geradores[0].codigo : null,
+          geradores: (geradores || []).map(g => ({ id: g.id || null, codigo: g.codigo || null })),
+          geradorCodigo: geradores?.length > 0 ? (geradores[0].codigo || null) : null,
           itens: itens.map(i => ({
-            id: i.id,
-            nome: i.nome,
-            codigo: i.codigo,
-            categoria: i.categoria,
+            id: i.id || null,
+            nome: i.nome || null,
+            codigo: i.codigo || null,
+            categoria: i.categoria || null,
             ...(materialPorQuantidade(i) ? { quantidade: i.quantidade || 1 } : {}),
           })),
-          observacoes,
+          observacoes: observacoes || null,
           responsavelNome: responsavel || null,
-          operadorUid: uid,
-          operadorNome: nome,
+          operadorUid: uid || null,
+          operadorNome: nome || null,
           status: 'ativo',
           criadoEm: serverTimestamp(),
         })
@@ -177,8 +177,8 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         local: evento?.local || null,
         dataEvento: evento?.data || null,
         itens: itens.map(i => ({
-          nome: i.nome,
-          codigo: i.codigo,
+          nome: i.nome || null,
+          codigo: i.codigo || null,
           ...(materialPorQuantidade(i) ? { quantidade: i.quantidade || 1 } : {}),
         })),
         entregouNome: nome || null,
@@ -196,13 +196,18 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
       setStatus('sucesso')
     } catch (err) {
       console.error(err)
-      setErro(err.message || 'Erro ao confirmar saída.')
+      const detalhe = err?.code ? `${err.message} (${err.code})` : err?.message
+      setErro(detalhe || 'Erro ao confirmar saída.')
       setProgresso(null)
       setStatus('erro')
     }
   }
 
-  if (status === 'idle' || status === 'carregando') {
+  // Mostra o formulario em qualquer estado que nao seja sucesso (idle, carregando
+  // e tambem erro). No erro, o banner abaixo exibe a mensagem e o botao reabilita
+  // para tentar de novo — antes o estado 'erro' caia no `return null` e deixava a
+  // tela em branco, escondendo o motivo da falha.
+  if (status !== 'sucesso') {
     return (
       <div className="space-y-4">
         <div>
