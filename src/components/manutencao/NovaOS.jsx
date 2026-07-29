@@ -36,6 +36,9 @@ export default function NovaOS() {
 
   function set(k, v) { setForm(prev => ({ ...prev, [k]: v })) }
 
+  // veículo usa "Oficina / serviço externo" no lugar de "Em locação (cliente)"
+  const isVeiculo = form.equipamentoTipo === 'caminhao'
+
   const geradoresAtivos = useMemo(
     () => geradores.filter(g => g.ativo !== false && g.status !== 'inativo'),
     [geradores]
@@ -102,7 +105,7 @@ export default function NovaOS() {
 
   function avancar() {
     if (!form.equipamentoLabel) { setErro('Selecione um equipamento.'); return }
-    if (form.localTipo === 'locacao' && !form.clienteNome.trim()) { setErro('Informe o cliente da locação.'); return }
+    if (form.localTipo === 'locacao' && !form.clienteNome.trim()) { setErro(isVeiculo ? 'Informe a oficina / prestador.' : 'Informe o cliente da locação.'); return }
     if (!form.descricao.trim()) { setErro('Descreva o serviço a realizar.'); return }
     if (!form.mecanico) { setErro('Selecione quem vai fazer a manutenção.'); return }
     setErro('')
@@ -305,7 +308,7 @@ export default function NovaOS() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Local da manutenção</label>
             <div className="flex gap-2">
-              {[['patio', 'No pátio (SOS)'], ['locacao', 'Em locação (cliente)']].map(([val, label]) => (
+              {[['patio', 'No pátio (SOS)'], ['locacao', isVeiculo ? 'Oficina / serviço externo' : 'Em locação (cliente)']].map(([val, label]) => (
                 <button key={val} onClick={() => set('localTipo', val)}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${form.localTipo === val ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600'}`}>
                   {label}
@@ -317,14 +320,14 @@ export default function NovaOS() {
           {form.localTipo === 'locacao' && (
             <div className="space-y-4 rounded-xl bg-gray-50 border border-gray-100 p-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{isVeiculo ? 'Oficina / prestador *' : 'Cliente *'}</label>
                 <input value={form.clienteNome} onChange={e => set('clienteNome', e.target.value)}
-                  className="input" placeholder="Ex: CM Hospitalar S.A." />
+                  className="input" placeholder={isVeiculo ? 'Ex: Auto Center Silva' : 'Ex: CM Hospitalar S.A.'} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Local / Obra</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{isVeiculo ? 'Endereço / cidade' : 'Local / Obra'}</label>
                 <input value={form.localObra} onChange={e => set('localObra', e.target.value)}
-                  className="input" placeholder="Ex: Aeroporto Internacional de Brasília" />
+                  className="input" placeholder={isVeiculo ? 'Ex: Av. Central, 500 — Brasília' : 'Ex: Aeroporto Internacional de Brasília'} />
               </div>
             </div>
           )}
@@ -385,7 +388,7 @@ export default function NovaOS() {
           <div className="bg-brand-red/5 border border-brand-red/20 rounded-xl px-4 py-3">
             <p className="text-sm font-semibold text-brand-black">{form.equipamentoLabel}</p>
             <p className="text-xs text-gray-500 capitalize">
-              {form.tipo} • {form.localTipo === 'locacao' ? `Locação${form.clienteNome ? ` — ${form.clienteNome}` : ''}` : 'No pátio'} • {form.mecanico}
+              {form.tipo} • {form.localTipo === 'locacao' ? `${isVeiculo ? 'Oficina' : 'Locação'}${form.clienteNome ? ` — ${form.clienteNome}` : ''}` : 'No pátio'} • {form.mecanico}
             </p>
           </div>
 
