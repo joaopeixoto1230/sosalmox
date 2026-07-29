@@ -16,12 +16,12 @@ export function carregarImagem(file) {
 
 // Comprime a foto e devolve um data URL (JPEG base64). Reduz qualidade e depois
 // tamanho ate caber abaixo de maxBytes.
-export async function comprimirParaDataUrl(file, maxBytes = 650000) {
+export async function comprimirParaDataUrl(file, maxBytes = 650000, maxLadoInicial = 1280) {
   if (!file?.type?.startsWith('image/')) throw new Error('O arquivo selecionado não é uma imagem.')
   const img = await carregarImagem(file)
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
-  let maxLado = 1280
+  let maxLado = maxLadoInicial
   let qualidade = 0.6
   let dataUrl = ''
   for (let i = 0; i < 9; i++) {

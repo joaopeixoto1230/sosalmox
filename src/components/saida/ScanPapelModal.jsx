@@ -1,25 +1,13 @@
 import { useState } from 'react'
 import { escanearRomaneio, casarMaterial } from '../../utils/scanRomaneio'
 import { materialPorQuantidade } from '../../utils/formatters'
+import { comprimirParaDataUrl } from '../../utils/imagem'
 import NovoMaterialModal from '../estoque/NovoMaterialModal'
 
 // Le a foto do romaneio manuscrito, casa cada linha com o estoque e mostra uma tela
 // de CONFERENCIA. Nada e lancado sozinho: o colaborador confirma linha a linha e, para
 // o que ainda nao existe no sistema, cadastra na hora (NovoMaterialModal pre-preenchido).
 // Os itens confirmados sao empurrados para a saida via onAdicionar.
-
-function lerArquivoBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const url = String(reader.result || '')
-      const base64 = url.split(',')[1] || ''
-      resolve({ base64, mediaType: file.type || 'image/jpeg', dataUrl: url })
-    }
-    reader.onerror = () => reject(new Error('Nao foi possivel ler o arquivo.'))
-    reader.readAsDataURL(file)
-  })
-}
 
 const CONFIANCA_COR = {
   alta: 'bg-green-100 text-green-700',
@@ -38,16 +26,25 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
   const materiaisTodos = [...materiais, ...extras]
   const jaSelecionado = id => itensSelecionados.some(i => i.id === id)
 
+  const [preparando, setPreparando] = useState(false)
+
   async function aoEscolherFoto(e) {
     const file = e.target.files?.[0]
     e.target.value = '' // permite reescolher o mesmo arquivo
     if (!file) return
     setErro('')
+    setPreparando(true)
     try {
-      const dados = await lerArquivoBase64(file)
-      setFoto(dados)
+      // Comprime/redimensiona antes de enviar: foto de celular (3-12 MB) vira ~200 KB
+      // com o maior lado em ~1568px (o que a API usa internamente), o que acelera MUITO
+      // o upload e a leitura. Tambem re-encoda para JPEG, resolvendo HEIC de iPhone.
+      const dataUrl = await comprimirParaDataUrl(file, 900000, 1568)
+      const base64 = dataUrl.split(',')[1] || ''
+      setFoto({ base64, mediaType: 'image/jpeg', dataUrl })
     } catch (err) {
-      setErro(err.message)
+      setErro(err.message || 'Não foi possível preparar a imagem.')
+    } finally {
+      setPreparando(false)
     }
   }
 
@@ -127,13 +124,23 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
               {foto ? (
                 <img src={foto.dataUrl} alt="Prévia do romaneio" className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-gray-50" />
               ) : (
-                <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-10 cursor-pointer hover:border-brand-red hover:bg-red-50/40 transition-colors text-gray-500">
-                  <svg className="w-10 h-10 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="text-sm font-medium">Tirar foto ou escolher da galeria</span>
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={aoEscolherFoto} />
+                <label className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-10 transition-colors text-gray-500 ${preparando ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:border-brand-red hover:bg-red-50/40'}`}>
+                  {preparando ? (
+                    <>
+                      <div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm font-medium">Preparando imagem…</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-10 h-10 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="text-sm font-medium">Tirar foto ou escolher da galeria</span>
+                      <span className="text-xs text-gray-400">Toque para abrir a câmera ou os seus arquivos</span>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" className="hidden" disabled={preparando} onChange={aoEscolherFoto} />
                 </label>
               )}
 
@@ -141,11 +148,11 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
 
               {foto && (
                 <div className="flex gap-3">
-                  <label className="btn-secondary flex-1 justify-center cursor-pointer">
-                    Trocar foto
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={aoEscolherFoto} />
+                  <label className={`btn-secondary flex-1 justify-center ${preparando ? 'opacity-60 cursor-wait' : 'cursor-pointer'}`}>
+                    {preparando ? 'Preparando…' : 'Trocar foto'}
+                    <input type="file" accept="image/*" className="hidden" disabled={preparando} onChange={aoEscolherFoto} />
                   </label>
-                  <button onClick={lerPapel} className="btn-primary flex-1 justify-center gap-1.5">
+                  <button onClick={lerPapel} disabled={preparando} className="btn-primary flex-1 justify-center gap-1.5 disabled:opacity-50">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                     </svg>
