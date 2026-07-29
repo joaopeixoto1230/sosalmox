@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { useCollection } from '../../../hooks/useFirestore'
 import ItemCard from '../ItemCard'
 import NovoMaterialModal from '../../estoque/NovoMaterialModal'
-import { formatarData } from '../../../utils/formatters'
+import ScanPapelModal from '../ScanPapelModal'
+import { materialPorQuantidade } from '../../../utils/formatters'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
@@ -11,6 +12,17 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onQ
   const [categoriaAtiva, setCategoriaAtiva] = useState('Cabos 4x')
   const [busca, setBusca] = useState('')
   const [novoAberto, setNovoAberto] = useState(false)
+  const [scanAberto, setScanAberto] = useState(false)
+
+  // Insere na saida um material vindo do escaneamento do romaneio, sem duplicar o
+  // que ja esta selecionado. Para material "por quantidade", aplica a quantidade lida.
+  function adicionarEscaneado(material, quantidade) {
+    if (itensSelecionados.some(i => i.id === material.id)) return
+    onToggle(material, 'add')
+    if (materialPorQuantidade(material) && quantidade > 1) {
+      onQuantidade(material.id, quantidade)
+    }
+  }
 
   // Abas de categoria: padroes + categorias extras criadas pelo usuario.
   const categoriasTabs = useMemo(() => {
@@ -147,6 +159,22 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onQ
         )}
       </div>
 
+      <button
+        onClick={() => setScanAberto(true)}
+        className="w-full flex items-center gap-3 rounded-xl border-2 border-dashed border-brand-red/40 bg-red-50/50 hover:bg-red-50 px-4 py-3 text-left transition-colors"
+      >
+        <span className="flex-shrink-0 w-9 h-9 rounded-lg bg-brand-red text-white flex items-center justify-center">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </span>
+        <span className="min-w-0">
+          <span className="block text-sm font-bold text-brand-black">Escanear do papel</span>
+          <span className="block text-xs text-gray-500">Tire uma foto do romaneio anotado à mão e a IA preenche os itens</span>
+        </span>
+      </button>
+
       <div className="flex gap-2">
         <input
           type="search"
@@ -238,6 +266,15 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onQ
         <NovoMaterialModal
           onFechar={() => setNovoAberto(false)}
           onSalvo={() => {}}
+        />
+      )}
+
+      {scanAberto && (
+        <ScanPapelModal
+          materiais={materiais}
+          itensSelecionados={itensSelecionados}
+          onAdicionar={adicionarEscaneado}
+          onFechar={() => setScanAberto(false)}
         />
       )}
     </div>

@@ -34,18 +34,32 @@ const TIPOS_POR_CATEGORIA = {
   ],
 }
 
-export default function NovoMaterialModal({ onFechar, onSalvo }) {
-  const [form, setForm] = useState({
-    nome: '',
-    codigo: '',
-    categoria: 'Outros Materiais',
-    tipo: 'Caixa de Passagem',
-    bitola: '',
-    metragem: '',
-    status: 'disponivel',
-    estoqueAtual: 1,
-    estoqueMin: 1,
-    observacao: '',
+export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
+  // `inicial` pre-preenche o formulario (ex: vindo do escaneamento do romaneio).
+  const [form, setForm] = useState(() => {
+    const base = {
+      nome: '',
+      codigo: '',
+      categoria: 'Outros Materiais',
+      tipo: 'Caixa de Passagem',
+      bitola: '',
+      metragem: '',
+      status: 'disponivel',
+      estoqueAtual: 1,
+      estoqueMin: 1,
+      observacao: '',
+    }
+    if (!inicial) return base
+    // Ignora campos vazios do inicial para nao sobrescrever os defaults com null/undefined.
+    const limpo = Object.fromEntries(
+      Object.entries(inicial).filter(([, v]) => v !== undefined && v !== null)
+    )
+    const merged = { ...base, ...limpo }
+    // Ao herdar so a categoria, ajusta o tipo para o primeiro tipo valido dela.
+    if (limpo.categoria && !limpo.tipo) {
+      merged.tipo = TIPOS_POR_CATEGORIA[limpo.categoria]?.[0] || ''
+    }
+    return merged
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -82,7 +96,7 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
     setSalvando(true)
     setErro('')
     try {
-      await addDoc(collection(db, 'materiais'), {
+      const dados = {
         nome: form.nome.trim(),
         codigo: form.codigo.trim().toUpperCase(),
         categoria: categoriaFinal,
@@ -96,9 +110,11 @@ export default function NovoMaterialModal({ onFechar, onSalvo }) {
         estoqueAtual: Number(form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
         observacao: form.observacao.trim() || null,
-        criadoEm: serverTimestamp(),
-      })
-      onSalvo()
+      }
+      const ref = await addDoc(collection(db, 'materiais'), { ...dados, criadoEm: serverTimestamp() })
+      // Devolve o doc recem-criado (com id) para quem precisa usa-lo na hora, como o
+      // escaneamento do romaneio. Chamadas antigas que ignoram o argumento seguem iguais.
+      onSalvo({ id: ref.id, ...dados })
       onFechar()
     } catch (e) {
       setErro('Erro ao salvar: ' + e.message)
