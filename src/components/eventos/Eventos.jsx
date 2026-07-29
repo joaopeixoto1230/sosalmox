@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, addDoc, updateDoc, deleteDoc, doc, getDoc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
@@ -1151,10 +1151,37 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
     return m.nome.toLowerCase().includes(q) || m.codigo.toLowerCase().includes(q)
   })
 
+  // Ao retirar um material que saiu numa OS, ele tambem precisa sumir do retrato
+  // congelado da OS (usado no relatorio do evento) e do doc de assinatura (usado no
+  // link enviado ao colaborador em campo). Sem isso, o item voltava ao estoque mas
+  // continuava aparecendo no relatorio e no link.
+  async function propagarRemocaoNoRelatorio(material) {
+    const q = query(collection(db, 'ordens_saida'), where('eventoId', '==', evento.id))
+    const snap = await getDocs(q)
+    for (const d of snap.docs) {
+      const dados = d.data()
+      const itens = dados.itens || []
+      if (!itens.some(it => it.id === material.id)) continue
+      await updateDoc(d.ref, { itens: itens.filter(it => it.id !== material.id) })
+      // Os itens da assinatura nao guardam id: casam pelo codigo do material.
+      if (dados.tokenAssinatura) {
+        try {
+          const assRef = doc(db, 'assinaturas_saida', dados.tokenAssinatura)
+          const assSnap = await getDoc(assRef)
+          if (assSnap.exists()) {
+            const assItens = (assSnap.data().itens || []).filter(it => it.codigo !== material.codigo)
+            await updateDoc(assRef, { itens: assItens })
+          }
+        } catch (e) { console.error(e) }
+      }
+    }
+  }
+
   async function remover(material) {
     setProcessando(material.id)
     try {
       await updateDoc(doc(db, 'materiais', material.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+      await propagarRemocaoNoRelatorio(material)
     } catch (e) { console.error(e) }
     finally { setProcessando(null) }
   }
