@@ -229,6 +229,18 @@ export default function DetalheOS() {
           }
           tx.update(doc(db, 'geradores', os.equipamentoId), updGerador)
         }
+
+        // veículo (caminhão/carro): registra a manutenção no cadastro do veículo.
+        // Mede KM (kmAtual), não horímetro. O status do veículo é derivado do gerador
+        // montado, então NÃO se mexe em status/localização aqui — só atualiza os dados
+        // de manutenção que o card do veículo exibe.
+        if (os?.equipamentoTipo === 'caminhao' && os?.equipamentoId) {
+          tx.update(doc(db, 'caminhoes', os.equipamentoId), {
+            kmAtual: parseInt(horimetroConc),
+            ultimaManutencao: serverTimestamp(),
+            ...(proximaPreventiva ? { proximaPreventiva } : {}),
+          })
+        }
       })
       navigate('/manutencao')
     } catch (e) {
@@ -312,6 +324,26 @@ export default function DetalheOS() {
             proximaPreventiva: ultima?.proximaPreventiva || null,
           })
         }
+      }
+
+      // veículo: ao excluir uma OS já concluída, recalcula última manutenção /
+      // próxima preventiva a partir das OS concluídas que sobraram (mesma lógica do GG).
+      // OS não concluída não altera dado nenhum do veículo (não mexemos no status).
+      if (os?.equipamentoTipo === 'caminhao' && os?.equipamentoId && os?.status === 'concluida') {
+        const snap = await getDocs(query(collection(db, 'ordens_servico'), where('equipamentoId', '==', os.equipamentoId)))
+        const concluidasRestantes = snap.docs
+          .filter(d => d.id !== id && d.data().status === 'concluida')
+          .map(d => d.data())
+          .sort((a, b) => {
+            const ta = a.dataConclusao?.toDate ? a.dataConclusao.toDate().getTime() : 0
+            const tb = b.dataConclusao?.toDate ? b.dataConclusao.toDate().getTime() : 0
+            return tb - ta
+          })
+        const ultima = concluidasRestantes[0]
+        await updateDoc(doc(db, 'caminhoes', os.equipamentoId), {
+          ultimaManutencao: ultima?.dataConclusao || null,
+          proximaPreventiva: ultima?.proximaPreventiva || null,
+        })
       }
       // remove também as fotos do serviço (documentos da coleção fotos_os desta OS)
       const fotosSnap = await getDocs(query(collection(db, 'fotos_os'), where('osId', '==', id)))

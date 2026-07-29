@@ -12,6 +12,7 @@ export default function NovaOS() {
   const navigate = useNavigate()
   const { uid, nome } = useAuth()
   const { dados: geradores } = useCollection('geradores')
+  const { dados: caminhoes } = useCollection('caminhoes')
   const { dados: filtros } = useCollection('filtros')
 
   const [passo, setPasso] = useState(1)
@@ -38,6 +39,13 @@ export default function NovaOS() {
   const geradoresAtivos = useMemo(
     () => geradores.filter(g => g.ativo !== false && g.status !== 'inativo'),
     [geradores]
+  )
+
+  const veiculosAtivos = useMemo(
+    () => caminhoes
+      .filter(c => c.ativo !== false && c.status !== 'inativo')
+      .sort((a, b) => (a.placa || '').localeCompare(b.placa || '')),
+    [caminhoes]
   )
 
   const filtrosDisponiveis = useMemo(() => {
@@ -67,6 +75,12 @@ export default function NovaOS() {
   function selecionarGerador(g) {
     set('equipamentoId', g.id)
     set('equipamentoLabel', `${g.codigo} — ${g.potencia || ''} ${g.marca || ''}`.trim())
+  }
+
+  function selecionarVeiculo(c) {
+    set('equipamentoId', c.id)
+    const detalhe = [c.marca, c.modelo].filter(Boolean).join(' ')
+    set('equipamentoLabel', detalhe ? `${c.placa} — ${detalhe}` : c.placa)
   }
 
   function adicionarFiltro(filtro) {
@@ -237,7 +251,7 @@ export default function NovaOS() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de equipamento</label>
             <div className="flex gap-2">
-              {[['gerador', 'Gerador (GG)'], ['caminhao', 'Caminhão'], ['empilhadeira', 'Empilhadeira']].map(([val, label]) => (
+              {[['gerador', 'Gerador (GG)'], ['caminhao', 'Veículos'], ['empilhadeira', 'Empilhadeira']].map(([val, label]) => (
                 <button key={val} onClick={() => { set('equipamentoTipo', val); set('equipamentoId', ''); set('equipamentoLabel', '') }}
                   className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${form.equipamentoTipo === val ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600'}`}>
                   {label}
@@ -260,11 +274,31 @@ export default function NovaOS() {
                 ))}
               </div>
             </div>
+          ) : form.equipamentoTipo === 'caminhao' ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Selecionar Veículo *</label>
+              {veiculosAtivos.length === 0 ? (
+                <p className="text-sm text-gray-400 border border-gray-200 rounded-xl px-3 py-4 text-center">
+                  Nenhum veículo cadastrado. Cadastre na aba Veículos.
+                </p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-1.5 border border-gray-200 rounded-xl p-2">
+                  {veiculosAtivos.map(c => (
+                    <button key={c.id} onClick={() => selecionarVeiculo(c)}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${form.equipamentoId === c.id ? 'bg-brand-red text-white' : 'hover:bg-gray-50'}`}>
+                      <span className="font-semibold">{c.placa}</span>
+                      {(c.marca || c.modelo) && <span className="ml-2 opacity-70">{[c.marca, c.modelo].filter(Boolean).join(' ')}</span>}
+                      {c.tipo === 'carro' && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Carro</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Identificação do equipamento *</label>
               <input value={form.equipamentoLabel} onChange={e => { set('equipamentoLabel', e.target.value); set('equipamentoId', '') }}
-                className="input" placeholder={form.equipamentoTipo === 'caminhao' ? 'Ex: Placa ABC-1234' : 'Ex: Empilhadeira 01'} />
+                className="input" placeholder="Ex: Empilhadeira 01" />
             </div>
           )}
 
