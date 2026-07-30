@@ -233,13 +233,24 @@ const LIMITE_OS_DETALHADA = 3
 function detalharOrdens(ordens, filtros, pergunta) {
   if (!ordens.length) return null
 
+  // Ninguem digita "GG-053" no meio de uma frase. Aceita "GG-053", "GG053", "gg 53"
+  // e "G53" — e compara pelo NUMERO, entao "G53" acha o GG-053. Numero solto ("53")
+  // de proposito NAO conta, senao "filtro de 33 kVA" viraria busca pelo GG-033.
   const texto = (pergunta || '').toUpperCase()
-  const codigos = [...texto.matchAll(/\b(?:OS-\d{4}-\d+|GG-\d+)\b/g)].map(m => m[0])
+  const equipamentos = [...texto.matchAll(/\bG{1,2}[-\s]?(\d{1,3})\b/g)].map(m => Number(m[1]))
+  // Pega tanto "OS-2026-014" quanto "OS 14": o que importa e o numero final.
+  const ordensCitadas = [...texto.matchAll(/\bOS[-\s]?(?:\d{4}[-\s])?(\d{1,4})\b/g)].map(m => Number(m[1]))
+  const codigos = [...equipamentos, ...ordensCitadas]
+
+  const numeroDe = valor => {
+    const achado = String(valor || '').match(/(\d+)\s*$/) || String(valor || '').match(/(\d+)/)
+    return achado ? Number(achado[1]) : null
+  }
 
   const escolhidas = codigos.length
-    ? ordens.filter(o => codigos.some(c =>
-        (o.numero || '').toUpperCase().includes(c) || (o.equipamentoLabel || '').toUpperCase().includes(c)
-      ))
+    ? ordens.filter(o =>
+        equipamentos.includes(numeroDe(o.equipamentoLabel)) || ordensCitadas.includes(numeroDe(o.numero))
+      )
     : ordens
         .filter(o => o.status === 'concluida')
         .sort((a, b) => (paraData(b.dataConclusao)?.getTime() || 0) - (paraData(a.dataConclusao)?.getTime() || 0))
