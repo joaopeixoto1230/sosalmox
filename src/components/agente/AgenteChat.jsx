@@ -413,6 +413,8 @@ const PALAVRAS_IGNORADAS = new Set([
   'onde', 'aonde', 'esta', 'estao', 'cade', 'qual', 'quais', 'que', 'com', 'para', 'dos', 'das',
   'uma', 'material', 'materiais', 'fica', 'ficou', 'foi', 'tem', 'esse', 'essa', 'isso', 'sobre',
   'fale', 'diga', 'saber', 'agora', 'hoje', 'meu', 'minha', 'nosso', 'nossa',
+  'quantos', 'quantas', 'temos', 'total', 'registrados', 'registradas', 'cadastrados',
+  'cadastradas', 'aqui', 'sistema', 'estoque', 'ainda', 'restam', 'sobrou', 'sobraram',
 ])
 
 function normalizar(texto) {
@@ -421,8 +423,18 @@ function normalizar(texto) {
     .replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
-function termosDaBusca(texto) {
-  return [...new Set(normalizar(texto).split(' '))].filter(t => t.length >= 2 && !PALAVRAS_IGNORADAS.has(t))
+// Cada palavra da pergunta vira um GRUPO de variantes, e o grupo vale 1 ponto. Assim
+// "cabos" acha "cabo" e "120mm" acha "120" sem contar ponto dobrado pela mesma palavra.
+function gruposDeTermos(texto) {
+  return normalizar(texto).split(' ')
+    .filter(t => t.length >= 2 && !PALAVRAS_IGNORADAS.has(t))
+    .map(t => {
+      const variantes = new Set([t])
+      if (t.length > 3 && t.endsWith('s')) variantes.add(t.slice(0, -1))
+      const numero = t.match(/^(\d+)[a-z]+$/)
+      if (numero) variantes.add(numero[1])
+      return [...variantes]
+    })
 }
 
 // Busca fina de material: "aonde esta o cabo terra 95/25/28m". Compara por pedaco
@@ -432,20 +444,36 @@ const MINIMO_TERMOS = 2
 const LIMITE_MATERIAIS_ACHADOS = 10
 
 function localizarMateriais(materiais, eventos, saidas, pergunta) {
-  const termos = termosDaBusca(pergunta)
-  if (termos.length < MINIMO_TERMOS || !materiais.length) return null
+  const grupos = gruposDeTermos(pergunta)
+  if (grupos.length < MINIMO_TERMOS || !materiais.length) return null
 
   const candidatos = materiais
     .map(m => {
       const texto = normalizar([m.nome, m.codigo, m.categoria, m.tipo].filter(Boolean).join(' '))
-      return { material: m, pontos: termos.filter(t => texto.includes(t)).length }
+      return { material: m, pontos: grupos.filter(g => g.some(v => texto.includes(v))).length }
     })
     .filter(c => c.pontos >= MINIMO_TERMOS)
   if (!candidatos.length) return null
 
   candidatos.sort((a, b) => b.pontos - a.pontos)
   const corte = candidatos[0].pontos
-  const melhores = candidatos.filter(c => c.pontos >= corte - 1).slice(0, LIMITE_MATERIAIS_ACHADOS)
+  const achados = candidatos.filter(c => c.pontos >= corte - 1)
+
+  // O TOTAL vem antes da lista: "quantos temos" precisa contar tudo que existe no
+  // cadastro, e nao so os que estao fora do almoxarifado.
+  const porStatus = {}
+  achados.forEach(({ material: m }) => {
+    const label = statusMaterialLabel(m.status || 'disponivel')
+    porStatus[label] = (porStatus[label] || 0) + 1
+  })
+  const contagem = Object.entries(porStatus).map(([label, n]) => `${label}: ${n}`).join('; ')
+
+  // Lista os que estao fora primeiro: sao os que a pessoa precisa ir buscar.
+  const ordenados = [...achados].sort((a, b) => {
+    const fora = m => (m.status === 'disponivel' ? 1 : 0)
+    return fora(a.material) - fora(b.material)
+  })
+  const melhores = ordenados.slice(0, LIMITE_MATERIAIS_ACHADOS)
 
   const eventoPorId = mapaDeEventos(eventos)
   const linhas = melhores.map(({ material: m }) => {
@@ -458,7 +486,38 @@ function localizarMateriais(materiais, eventos, saidas, pergunta) {
     return `- ${m.nome || 'sem nome'}${m.codigo ? ` (${m.codigo})` : ''}: ${ondeEsta(m, eventoPorId)}${rastro}`
   })
 
-  return `MATERIAIS QUE BATEM COM A PERGUNTA:\n${linhas.join('\n')}`
+  const resto = achados.length - melhores.length
+  const rodape = resto > 0 ? `\n(mais ${resto} ${resto === 1 ? 'unidade' : 'unidades'} do mesmo tipo, não listadas)` : ''
+  return `MATERIAIS QUE BATEM COM A PERGUNTA — ${achados.length} no total (${contagem}):\n${linhas.join('\n')}${rodape}`
+}
+
+// Inventario do cadastro inteiro, agrupado por categoria e tipo. Responde "quantos X
+// temos" mesmo quando a busca fina nao acha nada, e da o tamanho real do almoxarifado
+// — o resumo por status sozinho nunca diz QUANTOS de CADA COISA existem.
+const LIMITE_INVENTARIO = 60
+
+function inventarioMateriais(materiais) {
+  if (!materiais.length) return null
+
+  const porTipo = new Map()
+  materiais.forEach(m => {
+    const chave = [m.categoria, m.tipo].filter(Boolean).join(' / ') || 'Sem categoria'
+    if (!porTipo.has(chave)) porTipo.set(chave, { total: 0, status: {} })
+    const grupo = porTipo.get(chave)
+    grupo.total += 1
+    const label = statusMaterialLabel(m.status || 'disponivel')
+    grupo.status[label] = (grupo.status[label] || 0) + 1
+  })
+
+  const linhas = [...porTipo.entries()]
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, LIMITE_INVENTARIO)
+    .map(([chave, g]) => {
+      const detalhe = Object.entries(g.status).map(([label, n]) => `${label}: ${n}`).join('; ')
+      return `- ${chave}: ${g.total} ${g.total === 1 ? 'item' : 'itens'} (${detalhe})`
+    })
+
+  return `INVENTÁRIO POR TIPO (cadastro completo, ${materiais.length} itens):\n${linhas.join('\n')}`
 }
 
 function resumoEventos(eventos) {
@@ -657,6 +716,11 @@ responda com o bloco MATERIAIS QUE BATEM COM A PERGUNTA: diga o local (evento e 
 e quem recebeu na saída quando essa informação existir. Se o item aparecer mais de uma vez no
 cadastro, liste as unidades separadamente em vez de escolher uma.
 
+CONTAGEM DE MATERIAL: para "quantos X temos", use o NÚMERO TOTAL do bloco MATERIAIS QUE BATEM
+COM A PERGUNTA (ou o INVENTÁRIO POR TIPO) — nunca conte só os que estão fora do almoxarifado.
+Diga o total primeiro e depois a divisão: quantos disponíveis, quantos em evento, quantos em
+manutenção.
+
 FILTRO POR FOTO OU POR CÓDIGO: leia a referência impressa na peça (ex: LF700, FF5018, AF26429)
 e procure no CATÁLOGO DE FILTROS — a referência pode aparecer com ou sem espaço ("LF700" e
 "LF 700" são a mesma), e também no campo de equivalentes de outra marca. Achando, diga o tipo
@@ -782,6 +846,7 @@ export default function AgenteChat({ compact = false }) {
     if (pronto('eventos', carregandoEventos, erroEventos)) blocos.push(resumoEventos(eventos))
     if (pronto('materiais', carregandoMateriais, erroMateriais)) {
       blocos.push(resumoMateriais(materiais, carregandoEventos || erroEventos ? [] : eventos))
+      blocos.push(inventarioMateriais(materiais))
     }
     if (pronto('compras', carregandoCompras, erroCompras)) blocos.push(resumoCompras(solicitacoes))
     if (permitidos.includes('movimentacoes')) {
