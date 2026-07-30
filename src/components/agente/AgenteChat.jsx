@@ -1,6 +1,20 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore'
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy,
+  limit,
+  getDocs,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+} from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { comprimirParaDataUrl } from '../../utils/imagem'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { normalizarRef } from '../filtros/filtrosUtils'
@@ -9,6 +23,7 @@ import {
   statusMaterialLabel,
   statusOsLabel,
   statusEventoLabel,
+  formatarDataHora,
   statusEfetivoCaminhao,
   tipoVeiculo,
   tipoVeiculoLabel,
@@ -42,6 +57,56 @@ const DADOS_POR_PERFIL = {
   compras: ['filtros', 'materiais', 'movimentacoes', 'compras'],
 }
 const DADOS_PADRAO = ['filtros', 'geradores']
+
+// Anexos aceitos. A foto passa pelo comprimirParaDataUrl (mesmo utilitario das
+// fotos de OS), entao chega na API bem menor que o arquivo do celular. PDF vai
+// como esta, por isso o teto proprio.
+const PDF_MAX_BYTES = 4 * 1024 * 1024
+
+// Quantas mensagens do historico ficam gravadas por conversa. O documento do
+// Firestore tem limite de 1 MB — por isso o anexo NAO e gravado, so o nome dele.
+const MAX_MENSAGENS_SALVAS = 60
+
+function arquivoParaBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const resultado = String(reader.result || '')
+      const virgula = resultado.indexOf(',')
+      resolve(virgula >= 0 ? resultado.slice(virgula + 1) : resultado)
+    }
+    reader.onerror = () => reject(new Error('Falha ao ler o arquivo.'))
+    reader.readAsDataURL(file)
+  })
+}
+
+// Monta o conteudo de uma mensagem no formato da API: com anexo vira lista de
+// blocos (imagem/documento + texto); sem anexo continua string simples.
+function conteudoParaApi(m) {
+  // Conversa recuperada do historico guarda so o nome do anexo, nao os bytes —
+  // por isso o texto de reposicao, para nao mandar conteudo vazio para a API.
+  if (!m.anexo?.dados) return m.content || `[${m.anexoNome || 'arquivo'} enviado antes]`
+  const bloco = m.anexo.tipo === 'pdf'
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: m.anexo.dados } }
+    : { type: 'image', source: { type: 'base64', media_type: m.anexo.mediaType || 'image/jpeg', data: m.anexo.dados } }
+  return [bloco, { type: 'text', text: m.content || 'Analise este arquivo.' }]
+}
+
+// Versao da mensagem que vai para o Firestore: sem base64, so a referencia do
+// anexo, para o documento nao estourar 1 MB.
+function mensagemParaFirestore(m) {
+  return {
+    role: m.role,
+    content: m.content || '',
+    ...(m.anexo ? { anexoNome: m.anexo.nome || 'arquivo', anexoTipo: m.anexo.tipo } : {}),
+    ...(m.feedback ? { feedback: m.feedback } : {}),
+  }
+}
+
+function tituloDaConversa(mensagens) {
+  const primeira = mensagens.find(m => m.role === 'user')?.content || 'Conversa'
+  return primeira.length > 60 ? `${primeira.slice(0, 60)}...` : primeira
+}
 
 const STATUS_SOLICITACAO = {
   pendente: 'Pendente',
@@ -356,17 +421,26 @@ exemplo um período mais antigo do que o listado — diga que não tem essa info
 em qual módulo do sistema ela está, em vez de inventar.` : ''}`
 }
 
+function saudacao(nome) {
+  return { role: 'assistant', content: `Olá, ${nome?.split(' ')[0] || ''}! Como posso ajudar?` }
+}
+
 export default function AgenteChat({ compact = false }) {
-  const { tipoPerfil, nome } = useAuth()
+  const { tipoPerfil, nome, uid } = useAuth()
   const permitidos = DADOS_POR_PERFIL[tipoPerfil] || DADOS_PADRAO
-  const [mensagens, setMensagens] = useState([
-    { role: 'assistant', content: `Olá, ${nome?.split(' ')[0] || ''}! Como posso ajudar?` }
-  ])
+  const [mensagens, setMensagens] = useState([saudacao(nome)])
   const [input, setInput] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [ouvindo, setOuvindo] = useState(false)
+  const [anexo, setAnexo] = useState(null)
+  const [erroAnexo, setErroAnexo] = useState('')
+  const [historicoAberto, setHistoricoAberto] = useState(false)
+  const [conversas, setConversas] = useState([])
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false)
   const bottomRef = useRef(null)
   const recognitionRef = useRef(null)
+  const arquivoRef = useRef(null)
+  const conversaIdRef = useRef(null)
 
   // Dados reais para o agente responder com a situacao de hoje, e nao so com o texto
   // fixo do prompt. Este componente so e montado com o chat aberto (drawer) ou na
@@ -430,11 +504,120 @@ export default function AgenteChat({ compact = false }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [mensagens])
 
+  // Grava a conversa em conversas_agente com um respiro de 1,5s, para nao escrever
+  // a cada mensagem em sequencia. O anexo NAO vai junto (so o nome dele) por causa
+  // do limite de 1 MB por documento do Firestore.
+  useEffect(() => {
+    if (!uid || mensagens.length < 2) return
+    const timer = setTimeout(async () => {
+      const registros = mensagens.slice(-MAX_MENSAGENS_SALVAS).map(mensagemParaFirestore)
+      try {
+        if (conversaIdRef.current) {
+          await updateDoc(doc(db, 'conversas_agente', conversaIdRef.current), {
+            mensagens: registros,
+            atualizadoEm: serverTimestamp(),
+          })
+        } else {
+          const criada = await addDoc(collection(db, 'conversas_agente'), {
+            uid,
+            usuarioNome: nome || '',
+            perfil: tipoPerfil || '',
+            titulo: tituloDaConversa(mensagens),
+            mensagens: registros,
+            criadoEm: serverTimestamp(),
+            atualizadoEm: serverTimestamp(),
+          })
+          conversaIdRef.current = criada.id
+        }
+      } catch (e) {
+        console.error('AgenteChat salvar conversa:', e)
+      }
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [mensagens, uid, nome, tipoPerfil])
+
+  async function abrirHistorico() {
+    setHistoricoAberto(true)
+    if (!uid) return
+    setCarregandoHistorico(true)
+    try {
+      // Filtra so por uid: somar orderBy aqui exigiria indice composto no
+      // Firestore, entao a ordenacao por data e feita abaixo, no cliente.
+      const snap = await getDocs(query(collection(db, 'conversas_agente'), where('uid', '==', uid)))
+      const lista = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      lista.sort((a, b) => (b.atualizadoEm?.seconds || 0) - (a.atualizadoEm?.seconds || 0))
+      setConversas(lista.slice(0, 30))
+    } catch (e) {
+      console.error('AgenteChat carregar histórico:', e)
+    } finally {
+      setCarregandoHistorico(false)
+    }
+  }
+
+  function novaConversa() {
+    conversaIdRef.current = null
+    setMensagens([saudacao(nome)])
+    setInput('')
+    setAnexo(null)
+    setErroAnexo('')
+    setHistoricoAberto(false)
+  }
+
+  function abrirConversa(conversa) {
+    conversaIdRef.current = conversa.id
+    setMensagens(conversa.mensagens?.length ? conversa.mensagens : [saudacao(nome)])
+    setAnexo(null)
+    setErroAnexo('')
+    setHistoricoAberto(false)
+  }
+
+  async function excluirConversa(evento, conversa) {
+    evento.stopPropagation()
+    if (!window.confirm(`Excluir a conversa "${conversa.titulo || 'sem título'}"?`)) return
+    try {
+      await deleteDoc(doc(db, 'conversas_agente', conversa.id))
+      setConversas(prev => prev.filter(c => c.id !== conversa.id))
+      if (conversaIdRef.current === conversa.id) novaConversa()
+    } catch (e) {
+      console.error('AgenteChat excluir conversa:', e)
+    }
+  }
+
+  async function escolherArquivo(evento) {
+    const file = evento.target.files?.[0]
+    evento.target.value = ''
+    if (!file) return
+    setErroAnexo('')
+    try {
+      if (file.type === 'application/pdf') {
+        if (file.size > PDF_MAX_BYTES) { setErroAnexo('PDF muito grande — o limite é 4 MB.'); return }
+        setAnexo({ tipo: 'pdf', dados: await arquivoParaBase64(file), nome: file.name })
+      } else if (file.type?.startsWith('image/')) {
+        const dataUrl = await comprimirParaDataUrl(file)
+        setAnexo({
+          tipo: 'imagem',
+          dados: dataUrl.split(',')[1],
+          mediaType: 'image/jpeg',
+          nome: file.name,
+          preview: dataUrl,
+        })
+      } else {
+        setErroAnexo('Envie uma foto ou um PDF.')
+      }
+    } catch (e) {
+      setErroAnexo(e.message || 'Não foi possível ler o arquivo.')
+    }
+  }
+
   async function enviar(texto) {
     const msg = texto || input.trim()
-    if (!msg || carregando) return
+    // Atalho nunca leva anexo junto — o arquivo escolhido fica esperando o envio.
+    const anexoEnviado = texto ? null : anexo
+    if ((!msg && !anexoEnviado) || carregando) return
     setInput('')
-    setMensagens(prev => [...prev, { role: 'user', content: msg }])
+    if (anexoEnviado) setAnexo(null)
+    const nova = { role: 'user', content: msg, ...(anexoEnviado ? { anexo: anexoEnviado } : {}) }
+    setMensagens(prev => [...prev, nova])
     setCarregando(true)
 
     const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -445,10 +628,10 @@ export default function AgenteChat({ compact = false }) {
     }
 
     try {
-      const historico = [...mensagens, { role: 'user', content: msg }]
+      const historico = [...mensagens, nova]
         .filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(-10)
-        .map(m => ({ role: m.role, content: m.content }))
+        .map(m => ({ role: m.role, content: conteudoParaApi(m) }))
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -515,7 +698,53 @@ export default function AgenteChat({ compact = false }) {
 
   return (
     <div style={compact ? { display: 'flex', flexDirection: 'column', flex: '1 1 0', minHeight: 0 } : undefined}
-      className={compact ? '' : 'flex flex-col h-[calc(100vh-180px)]'}>
+      className={compact ? 'relative' : 'relative flex flex-col h-[calc(100vh-180px)]'}>
+
+      <div className="flex-shrink-0 flex items-center gap-2 mb-2">
+        <button onClick={novaConversa}
+          className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+          + Nova conversa
+        </button>
+        <button onClick={abrirHistorico}
+          className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+          Histórico
+        </button>
+      </div>
+
+      {historicoAberto && (
+        <div className="absolute inset-0 z-20 bg-white rounded-2xl border border-gray-100 shadow-lg flex flex-col overflow-hidden">
+          <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-100">
+            <span className="font-semibold text-sm text-brand-black">Conversas anteriores</span>
+            <button onClick={() => setHistoricoAberto(false)} className="text-gray-400 hover:text-brand-red transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1" style={{ minHeight: 0 }}>
+            {carregandoHistorico && <p className="text-xs text-gray-400 px-2 py-3">Carregando...</p>}
+            {!carregandoHistorico && conversas.length === 0 && (
+              <p className="text-xs text-gray-400 px-2 py-3">Nenhuma conversa salva ainda.</p>
+            )}
+            {conversas.map(c => (
+              <button key={c.id} onClick={() => abrirConversa(c)}
+                className={`w-full text-left px-3 py-2 rounded-xl transition-colors flex items-start gap-2 ${conversaIdRef.current === c.id ? 'bg-brand-red/10' : 'hover:bg-gray-50'}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-brand-black truncate">{c.titulo || 'Sem título'}</p>
+                  <p className="text-xs text-gray-400">
+                    {formatarDataHora(c.atualizadoEm)} · {c.mensagens?.length || 0} mensagens
+                  </p>
+                </div>
+                <span onClick={e => excluirConversa(e, c)}
+                  className="flex-shrink-0 text-xs text-gray-300 hover:text-brand-red transition-colors px-1">
+                  Excluir
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {!compact && (
         <div className="flex gap-2 flex-wrap mb-3">
           {ATALHOS.map(a => (
@@ -531,7 +760,19 @@ export default function AgenteChat({ compact = false }) {
         {mensagens.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] ${m.role === 'user' ? 'bg-brand-red text-white' : 'bg-white border border-gray-100 text-brand-black'} rounded-2xl px-4 py-3 text-sm shadow-sm`}>
-              <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+              {(m.anexo || m.anexoNome) && (
+                <div className="mb-2">
+                  {m.anexo?.preview ? (
+                    <img src={m.anexo.preview} alt={m.anexo.nome || 'anexo'}
+                      className="rounded-xl max-h-40 w-auto" />
+                  ) : (
+                    <span className={`inline-block text-xs px-2 py-1 rounded-lg ${m.role === 'user' ? 'bg-white/20' : 'bg-gray-100 text-gray-600'}`}>
+                      📎 {m.anexo?.nome || m.anexoNome}
+                    </span>
+                  )}
+                </div>
+              )}
+              {m.content && <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>}
               {m.role === 'assistant' && i > 0 && (
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
                   <button onClick={() => explicarMaisSimples(m.content)} className="text-xs text-gray-400 hover:text-brand-red transition-colors">
@@ -569,7 +810,31 @@ export default function AgenteChat({ compact = false }) {
         </div>
       )}
 
+      {(anexo || erroAnexo) && (
+        <div className="flex-shrink-0 mt-2">
+          {anexo && (
+            <div className="flex items-center gap-2 bg-gray-100 rounded-xl px-3 py-2">
+              {anexo.preview
+                ? <img src={anexo.preview} alt={anexo.nome} className="w-10 h-10 object-cover rounded-lg flex-shrink-0" />
+                : <span className="text-lg flex-shrink-0">📄</span>}
+              <span className="text-xs text-gray-600 truncate flex-1">{anexo.nome}</span>
+              <button onClick={() => setAnexo(null)} className="text-xs text-gray-400 hover:text-brand-red transition-colors flex-shrink-0">
+                Remover
+              </button>
+            </div>
+          )}
+          {erroAnexo && <p className="text-xs text-brand-red mt-1">{erroAnexo}</p>}
+        </div>
+      )}
+
       <div className="flex-shrink-0 flex gap-2 mt-3">
+        <input ref={arquivoRef} type="file" accept="image/*,application/pdf" onChange={escolherArquivo} className="hidden" />
+        <button onClick={() => arquivoRef.current?.click()} title="Anexar foto ou PDF"
+          className="w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
         <button onClick={toggleVoz}
           className={`w-10 h-10 flex-shrink-0 rounded-full flex items-center justify-center transition-colors ${ouvindo ? 'bg-brand-red text-white animate-pulse' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -582,10 +847,10 @@ export default function AgenteChat({ compact = false }) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && enviar()}
           placeholder="Pergunte algo sobre filtros, geradores, cabos..."
-          className="input flex-1"
+          className="input flex-1 min-w-0"
           disabled={carregando}
         />
-        <button onClick={() => enviar()} disabled={!input.trim() || carregando}
+        <button onClick={() => enviar()} disabled={(!input.trim() && !anexo) || carregando}
           className="w-10 h-10 flex-shrink-0 bg-brand-red text-white rounded-full flex items-center justify-center hover:bg-brand-red-dark transition-colors disabled:opacity-40">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

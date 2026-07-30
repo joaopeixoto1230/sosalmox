@@ -108,6 +108,15 @@ service cloud.firestore {
       allow delete: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
     }
 
+    // Histórico de conversas do Agente IA. Cada conversa é privada do usuário que
+    // conversou: só o dono lê, escreve e apaga (admin também, para suporte).
+    match /conversas_agente/{docId} {
+      allow read, update, delete: if isAuthenticated() && isActive()
+                                  && (resource.data.uid == request.auth.uid || hasRole(['admin']));
+      allow create: if isAuthenticated() && isActive()
+                    && request.resource.data.uid == request.auth.uid;
+    }
+
     // Fase 2 — Filtros
     match /filtros/{docId} {
       allow read: if isAuthenticated() && isActive();
