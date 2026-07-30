@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { orderBy, limit } from 'firebase/firestore'
+import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { normalizarRef } from '../filtros/filtrosUtils'
@@ -18,6 +19,7 @@ import {
 
 const ATALHOS = [
   { label: 'Hoje', prompt: 'O que aconteceu na empresa hoje?' },
+  { label: 'Compras', prompt: 'Quais solicitações de compra estão em aberto?' },
   { label: 'Filtros', prompt: 'Quais filtros estão com estoque baixo?' },
   { label: 'Geradores', prompt: 'Me dê um resumo do status dos geradores.' },
   { label: 'Manutenção', prompt: 'Quais manutenções estão em aberto?' },
@@ -29,15 +31,24 @@ const ATALHOS = [
 // Quais blocos de dados reais entram no prompt de cada perfil. Injetar dado que o
 // perfil nem enxerga no sistema so gasta token e polui a resposta: o comprador nao
 // precisa do status da frota nem dos eventos.
-const TUDO = ['filtros', 'geradores', 'os', 'materiais', 'eventos', 'veiculos', 'movimentacoes']
+// Atencao: 'compras' aqui tem que respeitar a regra do Firestore, que so libera
+// solicitacoes_compra para admin, gerente, almoxarife e compras — o mecanico nao le.
+const TUDO = ['filtros', 'geradores', 'os', 'materiais', 'eventos', 'veiculos', 'movimentacoes', 'compras']
 const DADOS_POR_PERFIL = {
   admin: TUDO,
   gerente: TUDO,
   almoxarife: TUDO,
   franca: ['filtros', 'geradores', 'os', 'veiculos', 'eventos', 'movimentacoes'],
-  compras: ['filtros', 'materiais', 'movimentacoes'],
+  compras: ['filtros', 'materiais', 'movimentacoes', 'compras'],
 }
 const DADOS_PADRAO = ['filtros', 'geradores']
+
+const STATUS_SOLICITACAO = {
+  pendente: 'Pendente',
+  em_cotacao: 'Em Cotação',
+  comprado: 'Comprado',
+  entregue: 'Entregue',
+}
 
 // Teto de itens listados por bloco. O resumo vai em TODA requisicao, entao ele
 // precisa ser curto: contagens sempre, e so os criticos nomeados um a um.
@@ -248,6 +259,64 @@ function resumoMovimentacoes({ entradas, baixas, saidas, devolucoes, transferenc
   return blocos.filter(Boolean).join('\n\n') || null
 }
 
+function resumoCompras(solicitacoes) {
+  if (!solicitacoes.length) return null
+  const abertas = solicitacoes.filter(s => s.status !== 'entregue')
+
+  const porStatus = {}
+  abertas.forEach(s => {
+    const label = STATUS_SOLICITACAO[s.status] || s.status || 'sem status'
+    porStatus[label] = (porStatus[label] || 0) + 1
+  })
+  const contagem = Object.entries(porStatus).map(([label, n]) => `${label}: ${n}`).join('; ')
+
+  const linhas = [`COMPRAS: ${abertas.length} solicitações em aberto${contagem ? ` — ${contagem}` : ''}.`]
+  if (abertas.length) {
+    // urgentes primeiro: sao as que interessam quando a lista e cortada pelo limite
+    const ordenadas = [...abertas].sort((a, b) => (b.urgente ? 1 : 0) - (a.urgente ? 1 : 0))
+    const descrever = s => `${s.numero || 'sem número'} ${s.itemNome || 'item'} x${s.quantidadeSugerida || 0}${s.fornecedor ? ` (${s.fornecedor})` : ''} — ${STATUS_SOLICITACAO[s.status] || s.status}${s.urgente ? ', URGENTE' : ''}${s.solicitanteNome ? `, pedido por ${s.solicitanteNome}` : ''}`
+    linhas.push(`Em aberto: ${listaLimitada(ordenadas.map(descrever))}`)
+  }
+
+  const seteDias = Date.now() - 7 * UM_DIA
+  const entreguesSemana = solicitacoes.filter(s => {
+    if (s.status !== 'entregue') return false
+    const d = paraData(s.atualizadoEm)
+    return d && d.getTime() >= seteDias
+  })
+  if (entreguesSemana.length) linhas.push(`Entregues nos últimos 7 dias: ${entreguesSemana.length}`)
+  if (solicitacoes.length >= LIMITE_MOVIMENTO) {
+    linhas.push(`(considerando apenas as ${LIMITE_MOVIMENTO} solicitações mais recentes)`)
+  }
+  return linhas.join('\n')
+}
+
+// solicitacoes_compra e a unica colecao do resumo que a regra do Firestore restringe
+// por perfil. Como o useCollection assina assim que monta, aqui vai uma versao que so
+// assina quando o perfil pode ler — senao o chat do mecanico dispararia
+// permission-denied toda vez que fosse aberto.
+// `restricoes` precisa ser uma constante de modulo (referencia estavel), senao cada
+// render remonta o listener.
+function useColecaoQuandoPermitido(colecao, permitido, restricoes) {
+  const [estado, setEstado] = useState({ dados: [], carregando: permitido, erro: null })
+
+  useEffect(() => {
+    if (!permitido) return
+    const ref = collection(db, colecao)
+    const q = restricoes.length ? query(ref, ...restricoes) : query(ref)
+    return onSnapshot(
+      q,
+      snap => setEstado({ dados: snap.docs.map(d => ({ id: d.id, ...d.data() })), carregando: false, erro: null }),
+      err => {
+        console.error('AgenteChat useColecaoQuandoPermitido:', err)
+        setEstado({ dados: [], carregando: false, erro: err.message })
+      }
+    )
+  }, [colecao, permitido, restricoes])
+
+  return estado
+}
+
 function systemPrompt(perfil, nomeUsuario, resumoDados) {
   const focos = {
     admin: 'Você tem acesso a tudo: materiais, filtros, geradores, manutenção, compras.',
@@ -289,6 +358,7 @@ em qual módulo do sistema ela está, em vez de inventar.` : ''}`
 
 export default function AgenteChat({ compact = false }) {
   const { tipoPerfil, nome } = useAuth()
+  const permitidos = DADOS_POR_PERFIL[tipoPerfil] || DADOS_PADRAO
   const [mensagens, setMensagens] = useState([
     { role: 'assistant', content: `Olá, ${nome?.split(' ')[0] || ''}! Como posso ajudar?` }
   ])
@@ -314,12 +384,13 @@ export default function AgenteChat({ compact = false }) {
   const { dados: saidas, carregando: carregandoSaidas, erro: erroSaidas } = useCollection('ordens_saida', RESTRICOES_MOVIMENTO, 'agente-recentes')
   const { dados: devolucoes, carregando: carregandoDevolucoes, erro: erroDevolucoes } = useCollection('devolucoes', RESTRICOES_MOVIMENTO, 'agente-recentes')
   const { dados: transferencias, carregando: carregandoTransf, erro: erroTransf } = useCollection('transferencias', RESTRICOES_MOVIMENTO, 'agente-recentes')
+  const { dados: solicitacoes, carregando: carregandoCompras, erro: erroCompras } =
+    useColecaoQuandoPermitido('solicitacoes_compra', permitidos.includes('compras'), RESTRICOES_MOVIMENTO)
 
   // Resumo compacto injetado no system prompt. Colecao ainda carregando (ou que falhou
   // ao ler) fica de fora — o agente continua respondendo, so sem aquele bloco de dados.
   // Melhor nao ter o dado do que afirmar "0 em aberto" por causa de uma leitura falha.
   const resumoDados = useMemo(() => {
-    const permitidos = DADOS_POR_PERFIL[tipoPerfil] || DADOS_PADRAO
     const pronto = (bloco, carregandoCol, erroCol) => permitidos.includes(bloco) && !carregandoCol && !erroCol
     const blocos = []
     if (pronto('filtros', carregandoFiltros, erroFiltros)) blocos.push(resumoFiltros(filtros))
@@ -328,6 +399,7 @@ export default function AgenteChat({ compact = false }) {
     if (pronto('os', carregandoOrdens, erroOrdens)) blocos.push(resumoOrdens(ordens))
     if (pronto('eventos', carregandoEventos, erroEventos)) blocos.push(resumoEventos(eventos))
     if (pronto('materiais', carregandoMateriais, erroMateriais)) blocos.push(resumoMateriais(materiais))
+    if (pronto('compras', carregandoCompras, erroCompras)) blocos.push(resumoCompras(solicitacoes))
     if (permitidos.includes('movimentacoes')) {
       blocos.push(resumoMovimentacoes({
         entradas: carregandoEntradas || erroEntradas ? [] : entradas,
@@ -339,7 +411,7 @@ export default function AgenteChat({ compact = false }) {
     }
     return blocos.filter(Boolean).join('\n\n') || null
   }, [
-    tipoPerfil,
+    permitidos,
     filtros, carregandoFiltros, erroFiltros,
     geradores, carregandoGeradores, erroGeradores,
     ordens, carregandoOrdens, erroOrdens,
@@ -351,6 +423,7 @@ export default function AgenteChat({ compact = false }) {
     saidas, carregandoSaidas, erroSaidas,
     devolucoes, carregandoDevolucoes, erroDevolucoes,
     transferencias, carregandoTransf, erroTransf,
+    solicitacoes, carregandoCompras, erroCompras,
   ])
 
   useEffect(() => {
