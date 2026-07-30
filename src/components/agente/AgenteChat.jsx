@@ -218,6 +218,72 @@ function resumoOrdens(ordens) {
   return linhas.join('\n')
 }
 
+function limitar(texto, max) {
+  const t = (texto || '').replace(/\s+/g, ' ').trim()
+  return t.length > max ? `${t.slice(0, max)}...` : t
+}
+
+// Ficha completa de OS. O resumo geral so cabe numero e status; quando a pergunta
+// cita uma OS ou um equipamento, vale mandar a ficha inteira — servico realizado,
+// problemas e filtros usados COM a referencia (que nao fica gravada na OS, vem da
+// colecao filtros pelo filtroId). Sem citar nada, manda as 2 ultimas concluidas,
+// que e o que costumam perguntar ("o que foi feito na ultima manutencao").
+const LIMITE_OS_DETALHADA = 3
+
+function detalharOrdens(ordens, filtros, pergunta) {
+  if (!ordens.length) return null
+
+  const texto = (pergunta || '').toUpperCase()
+  const codigos = [...texto.matchAll(/\b(?:OS-\d{4}-\d+|GG-\d+)\b/g)].map(m => m[0])
+
+  const escolhidas = codigos.length
+    ? ordens.filter(o => codigos.some(c =>
+        (o.numero || '').toUpperCase().includes(c) || (o.equipamentoLabel || '').toUpperCase().includes(c)
+      ))
+    : ordens
+        .filter(o => o.status === 'concluida')
+        .sort((a, b) => (paraData(b.dataConclusao)?.getTime() || 0) - (paraData(a.dataConclusao)?.getTime() || 0))
+        .slice(0, 2)
+  if (!escolhidas.length) return null
+
+  const referenciaPorId = new Map(filtros.map(f => [f.id, f.referencia]))
+  const fichas = escolhidas.slice(0, LIMITE_OS_DETALHADA).map(o => {
+    const porQuem = o.concluidoPorNome ? ` por ${o.concluidoPorNome}` : ''
+    const situacao = o.status === 'concluida'
+      ? `Concluída${o.dataConclusao ? ` em ${formatarData(o.dataConclusao)}` : ''}${porQuem}`
+      : `${statusOsLabel(o.status)}${o.dataAbertura ? `, aberta em ${formatarData(o.dataAbertura)}` : ''}`
+    const linhas = [`${o.numero || 'sem número'} — ${o.equipamentoLabel || 'equipamento não informado'} (${situacao})`]
+
+    const cabecalho = [
+      o.tipo && `tipo ${o.tipo}`,
+      o.mecanico && `mecânico ${o.mecanico}`,
+      o.localTipo && `local ${o.localTipo}`,
+      o.clienteNome && `cliente ${o.clienteNome}`,
+      o.horimetroConclusao && `horímetro ${o.horimetroConclusao}`,
+    ].filter(Boolean).join('; ')
+    if (cabecalho) linhas.push(cabecalho)
+
+    if (o.descricao) linhas.push(`Abertura: ${limitar(o.descricao, 200)}`)
+    if (o.relatorioServico) linhas.push(`Serviço realizado: ${limitar(o.relatorioServico, 400)}`)
+    if (o.problemasEncontrados) linhas.push(`Problemas encontrados: ${limitar(o.problemasEncontrados, 200)}`)
+
+    const usados = (o.filtrosUsados || []).map(f => {
+      const ref = referenciaPorId.get(f.filtroId || f.id)
+      const qtd = f.quantidade ?? f.qtdUsada ?? 1
+      // Quantidade na FRENTE de proposito: varias referencias terminam com "2 pças",
+      // e com o "x2" no fim o modelo confundia a referencia com a quantidade usada.
+      return `${qtd}x ${f.filtroNome || f.nome || 'filtro'}${ref ? ` (ref ${ref})` : ''}${f.potenciaGG ? ` — ${f.potenciaGG}` : ''}`
+    })
+    if (usados.length) linhas.push(`Filtros usados: ${listaLimitada(usados)}`)
+    if (o.proximaPreventiva) linhas.push(`Próxima preventiva: ${formatarData(o.proximaPreventiva)}`)
+
+    return linhas.join('\n')
+  })
+
+  const titulo = codigos.length ? 'FICHA DAS OS CITADAS NA PERGUNTA' : 'FICHA DAS ÚLTIMAS OS CONCLUÍDAS'
+  return `${titulo}:\n\n${fichas.join('\n\n')}`
+}
+
 function resumoMateriais(materiais) {
   if (!materiais.length) return null
   const porStatus = {}
@@ -417,13 +483,16 @@ Base da empresa:
 - Status de gerador: Disponível, Em Evento, Em Locação, Em Manutenção, Com Defeito, Inativo
 - Veículos têm módulo próprio (aba "Veículos"), que cobre caminhões E carros, identificados por placa, com modelo e km rodado. Um veículo pode ter um gerador montado em cima; quando esse gerador vai para evento ou locação, o veículo acompanha o status dele
 - Manutenção trabalha com ordens de serviço numeradas OS-AAAA-NNN, abertas em 2 passos (equipamento e local — pátio ou locação — e depois os filtros usados, que já dão baixa no estoque). Na conclusão entram relatório do serviço, fotos e assinaturas
+- O relatório oficial da OS em PDF sai na própria tela da ordem de serviço (Manutenção, abrir a OS, botão de imprimir). Você não gera PDF: você resume e responde sobre o conteúdo, e indica essa tela quando pedirem o documento
 - Módulos do sistema: Dashboard, Saída de Material (5 passos, com evento, romaneio e assinatura), Eventos, Devolução, Transferência, Estoque, Filtros, Geradores (patrimônio), Veículos, Manutenção, Relatórios e Compras/Solicitações${resumoDados ? `
 
 DADOS REAIS DO SISTEMA AGORA (${new Date().toLocaleString('pt-BR')}):
 ${resumoDados}
 
 Use esses números ao responder — eles são a situação atual, não estimativa. Cite códigos,
-placas, números de OS/OM e quantidades quando ajudar. Os blocos de histórico (entradas e
+placas, números de OS/OM e quantidades quando ajudar. Quando a pergunta for sobre um serviço
+de manutenção, use a FICHA DAS OS: diga o que foi feito, os filtros usados com a referência,
+quem executou e a próxima preventiva — nessa ordem. Os blocos de histórico (entradas e
 baixas de filtro, saídas, devoluções) trazem os lançamentos mais recentes: o que está como
 "hoje" foi lançado hoje mesmo. Se a pergunta pedir um dado que não está aí em cima — por
 exemplo um período mais antigo do que o listado — diga que não tem essa informação e indique
@@ -690,6 +759,10 @@ export default function AgenteChat({ compact = false }) {
       return
     }
 
+    const fichaOs = permitidos.includes('os') && !carregandoOrdens && !erroOrdens
+      ? detalharOrdens(ordens, carregandoFiltros || erroFiltros ? [] : filtros, msg)
+      : null
+
     try {
       const historico = [...mensagens, nova]
         .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -707,7 +780,9 @@ export default function AgenteChat({ compact = false }) {
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 800,
-          system: systemPrompt(tipoPerfil, nome, resumoDados),
+          // A ficha da OS depende da pergunta (qual OS/equipamento foi citado), entao
+          // e montada aqui no envio, e nao no useMemo do resumo geral.
+          system: systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs].filter(Boolean).join('\n\n')),
           messages: historico,
         }),
       })
