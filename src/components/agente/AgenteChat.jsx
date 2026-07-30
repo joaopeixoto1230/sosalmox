@@ -435,10 +435,12 @@ em qual módulo do sistema ela está, em vez de inventar.` : ''}`
 // negrito e lista — e montam elementos React (nada de HTML cru, sem risco de
 // injecao). Cores vem das classes utilitarias do projeto, que o dark mode ja cobre.
 function comNegrito(texto, chave) {
-  return texto.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((parte, i) => (
+  return texto.split(/(\*\*.+?\*\*)/g).filter(Boolean).map((parte, i) => (
     parte.startsWith('**') && parte.endsWith('**')
       ? <strong key={`${chave}-${i}`} className="font-semibold">{parte.slice(2, -2)}</strong>
-      : <span key={`${chave}-${i}`}>{parte}</span>
+      // Rede de seguranca: um ** sem par (ex: "***" ou negrito aberto e nao fechado)
+      // nunca chega na tela como asterisco.
+      : <span key={`${chave}-${i}`}>{parte.replace(/\*\*/g, '')}</span>
   ))
 }
 
