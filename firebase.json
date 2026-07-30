@@ -3,6 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "sos-almox",
     "public": "dist",
     "ignore": [
       "firebase.json",
