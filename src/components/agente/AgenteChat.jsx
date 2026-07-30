@@ -397,9 +397,18 @@ ${focos[perfil] || ''}
 
 Regras:
 - Responda APENAS sobre assuntos da SOS Energia (materiais, cabos, filtros, geradores, veículos, eventos, manutenção, estoque, compras)
-- Respostas curtas: até 3 parágrafos. Quando pedirem um panorama ("o que aconteceu hoje", "como está a empresa"), pode responder em lista de no máximo 8 linhas
 - Linguagem simples, direta, sem jargão desnecessário
 - Se não souber, diga "Não tenho essa informação ainda" e explique o que precisa ser alimentado
+
+COMO ESCREVER A RESPOSTA (siga sempre):
+- Comece com UMA frase que já responde a pergunta. Nada de preâmbulo ("Claro!", "Vamos lá", "Segue o resumo")
+- Depois dessa frase, deixe uma linha em branco e detalhe. Blocos curtos, separados por linha em branco — nunca um parágrafo comprido
+- Use lista com "- " quando forem itens soltos (filtros, geradores, OS). No máximo 6 itens, um por linha, cada um curto e completo em si
+- Use título com "## " somente quando a resposta tiver 2 ou mais assuntos diferentes. Título curto, sem dois pontos no fim
+- Use **negrito** só em número, código ou nome que o leitor precisa achar de relance (ex: **GG-042**, **7 zeradas**). Nunca em frase inteira
+- Termine com a recomendação prática, em uma frase, quando houver o que fazer
+- NÃO use tabela, emoji, itálico, bloco de código, nem despedida ("qualquer dúvida", "espero ter ajudado")
+- Resposta curta: no total, no máximo 12 linhas
 
 Base da empresa:
 - Frota de ~107 geradores (GG-001 a GG-107), além de caminhões, carros e empilhadeiras
@@ -419,6 +428,58 @@ baixas de filtro, saídas, devoluções) trazem os lançamentos mais recentes: o
 "hoje" foi lançado hoje mesmo. Se a pergunta pedir um dado que não está aí em cima — por
 exemplo um período mais antigo do que o listado — diga que não tem essa informação e indique
 em qual módulo do sistema ela está, em vez de inventar.` : ''}`
+}
+
+// O balao mostrava texto puro, entao o markdown do modelo aparecia como asterisco
+// na tela. Estes dois formatadores cobrem exatamente o que o agente usa — titulo,
+// negrito e lista — e montam elementos React (nada de HTML cru, sem risco de
+// injecao). Cores vem das classes utilitarias do projeto, que o dark mode ja cobre.
+function comNegrito(texto, chave) {
+  return texto.split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((parte, i) => (
+    parte.startsWith('**') && parte.endsWith('**')
+      ? <strong key={`${chave}-${i}`} className="font-semibold">{parte.slice(2, -2)}</strong>
+      : <span key={`${chave}-${i}`}>{parte}</span>
+  ))
+}
+
+function MensagemFormatada({ texto }) {
+  const blocos = []
+  let lista = []
+
+  const fecharLista = () => {
+    if (!lista.length) return
+    blocos.push(
+      <ul key={`ul-${blocos.length}`} className="my-2 space-y-1.5">
+        {lista.map((item, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="opacity-40 select-none flex-shrink-0">{item.marca}</span>
+            <span className="flex-1 leading-relaxed">{comNegrito(item.texto, `li-${i}`)}</span>
+          </li>
+        ))}
+      </ul>
+    )
+    lista = []
+  }
+
+  ;(texto || '').split('\n').forEach((linhaCrua, i) => {
+    const linha = linhaCrua.trim()
+    const item = linha.match(/^(?:[-*•]|(\d+)[.)])\s+(.*)$/)
+    if (item) {
+      lista.push({ marca: item[1] ? `${item[1]}.` : '•', texto: item[2] })
+      return
+    }
+    fecharLista()
+    if (!linha) return
+    const titulo = linha.match(/^#{1,4}\s+(.*)$/)
+    blocos.push(
+      titulo
+        ? <p key={i} className="font-semibold mt-3 first:mt-0 mb-1">{comNegrito(titulo[1], `h-${i}`)}</p>
+        : <p key={i} className="leading-relaxed my-1.5 first:mt-0 last:mb-0">{comNegrito(linha, `p-${i}`)}</p>
+    )
+  })
+  fecharLista()
+
+  return <div>{blocos}</div>
 }
 
 function saudacao(nome) {
@@ -772,7 +833,10 @@ export default function AgenteChat({ compact = false }) {
                   )}
                 </div>
               )}
-              {m.content && <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>}
+              {m.content && (m.role === 'assistant'
+                ? <MensagemFormatada texto={m.content} />
+                : <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+              )}
               {m.role === 'assistant' && i > 0 && (
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
                   <button onClick={() => explicarMaisSimples(m.content)} className="text-xs text-gray-400 hover:text-brand-red transition-colors">
