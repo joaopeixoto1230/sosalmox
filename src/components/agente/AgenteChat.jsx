@@ -167,6 +167,67 @@ function resumoFiltros(filtros) {
   return linhas.join('\n')
 }
 
+// Catalogo de referencia dos filtros. Vai SEMPRE no prompt, e nao so quando a
+// pergunta cita um codigo, porque a referencia costuma vir de uma FOTO do filtro
+// ("esse filtro e de qual GG?") — e a deteccao por texto nao enxerga a imagem.
+// Agrupa por referencia: o mesmo filtro serve varios GG e nao pode repetir.
+const LIMITE_CATALOGO = 90
+
+function catalogoFiltros(filtros) {
+  const ativos = filtros.filter(f => f.ativo !== false)
+  if (!ativos.length) return null
+
+  const grupos = new Map()
+  ativos.forEach(f => {
+    const chave = normalizarRef(f.referencia) || `id:${f.id}`
+    const grupo = grupos.get(chave) || {
+      referencia: f.referencia || 'sem referência',
+      completa: '',
+      tipo: f.tipo || '',
+      potencias: new Set(),
+      ggs: new Set(),
+    }
+    if (f.potenciaGG) grupo.potencias.add(f.potenciaGG)
+    if (f.ggId) grupo.ggs.add(f.ggId)
+    if (!grupo.tipo && f.tipo) grupo.tipo = f.tipo
+    // referenciaCompleta traz os equivalentes de outras marcas ("ou W1170 Mann"),
+    // que e justamente o que permite reconhecer um filtro fotografado.
+    if (!grupo.completa && f.referenciaCompleta && normalizarRef(f.referenciaCompleta) !== normalizarRef(f.referencia)) {
+      grupo.completa = f.referenciaCompleta
+    }
+    grupos.set(chave, grupo)
+  })
+
+  const linhas = [...grupos.values()].slice(0, LIMITE_CATALOGO).map(g => {
+    const potencias = [...g.potencias].join('/') || 'potência não informada'
+    const ggs = g.ggs.size ? ` — usado em ${listaLimitada([...g.ggs].sort(), 10)}` : ''
+    const equivalentes = g.completa ? ` — equivale a: ${limitar(g.completa, 90)}` : ''
+    return `- ${g.referencia} — ${g.tipo || 'filtro'} — ${potencias}${ggs}${equivalentes}`
+  })
+
+  return `CATÁLOGO DE FILTROS (referência → onde é usado):\n${linhas.join('\n')}`
+}
+
+// Ponte potencia -> codigos de GG: filtros cadastrados pela tela nao gravam ggId,
+// so a potencia, entao sem isso o agente nao consegue dizer QUAIS geradores usam.
+function geradoresPorPotencia(geradores) {
+  const ativos = geradores.filter(g => g.ativo !== false && g.status !== 'inativo')
+  if (!ativos.length) return null
+
+  const porPotencia = new Map()
+  ativos.forEach(g => {
+    const chave = g.potencia || 'potência não informada'
+    if (!porPotencia.has(chave)) porPotencia.set(chave, [])
+    if (g.codigo) porPotencia.get(chave).push(g.codigo)
+  })
+
+  const linhas = [...porPotencia.entries()]
+    .sort((a, b) => (parseInt(a[0]) || 9999) - (parseInt(b[0]) || 9999))
+    .map(([potencia, codigos]) => `- ${potencia}: ${listaLimitada(codigos.sort(), 14)}`)
+
+  return `GERADORES POR POTÊNCIA:\n${linhas.join('\n')}`
+}
+
 function resumoGeradores(geradores) {
   const ativos = geradores.filter(g => g.ativo !== false && g.status !== 'inativo')
   if (!ativos.length) return null
@@ -594,7 +655,14 @@ de manutenção, use a FICHA DAS OS: diga o que foi feito, os filtros usados com
 quem executou e a próxima preventiva — nessa ordem. Quando perguntarem ONDE está um material,
 responda com o bloco MATERIAIS QUE BATEM COM A PERGUNTA: diga o local (evento e cliente/obra),
 e quem recebeu na saída quando essa informação existir. Se o item aparecer mais de uma vez no
-cadastro, liste as unidades separadamente em vez de escolher uma. Os blocos de histórico (entradas e
+cadastro, liste as unidades separadamente em vez de escolher uma.
+
+FILTRO POR FOTO OU POR CÓDIGO: leia a referência impressa na peça (ex: LF700, FF5018, AF26429)
+e procure no CATÁLOGO DE FILTROS — a referência pode aparecer com ou sem espaço ("LF700" e
+"LF 700" são a mesma), e também no campo de equivalentes de outra marca. Achando, diga o tipo
+de filtro, a potência e quais GG usam (use GERADORES POR POTÊNCIA quando o catálogo não trouxer
+o código do GG) e informe o estoque atual. Se não achar, diga que essa referência não está
+cadastrada e liste as referências parecidas do catálogo — nunca invente a aplicação. Os blocos de histórico (entradas e
 baixas de filtro, saídas, devoluções) trazem os lançamentos mais recentes: o que está como
 "hoje" foi lançado hoje mesmo. Se a pergunta pedir um dado que não está aí em cima — por
 exemplo um período mais antigo do que o listado — diga que não tem essa informação e indique
@@ -701,8 +769,14 @@ export default function AgenteChat({ compact = false }) {
   const resumoDados = useMemo(() => {
     const pronto = (bloco, carregandoCol, erroCol) => permitidos.includes(bloco) && !carregandoCol && !erroCol
     const blocos = []
-    if (pronto('filtros', carregandoFiltros, erroFiltros)) blocos.push(resumoFiltros(filtros))
-    if (pronto('geradores', carregandoGeradores, erroGeradores)) blocos.push(resumoGeradores(geradores))
+    if (pronto('filtros', carregandoFiltros, erroFiltros)) {
+      blocos.push(resumoFiltros(filtros))
+      blocos.push(catalogoFiltros(filtros))
+    }
+    if (pronto('geradores', carregandoGeradores, erroGeradores)) {
+      blocos.push(resumoGeradores(geradores))
+      blocos.push(geradoresPorPotencia(geradores))
+    }
     if (pronto('veiculos', carregandoVeiculos, erroVeiculos)) blocos.push(resumoVeiculos(veiculos, geradores))
     if (pronto('os', carregandoOrdens, erroOrdens)) blocos.push(resumoOrdens(ordens))
     if (pronto('eventos', carregandoEventos, erroEventos)) blocos.push(resumoEventos(eventos))
