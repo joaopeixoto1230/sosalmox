@@ -295,8 +295,26 @@ function detalharOrdens(ordens, filtros, pergunta) {
   return `${titulo}:\n\n${fichas.join('\n\n')}`
 }
 
-function resumoMateriais(materiais) {
+// O material que sai NAO guarda o nome do evento, so o id em eventoAtual — o nome
+// vem da colecao eventos. Por isso os resumos de material recebem os eventos junto.
+function mapaDeEventos(eventos) {
+  return new Map((eventos || []).map(e => [e.id, e]))
+}
+
+function ondeEsta(material, eventoPorId) {
+  if (material.status === 'em_evento') {
+    const evento = material.eventoAtual ? eventoPorId.get(material.eventoAtual) : null
+    if (!evento) return 'fora, em evento (evento não identificado)'
+    return `no evento ${evento.nome}${evento.local ? ` — ${evento.local}` : ''}`
+  }
+  if (material.status === 'disponivel') return 'no almoxarifado'
+  return statusMaterialLabel(material.status || 'disponivel')
+}
+
+function resumoMateriais(materiais, eventos) {
   if (!materiais.length) return null
+  const eventoPorId = mapaDeEventos(eventos)
+
   const porStatus = {}
   materiais.forEach(m => {
     const label = statusMaterialLabel(m.status || 'disponivel')
@@ -305,11 +323,81 @@ function resumoMateriais(materiais) {
   const contagem = Object.entries(porStatus).map(([label, n]) => `${label}: ${n}`).join('; ')
 
   const linhas = [`ESTOQUE (materiais e cabos): ${materiais.length} itens — ${contagem}.`]
+
+  // Quem esta fora, agrupado por evento: e a pergunta mais comum do almoxarifado
+  // ("cade o cabo tal?"). Poucos itens por evento aqui; a busca fina vem depois.
+  const fora = materiais.filter(m => m.status === 'em_evento')
+  if (fora.length) {
+    const porEvento = new Map()
+    fora.forEach(m => {
+      const evento = m.eventoAtual ? eventoPorId.get(m.eventoAtual) : null
+      const chave = evento ? `${evento.nome}${evento.local ? ` — ${evento.local}` : ''}` : 'evento não identificado'
+      if (!porEvento.has(chave)) porEvento.set(chave, [])
+      porEvento.get(chave).push(m.nome || m.codigo || 'item sem nome')
+    })
+    const grupos = [...porEvento.entries()].slice(0, 6).map(([evento, itens]) =>
+      `${evento} — ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}: ${listaLimitada(itens, 5)}`)
+    linhas.push(`FORA DO ALMOXARIFADO (${fora.length} itens):\n${grupos.map(g => `- ${g}`).join('\n')}`)
+  }
+
   const problema = materiais.filter(m => m.status === 'manutencao' || m.status === 'perdido')
   if (problema.length) {
     linhas.push(`Em manutenção ou perdidos: ${listaLimitada(problema.map(m => `${m.nome || 'sem nome'}${m.codigo ? ` (${m.codigo})` : ''} — ${statusMaterialLabel(m.status)}`))}`)
   }
   return linhas.join('\n')
+}
+
+// Palavras que aparecem na pergunta mas nao ajudam a achar o material.
+const PALAVRAS_IGNORADAS = new Set([
+  'onde', 'aonde', 'esta', 'estao', 'cade', 'qual', 'quais', 'que', 'com', 'para', 'dos', 'das',
+  'uma', 'material', 'materiais', 'fica', 'ficou', 'foi', 'tem', 'esse', 'essa', 'isso', 'sobre',
+  'fale', 'diga', 'saber', 'agora', 'hoje', 'meu', 'minha', 'nosso', 'nossa',
+])
+
+function normalizar(texto) {
+  return (texto || '').toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function termosDaBusca(texto) {
+  return [...new Set(normalizar(texto).split(' '))].filter(t => t.length >= 2 && !PALAVRAS_IGNORADAS.has(t))
+}
+
+// Busca fina de material: "aonde esta o cabo terra 95/25/28m". Compara por pedaco
+// de texto (nao por palavra exata), porque a pergunta traz "95" e o cadastro traz
+// "95mm". Exige 2 termos batendo, senao "cabo" sozinho traria o catalogo inteiro.
+const MINIMO_TERMOS = 2
+const LIMITE_MATERIAIS_ACHADOS = 10
+
+function localizarMateriais(materiais, eventos, saidas, pergunta) {
+  const termos = termosDaBusca(pergunta)
+  if (termos.length < MINIMO_TERMOS || !materiais.length) return null
+
+  const candidatos = materiais
+    .map(m => {
+      const texto = normalizar([m.nome, m.codigo, m.categoria, m.tipo].filter(Boolean).join(' '))
+      return { material: m, pontos: termos.filter(t => texto.includes(t)).length }
+    })
+    .filter(c => c.pontos >= MINIMO_TERMOS)
+  if (!candidatos.length) return null
+
+  candidatos.sort((a, b) => b.pontos - a.pontos)
+  const corte = candidatos[0].pontos
+  const melhores = candidatos.filter(c => c.pontos >= corte - 1).slice(0, LIMITE_MATERIAIS_ACHADOS)
+
+  const eventoPorId = mapaDeEventos(eventos)
+  const linhas = melhores.map(({ material: m }) => {
+    // As saidas ja vem da consulta em ordem decrescente, entao o primeiro achado
+    // e a saida mais recente que levou esse item.
+    const saida = (saidas || []).find(s => (s.itens || []).some(i => i.id === m.id))
+    const rastro = saida && m.status === 'em_evento'
+      ? ` — saiu na ${saida.numeroFormatado || 'ordem de saída'}${saida.responsavelNome ? `, recebeu ${saida.responsavelNome}` : ''}`
+      : ''
+    return `- ${m.nome || 'sem nome'}${m.codigo ? ` (${m.codigo})` : ''}: ${ondeEsta(m, eventoPorId)}${rastro}`
+  })
+
+  return `MATERIAIS QUE BATEM COM A PERGUNTA:\n${linhas.join('\n')}`
 }
 
 function resumoEventos(eventos) {
@@ -503,7 +591,10 @@ ${resumoDados}
 Use esses números ao responder — eles são a situação atual, não estimativa. Cite códigos,
 placas, números de OS/OM e quantidades quando ajudar. Quando a pergunta for sobre um serviço
 de manutenção, use a FICHA DAS OS: diga o que foi feito, os filtros usados com a referência,
-quem executou e a próxima preventiva — nessa ordem. Os blocos de histórico (entradas e
+quem executou e a próxima preventiva — nessa ordem. Quando perguntarem ONDE está um material,
+responda com o bloco MATERIAIS QUE BATEM COM A PERGUNTA: diga o local (evento e cliente/obra),
+e quem recebeu na saída quando essa informação existir. Se o item aparecer mais de uma vez no
+cadastro, liste as unidades separadamente em vez de escolher uma. Os blocos de histórico (entradas e
 baixas de filtro, saídas, devoluções) trazem os lançamentos mais recentes: o que está como
 "hoje" foi lançado hoje mesmo. Se a pergunta pedir um dado que não está aí em cima — por
 exemplo um período mais antigo do que o listado — diga que não tem essa informação e indique
@@ -615,7 +706,9 @@ export default function AgenteChat({ compact = false }) {
     if (pronto('veiculos', carregandoVeiculos, erroVeiculos)) blocos.push(resumoVeiculos(veiculos, geradores))
     if (pronto('os', carregandoOrdens, erroOrdens)) blocos.push(resumoOrdens(ordens))
     if (pronto('eventos', carregandoEventos, erroEventos)) blocos.push(resumoEventos(eventos))
-    if (pronto('materiais', carregandoMateriais, erroMateriais)) blocos.push(resumoMateriais(materiais))
+    if (pronto('materiais', carregandoMateriais, erroMateriais)) {
+      blocos.push(resumoMateriais(materiais, carregandoEventos || erroEventos ? [] : eventos))
+    }
     if (pronto('compras', carregandoCompras, erroCompras)) blocos.push(resumoCompras(solicitacoes))
     if (permitidos.includes('movimentacoes')) {
       blocos.push(resumoMovimentacoes({
@@ -774,6 +867,17 @@ export default function AgenteChat({ compact = false }) {
       ? detalharOrdens(ordens, carregandoFiltros || erroFiltros ? [] : filtros, msg)
       : null
 
+    // "Aonde esta o cabo X" depende do que foi perguntado, entao a busca fina de
+    // material tambem e montada aqui, junto com a ficha da OS.
+    const achadosMaterial = permitidos.includes('materiais') && !carregandoMateriais && !erroMateriais
+      ? localizarMateriais(
+          materiais,
+          carregandoEventos || erroEventos ? [] : eventos,
+          carregandoSaidas || erroSaidas ? [] : saidas,
+          msg,
+        )
+      : null
+
     try {
       const historico = [...mensagens, nova]
         .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -793,7 +897,7 @@ export default function AgenteChat({ compact = false }) {
           max_tokens: 800,
           // A ficha da OS depende da pergunta (qual OS/equipamento foi citado), entao
           // e montada aqui no envio, e nao no useMemo do resumo geral.
-          system: systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs].filter(Boolean).join('\n\n')),
+          system: systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs, achadosMaterial].filter(Boolean).join('\n\n')),
           messages: historico,
         }),
       })
