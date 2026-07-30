@@ -1,32 +1,55 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { orderBy, limit } from 'firebase/firestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { normalizarRef } from '../filtros/filtrosUtils'
-import { statusGeradorLabel, statusMaterialLabel, statusOsLabel } from '../../utils/formatters'
+import {
+  statusGeradorLabel,
+  statusMaterialLabel,
+  statusOsLabel,
+  statusEventoLabel,
+  statusEfetivoCaminhao,
+  tipoVeiculo,
+  tipoVeiculoLabel,
+  caminhaoKm,
+  caminhaoSemKm,
+  formatarData,
+} from '../../utils/formatters'
 
 const ATALHOS = [
+  { label: 'Hoje', prompt: 'O que aconteceu na empresa hoje?' },
   { label: 'Filtros', prompt: 'Quais filtros estão com estoque baixo?' },
   { label: 'Geradores', prompt: 'Me dê um resumo do status dos geradores.' },
   { label: 'Manutenção', prompt: 'Quais manutenções estão em aberto?' },
-  { label: 'Cabos', prompt: 'Como identifico um jogo de cabo?' },
+  { label: 'Eventos', prompt: 'Quais eventos estão ativos e o que saiu para eles?' },
+  { label: 'Veículos', prompt: 'Qual a situação da frota de veículos?' },
   { label: 'Estoque', prompt: 'O que preciso verificar no estoque hoje?' },
 ]
 
 // Quais blocos de dados reais entram no prompt de cada perfil. Injetar dado que o
-// perfil nem enxerga no sistema so gasta token e polui a resposta: o mecanico nao
-// precisa da contagem de cabos, o comprador nao precisa do status da frota.
+// perfil nem enxerga no sistema so gasta token e polui a resposta: o comprador nao
+// precisa do status da frota nem dos eventos.
+const TUDO = ['filtros', 'geradores', 'os', 'materiais', 'eventos', 'veiculos', 'movimentacoes']
 const DADOS_POR_PERFIL = {
-  admin: ['filtros', 'geradores', 'os', 'materiais'],
-  gerente: ['filtros', 'geradores', 'os', 'materiais'],
-  almoxarife: ['filtros', 'geradores', 'os', 'materiais'],
-  franca: ['filtros', 'geradores', 'os'],
-  compras: ['filtros', 'materiais'],
+  admin: TUDO,
+  gerente: TUDO,
+  almoxarife: TUDO,
+  franca: ['filtros', 'geradores', 'os', 'veiculos', 'eventos', 'movimentacoes'],
+  compras: ['filtros', 'materiais', 'movimentacoes'],
 }
 const DADOS_PADRAO = ['filtros', 'geradores']
 
 // Teto de itens listados por bloco. O resumo vai em TODA requisicao, entao ele
 // precisa ser curto: contagens sempre, e so os criticos nomeados um a um.
 const LIMITE_LISTA = 12
+
+// Quantos registros de movimentacao trazer de cada colecao de historico. E um
+// orderBy(criadoEm desc) + limit no proprio Firestore: sem isso, colecoes que so
+// crescem (saidas, entradas, baixas) seriam lidas inteiras a cada abertura do chat.
+const LIMITE_MOVIMENTO = 60
+const RESTRICOES_MOVIMENTO = [orderBy('criadoEm', 'desc'), limit(LIMITE_MOVIMENTO)]
+
+const UM_DIA = 24 * 60 * 60 * 1000
 
 function listaLimitada(itens, limite = LIMITE_LISTA) {
   if (itens.length <= limite) return itens.join('; ')
@@ -106,6 +129,16 @@ function resumoOrdens(ordens) {
     }
     linhas.push(`Em aberto: ${listaLimitada(abertas.map(descrever))}`)
   }
+
+  const seteDias = agora - 7 * UM_DIA
+  const concluidasSemana = ordens.filter(o => {
+    if (o.status !== 'concluida') return false
+    const d = paraData(o.dataConclusao)
+    return d && d.getTime() >= seteDias
+  })
+  if (concluidasSemana.length) {
+    linhas.push(`Concluídas nos últimos 7 dias: ${listaLimitada(concluidasSemana.map(o => `${o.numero || 'sem número'} ${o.equipamentoLabel || ''}`.trim()))}`)
+  }
   return linhas.join('\n')
 }
 
@@ -117,7 +150,102 @@ function resumoMateriais(materiais) {
     porStatus[label] = (porStatus[label] || 0) + 1
   })
   const contagem = Object.entries(porStatus).map(([label, n]) => `${label}: ${n}`).join('; ')
-  return `ESTOQUE (materiais e cabos): ${materiais.length} itens — ${contagem}.`
+
+  const linhas = [`ESTOQUE (materiais e cabos): ${materiais.length} itens — ${contagem}.`]
+  const problema = materiais.filter(m => m.status === 'manutencao' || m.status === 'perdido')
+  if (problema.length) {
+    linhas.push(`Em manutenção ou perdidos: ${listaLimitada(problema.map(m => `${m.nome || 'sem nome'}${m.codigo ? ` (${m.codigo})` : ''} — ${statusMaterialLabel(m.status)}`))}`)
+  }
+  return linhas.join('\n')
+}
+
+function resumoEventos(eventos) {
+  if (!eventos.length) return null
+  const porStatus = {}
+  eventos.forEach(e => {
+    const label = statusEventoLabel(e.status || 'ativo')
+    porStatus[label] = (porStatus[label] || 0) + 1
+  })
+  const contagem = Object.entries(porStatus).map(([label, n]) => `${label}: ${n}`).join('; ')
+
+  const emAndamento = eventos.filter(e => e.status === 'ativo' || e.status === 'agendado')
+  const linhas = [`EVENTOS: ${eventos.length} no total — ${contagem}.`]
+  if (emAndamento.length) {
+    const descrever = e => `${e.nome || 'sem nome'}${e.local ? ` em ${e.local}` : ''}${e.data ? ` (${formatarData(e.data)})` : ''} — ${statusEventoLabel(e.status)}`
+    linhas.push(`Ativos/agendados: ${listaLimitada(emAndamento.map(descrever))}`)
+  }
+  return linhas.join('\n')
+}
+
+// Veiculo com gerador montado acompanha o status do gerador quando ele vai a evento
+// ou locacao — por isso o status vem de statusEfetivoCaminhao, e nao do campo cru.
+function resumoVeiculos(caminhoes, geradores) {
+  const ativos = caminhoes.filter(c => c.ativo !== false && c.status !== 'inativo')
+  if (!ativos.length) return null
+
+  const porId = new Map((geradores || []).map(g => [g.id, g]))
+  const porStatus = {}
+  const descricoes = []
+  ativos.forEach(c => {
+    const montado = c.geradorMontadoId ? porId.get(c.geradorMontadoId) : null
+    const label = statusGeradorLabel(statusEfetivoCaminhao(c, montado))
+    porStatus[label] = (porStatus[label] || 0) + 1
+
+    const km = caminhaoSemKm(c) ? 'sem hodômetro' : (caminhaoKm(c) != null ? `${caminhaoKm(c)} km` : 'km não informado')
+    const comGG = c.geradorMontadoCodigo ? `, com ${c.geradorMontadoCodigo} montado` : ''
+    const modelo = [c.marca, c.modelo].filter(Boolean).join(' ')
+    descricoes.push(`${c.placa || 'sem placa'}${modelo ? ` ${modelo}` : ''} (${tipoVeiculoLabel(tipoVeiculo(c))}, ${label}, ${km}${comGG})`)
+  })
+  const contagem = Object.entries(porStatus).map(([label, n]) => `${label}: ${n}`).join('; ')
+
+  return [
+    `VEÍCULOS: ${ativos.length} ativos — ${contagem}.`,
+    `Frota: ${listaLimitada(descricoes)}`,
+  ].join('\n')
+}
+
+function inicioDoDia() {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+// Bloco padrao de historico: conta o que foi lancado hoje e nos ultimos 7 dias, e
+// lista item a item o de hoje — que e o que costumam perguntar ("o que entrou hoje?").
+// Sem lancamento hoje, lista o da semana para a resposta nao ficar vazia.
+function resumoMovimento(titulo, registros, descrever) {
+  if (!registros.length) return null
+  const hoje0 = inicioDoDia()
+  const seteDias = Date.now() - 7 * UM_DIA
+
+  const comData = registros
+    .map(r => ({ registro: r, quando: paraData(r.criadoEm)?.getTime() ?? null }))
+    .filter(x => x.quando !== null)
+  const hoje = comData.filter(x => x.quando >= hoje0)
+  const semana = comData.filter(x => x.quando >= seteDias)
+
+  // O "+" avisa que a contagem bateu no teto da consulta e pode haver mais.
+  const totalSemana = `${semana.length}${registros.length >= LIMITE_MOVIMENTO && semana.length === registros.length ? '+' : ''}`
+  const linhas = [`${titulo}: ${hoje.length} hoje, ${totalSemana} nos últimos 7 dias.`]
+  if (hoje.length) linhas.push(`Hoje: ${listaLimitada(hoje.map(x => descrever(x.registro)))}`)
+  else if (semana.length) linhas.push(`Últimos 7 dias: ${listaLimitada(semana.map(x => descrever(x.registro)))}`)
+  return linhas.join('\n')
+}
+
+function resumoMovimentacoes({ entradas, baixas, saidas, devolucoes, transferencias }) {
+  const blocos = [
+    resumoMovimento('ENTRADAS DE FILTRO', entradas, e =>
+      `${e.filtroNome || 'filtro'} +${e.quantidade || 0}${e.fornecedor ? ` (${e.fornecedor})` : ''}${e.nf ? ` NF ${e.nf}` : ''}${e.operadorNome ? ` por ${e.operadorNome}` : ''}`),
+    resumoMovimento('BAIXAS DE FILTRO', baixas, b =>
+      `${b.filtroNome || 'filtro'} -${b.quantidade || 0}${b.motivo ? ` (${b.motivo})` : ''}${b.retiradoPor ? ` para ${b.retiradoPor}` : ''}`),
+    resumoMovimento('SAÍDAS DE MATERIAL', saidas, s =>
+      `${s.numeroFormatado || 'sem número'} — ${s.eventoNome || 'sem evento'} — ${s.itens?.length || 0} itens${s.geradorCodigo ? `, ${s.geradorCodigo}` : ''}${s.responsavelNome ? `, recebeu ${s.responsavelNome}` : ''} (${s.status || 'ativo'})`),
+    resumoMovimento('DEVOLUÇÕES', devolucoes, d =>
+      `${d.eventoNome || 'sem evento'} — ${d.itens?.length || 0} itens${d.operadorNome ? ` por ${d.operadorNome}` : ''}`),
+    resumoMovimento('TRANSFERÊNCIAS ENTRE EVENTOS', transferencias, t =>
+      `${t.eventoOrigemNome || 'origem?'} → ${t.eventoDestinoNome || 'destino?'} — ${t.itens?.length || 0} itens${t.motivo ? ` (${t.motivo})` : ''}`),
+  ]
+  return blocos.filter(Boolean).join('\n\n') || null
 }
 
 function systemPrompt(perfil, nomeUsuario, resumoDados) {
@@ -134,8 +262,8 @@ Usuário: ${nomeUsuario} — Perfil: ${perfil}
 ${focos[perfil] || ''}
 
 Regras:
-- Responda APENAS sobre assuntos da SOS Energia (materiais, cabos, filtros, geradores, veículos, manutenção, estoque, compras)
-- Respostas curtas: máximo 3 parágrafos
+- Responda APENAS sobre assuntos da SOS Energia (materiais, cabos, filtros, geradores, veículos, eventos, manutenção, estoque, compras)
+- Respostas curtas: até 3 parágrafos. Quando pedirem um panorama ("o que aconteceu hoje", "como está a empresa"), pode responder em lista de no máximo 8 linhas
 - Linguagem simples, direta, sem jargão desnecessário
 - Se não souber, diga "Não tenho essa informação ainda" e explique o que precisa ser alimentado
 
@@ -151,9 +279,12 @@ Base da empresa:
 DADOS REAIS DO SISTEMA AGORA (${new Date().toLocaleString('pt-BR')}):
 ${resumoDados}
 
-Use esses números ao responder — eles são a situação atual, não estimativa. Cite códigos e
-quantidades quando ajudar. Se a pergunta pedir um dado que não está aí em cima, diga que não
-tem essa informação em vez de inventar.` : ''}`
+Use esses números ao responder — eles são a situação atual, não estimativa. Cite códigos,
+placas, números de OS/OM e quantidades quando ajudar. Os blocos de histórico (entradas e
+baixas de filtro, saídas, devoluções) trazem os lançamentos mais recentes: o que está como
+"hoje" foi lançado hoje mesmo. Se a pergunta pedir um dado que não está aí em cima — por
+exemplo um período mais antigo do que o listado — diga que não tem essa informação e indique
+em qual módulo do sistema ela está, em vez de inventar.` : ''}`
 }
 
 export default function AgenteChat({ compact = false }) {
@@ -174,6 +305,15 @@ export default function AgenteChat({ compact = false }) {
   const { dados: geradores, carregando: carregandoGeradores, erro: erroGeradores } = useCollection('geradores')
   const { dados: ordens, carregando: carregandoOrdens, erro: erroOrdens } = useCollection('ordens_servico')
   const { dados: materiais, carregando: carregandoMateriais, erro: erroMateriais } = useCollection('materiais')
+  const { dados: eventos, carregando: carregandoEventos, erro: erroEventos } = useCollection('eventos')
+  const { dados: veiculos, carregando: carregandoVeiculos, erro: erroVeiculos } = useCollection('caminhoes')
+
+  // Historico: so os ultimos registros de cada coleção, ja limitado na consulta.
+  const { dados: entradas, carregando: carregandoEntradas, erro: erroEntradas } = useCollection('entradas_filtro', RESTRICOES_MOVIMENTO, 'agente-recentes')
+  const { dados: baixas, carregando: carregandoBaixas, erro: erroBaixas } = useCollection('baixas_filtro', RESTRICOES_MOVIMENTO, 'agente-recentes')
+  const { dados: saidas, carregando: carregandoSaidas, erro: erroSaidas } = useCollection('ordens_saida', RESTRICOES_MOVIMENTO, 'agente-recentes')
+  const { dados: devolucoes, carregando: carregandoDevolucoes, erro: erroDevolucoes } = useCollection('devolucoes', RESTRICOES_MOVIMENTO, 'agente-recentes')
+  const { dados: transferencias, carregando: carregandoTransf, erro: erroTransf } = useCollection('transferencias', RESTRICOES_MOVIMENTO, 'agente-recentes')
 
   // Resumo compacto injetado no system prompt. Colecao ainda carregando (ou que falhou
   // ao ler) fica de fora — o agente continua respondendo, so sem aquele bloco de dados.
@@ -184,8 +324,19 @@ export default function AgenteChat({ compact = false }) {
     const blocos = []
     if (pronto('filtros', carregandoFiltros, erroFiltros)) blocos.push(resumoFiltros(filtros))
     if (pronto('geradores', carregandoGeradores, erroGeradores)) blocos.push(resumoGeradores(geradores))
+    if (pronto('veiculos', carregandoVeiculos, erroVeiculos)) blocos.push(resumoVeiculos(veiculos, geradores))
     if (pronto('os', carregandoOrdens, erroOrdens)) blocos.push(resumoOrdens(ordens))
+    if (pronto('eventos', carregandoEventos, erroEventos)) blocos.push(resumoEventos(eventos))
     if (pronto('materiais', carregandoMateriais, erroMateriais)) blocos.push(resumoMateriais(materiais))
+    if (permitidos.includes('movimentacoes')) {
+      blocos.push(resumoMovimentacoes({
+        entradas: carregandoEntradas || erroEntradas ? [] : entradas,
+        baixas: carregandoBaixas || erroBaixas ? [] : baixas,
+        saidas: carregandoSaidas || erroSaidas ? [] : saidas,
+        devolucoes: carregandoDevolucoes || erroDevolucoes ? [] : devolucoes,
+        transferencias: carregandoTransf || erroTransf ? [] : transferencias,
+      }))
+    }
     return blocos.filter(Boolean).join('\n\n') || null
   }, [
     tipoPerfil,
@@ -193,6 +344,13 @@ export default function AgenteChat({ compact = false }) {
     geradores, carregandoGeradores, erroGeradores,
     ordens, carregandoOrdens, erroOrdens,
     materiais, carregandoMateriais, erroMateriais,
+    eventos, carregandoEventos, erroEventos,
+    veiculos, carregandoVeiculos, erroVeiculos,
+    entradas, carregandoEntradas, erroEntradas,
+    baixas, carregandoBaixas, erroBaixas,
+    saidas, carregandoSaidas, erroSaidas,
+    devolucoes, carregandoDevolucoes, erroDevolucoes,
+    transferencias, carregandoTransf, erroTransf,
   ])
 
   useEffect(() => {
@@ -229,7 +387,7 @@ export default function AgenteChat({ compact = false }) {
         },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 400,
+          max_tokens: 800,
           system: systemPrompt(tipoPerfil, nome, resumoDados),
           messages: historico,
         }),
@@ -328,10 +486,10 @@ export default function AgenteChat({ compact = false }) {
       </div>
 
       {compact && (
-        <div className="flex-shrink-0 flex gap-1.5 mt-2 flex-wrap">
+        <div className="flex-shrink-0 flex gap-1.5 mt-2 overflow-x-auto pb-0.5">
           {ATALHOS.map(a => (
             <button key={a.label} onClick={() => enviar(a.prompt)}
-              className="px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-medium rounded-full hover:bg-brand-red hover:text-white transition-colors">
+              className="flex-shrink-0 px-2.5 py-1 bg-brand-red/10 text-brand-red text-xs font-medium rounded-full hover:bg-brand-red hover:text-white transition-colors">
               {a.label}
             </button>
           ))}
