@@ -1,11 +1,27 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCollection } from '../../hooks/useFirestore'
-import { statusOsLabel, statusOsCor } from '../../utils/formatters'
+import { statusOsLabel, statusOsCor, formatarData } from '../../utils/formatters'
 import OSCard from './OSCard'
 
 const STATUS_OPCOES = ['Todos', 'Pendente', 'Em Andamento', 'Concluída']
 const STATUS_MAP = { 'Pendente': 'pendente', 'Em Andamento': 'em_andamento', 'Concluída': 'concluida' }
+const TIPO_EQUIP = { gerador: 'Gerador', caminhao: 'Veículo', empilhadeira: 'Empilhadeira' }
+
+const toDate = v => (v?.toDate ? v.toDate() : (v ? new Date(v) : null))
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const inicioDia = str => { const [y, m, d] = str.split('-').map(Number); return new Date(y, m - 1, d, 0, 0, 0, 0) }
+const fimDia = str => { const [y, m, d] = str.split('-').map(Number); return new Date(y, m - 1, d, 23, 59, 59, 999) }
+
+// presets relativos a hoje — preenchem os campos De/Até (sempre editáveis depois)
+function periodoPreset(chave) {
+  const h = new Date(), y = h.getFullYear(), m = h.getMonth()
+  if (chave === 'mes') return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))]
+  if (chave === 'trimestre') { const q = Math.floor(m / 3) * 3; return [iso(new Date(y, q, 1)), iso(new Date(y, q + 3, 0))] }
+  if (chave === 'semestre') { const s = m < 6 ? 0 : 6; return [iso(new Date(y, s, 1)), iso(new Date(y, s + 6, 0))] }
+  if (chave === 'ano') return [iso(new Date(y, 0, 1)), iso(new Date(y, 11, 31))]
+  return ['', '']
+}
 
 export default function Manutencao() {
   const navigate = useNavigate()
@@ -13,10 +29,20 @@ export default function Manutencao() {
   const [statusFiltro, setStatusFiltro] = useState('Todos')
   const [tipoFiltro, setTipoFiltro] = useState('Todos')
   const [busca, setBusca] = useState('')
+  const [de, setDe] = useState('')
+  const [ate, setAte] = useState('')
 
   const filtradas = useMemo(() => {
     return ordens
       .filter(o => {
+        // período = data de conclusão (só OS concluídas entram quando há período)
+        if (de || ate) {
+          if (o.status !== 'concluida') return false
+          const dc = toDate(o.dataConclusao)
+          if (!dc) return false
+          if (de && dc < inicioDia(de)) return false
+          if (ate && dc > fimDia(ate)) return false
+        }
         if (statusFiltro !== 'Todos' && o.status !== STATUS_MAP[statusFiltro]) return false
         if (tipoFiltro !== 'Todos' && o.tipo !== tipoFiltro.toLowerCase()) return false
         if (busca) {
@@ -32,7 +58,54 @@ export default function Manutencao() {
         const tb = b.dataAbertura?.toDate ? b.dataAbertura.toDate() : new Date(b.dataAbertura || 0)
         return tb - ta
       })
-  }, [ordens, statusFiltro, tipoFiltro, busca])
+  }, [ordens, statusFiltro, tipoFiltro, busca, de, ate])
+
+  function aplicarPreset(chave) {
+    const [d, a] = periodoPreset(chave)
+    setDe(d); setAte(a)
+  }
+
+  const periodoAtivo = !!(de || ate)
+
+  function baixarPlanilha() {
+    if (!filtradas.length) return
+    const cabecalho = ['Nº OS', 'Equipamento', 'Tipo equip.', 'Tipo manut.', 'Status', 'Prioridade', 'Abertura', 'Conclusão', 'Mecânico', 'Cliente/Oficina', 'Local', 'Peças (filtros)', 'Descrição']
+    const localTexto = o => o.localTipo === 'locacao'
+      ? (o.equipamentoTipo === 'caminhao' ? 'Oficina externa' : 'Locação')
+      : 'Pátio SOS'
+    const pecasTexto = o => (o.filtrosUsados || [])
+      .map(f => `${f.filtroNome || f.nome || '—'} x${f.quantidade || f.qtdUsada || 1}`)
+      .join(' | ')
+    const linhas = filtradas.map(o => [
+      o.numero || '',
+      o.equipamentoLabel || '',
+      TIPO_EQUIP[o.equipamentoTipo] || o.equipamentoTipo || '',
+      o.tipo ? o.tipo.charAt(0).toUpperCase() + o.tipo.slice(1) : '',
+      statusOsLabel(o.status),
+      o.prioridade === 'maxima' ? 'Urgente' : 'Normal',
+      o.dataAbertura ? formatarData(o.dataAbertura) : '',
+      o.dataConclusao ? formatarData(o.dataConclusao) : '',
+      o.mecanicoNome || '',
+      o.clienteNome || '',
+      localTexto(o),
+      pecasTexto(o),
+      o.descricao || '',
+    ])
+    const esc = v => {
+      const s = String(v ?? '')
+      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const conteudo = '﻿' + [cabecalho, ...linhas].map(l => l.map(esc).join(';')).join('\r\n')
+    const blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `manutencoes${de ? '_' + de : ''}${ate ? '_a_' + ate : ''}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   const stats = useMemo(() => {
     const agora = new Date()
@@ -107,6 +180,41 @@ export default function Manutencao() {
               {t}
             </button>
           ))}
+        </div>
+
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-xs font-semibold text-gray-500">Período (por data de conclusão)</p>
+            <button onClick={baixarPlanilha} disabled={!filtradas.length}
+              className="btn-secondary text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+              ↓ Baixar planilha ({filtradas.length})
+            </button>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            {[['mes', 'Este mês'], ['trimestre', 'Trimestre'], ['semestre', 'Semestre'], ['ano', 'Ano']].map(([chave, label]) => (
+              <button key={chave} onClick={() => aplicarPreset(chave)}
+                className="px-3 py-1.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red transition-colors">
+                {label}
+              </button>
+            ))}
+            {periodoAtivo && (
+              <button onClick={() => { setDe(''); setAte('') }}
+                className="px-3 py-1.5 rounded-xl text-sm font-medium border border-gray-200 text-gray-400 hover:text-brand-red hover:border-brand-red transition-colors">
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 items-center flex-wrap">
+            <label className="text-xs text-gray-500">De</label>
+            <input type="date" value={de} onChange={e => setDe(e.target.value)} className="input py-1.5 w-auto" />
+            <label className="text-xs text-gray-500">Até</label>
+            <input type="date" value={ate} onChange={e => setAte(e.target.value)} className="input py-1.5 w-auto" />
+          </div>
+          {periodoAtivo && (
+            <p className="text-xs text-gray-400">
+              Mostrando apenas OS <span className="font-medium">concluídas</span> no período — {filtradas.length} {filtradas.length === 1 ? 'OS' : 'OS'}.
+            </p>
+          )}
         </div>
       </div>
 
