@@ -21,6 +21,12 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
   const pct = estoqueMin > 0 ? Math.min(100, (quantidadeAtual / estoqueMin) * 100) : 100
   const critico = quantidadeAtual <= 0
   const baixo = !critico && quantidadeAtual <= estoqueMin
+  const tileTint = critico ? 'bg-red-500/10 text-red-600' : baixo ? 'bg-yellow-500/10 text-yellow-600' : 'bg-green-500/10 text-green-600'
+
+  // separa "Filtro de Ar — GG-013" em descrição + selo do gerador (o GG fica no nome)
+  const partesNome = (filtro.nome || '').split(/\s[—–-]\s/)
+  const descricaoFiltro = partesNome[0] || ''
+  const geradorRef = partesNome.length > 1 ? partesNome.slice(1).join(' — ') : ''
 
   const hoje = new Date()
   const dataVal = validade?.toDate ? validade.toDate() : validade ? new Date(validade) : null
@@ -91,18 +97,20 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
 
   return (
     <div className={`card border-l-4 ${critico ? 'border-red-500' : baixo ? 'border-yellow-500' : 'border-green-500'} relative`}>
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-start gap-2.5 mb-2">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${tileTint}`}>
+          <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L14 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 018 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+        </div>
         <div className="flex-1 min-w-0">
           {filtro.referencia ? (
             <>
-              <p className="font-bold text-brand-black text-sm leading-tight font-mono">{filtro.referencia}</p>
-              {filtro.nome && <p className="text-xs text-gray-500 mt-0.5">{filtro.nome}</p>}
+              <p className="font-bold text-brand-black text-sm leading-tight font-mono truncate">{filtro.referencia}</p>
+              {descricaoFiltro && <p className="text-xs text-gray-500 mt-0.5 truncate">{descricaoFiltro}</p>}
             </>
           ) : (
-            <p className="font-semibold text-brand-black text-sm leading-tight">{filtro.nome}</p>
-          )}
-          {filtro.fornecedor && (
-            <p className="text-xs text-gray-400">{filtro.fornecedor}</p>
+            <p className="font-semibold text-brand-black text-sm leading-tight">{descricaoFiltro || filtro.nome}</p>
           )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -162,17 +170,26 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
         </div>
       </div>
 
+      {geradorRef && (
+        <div className="inline-flex items-center mb-2 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600">
+          {geradorRef}
+        </div>
+      )}
+
       {estoqueMin > 0 && (
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+        <div className="mb-2">
+          <div className="flex items-baseline justify-between mb-1">
+            <span className="text-xs text-gray-400">Estoque</span>
+            <span className={`text-xs font-medium ${critico ? 'text-red-600' : baixo ? 'text-yellow-600' : 'text-brand-black'}`}>
+              {quantidadeAtual}/{estoqueMin} {filtro.unidade || 'un'}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
             <div
-              className={`h-1.5 rounded-full transition-all ${critico ? 'bg-red-500' : baixo ? 'bg-yellow-500' : 'bg-green-500'}`}
+              className={`h-full rounded-full transition-all ${critico ? 'bg-red-500' : baixo ? 'bg-yellow-500' : 'bg-green-500'}`}
               style={{ width: `${pct}%` }}
             />
           </div>
-          <span className={`text-xs font-medium flex-shrink-0 ${critico ? 'text-red-600' : baixo ? 'text-yellow-600' : 'text-gray-500'}`}>
-            {quantidadeAtual}/{estoqueMin} {filtro.unidade || 'un'}
-          </span>
         </div>
       )}
 
@@ -261,6 +278,10 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
             Baixa
           </button>
         </div>
+      )}
+
+      {!editando && !ajustando && filtro.fornecedor && (
+        <p className="text-xs text-gray-400 mt-2">{filtro.fornecedor}</p>
       )}
 
       {excluindo && (
