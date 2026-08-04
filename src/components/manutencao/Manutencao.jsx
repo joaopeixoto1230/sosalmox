@@ -107,6 +107,101 @@ export default function Manutencao() {
     URL.revokeObjectURL(url)
   }
 
+  function gerarRelatorio() {
+    if (!filtradas.length) return
+    const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+    const fmtDia = str => { const [y, m, d] = str.split('-'); return `${d}/${m}/${y}` }
+    const periodoLabel = (de || ate)
+      ? `${de ? fmtDia(de) : 'início'} a ${ate ? fmtDia(ate) : 'hoje'}`
+      : 'Todos os registros'
+
+    const blocos = filtradas.map(o => {
+      const localTxt = o.localTipo === 'locacao'
+        ? (o.equipamentoTipo === 'caminhao' ? `Oficina externa${o.clienteNome ? ' — ' + esc(o.clienteNome) : ''}` : `Locação${o.clienteNome ? ' — ' + esc(o.clienteNome) : ''}`)
+        : 'Pátio SOS'
+      const pecas = (o.filtrosUsados || []).length
+        ? `<table><thead><tr><th>Peça / filtro</th><th style="text-align:center">Qtd</th></tr></thead><tbody>${o.filtrosUsados.map(f => `<tr><td>${esc(f.filtroNome || f.nome || '—')}</td><td style="text-align:center">${f.quantidade || f.qtdUsada || 1}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="vazio">Nenhuma peça registrada.</p>'
+      return `
+      <div class="os">
+        <div class="os-head">
+          <span class="num">${esc(o.numero || '—')}</span>
+          <span class="equip">${esc(o.equipamentoLabel || '')} <em>(${TIPO_EQUIP[o.equipamentoTipo] || o.equipamentoTipo || '—'})</em></span>
+          <span class="badge">${statusOsLabel(o.status)}</span>
+        </div>
+        <div class="meta">
+          <span><b>Tipo:</b> ${o.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'}</span>
+          <span><b>Mecânico:</b> ${esc(o.mecanicoNome || '—')}</span>
+          <span><b>Local:</b> ${localTxt}</span>
+          <span><b>Abertura:</b> ${formatarData(o.dataAbertura)}</span>
+          <span><b>Conclusão:</b> ${o.dataConclusao ? formatarData(o.dataConclusao) : '—'}</span>
+        </div>
+        ${o.descricao ? `<p class="sec">Descrição</p><p class="txt">${esc(o.descricao)}</p>` : ''}
+        ${o.relatorioServico ? `<p class="sec">Relatório do serviço executado</p><p class="txt">${esc(o.relatorioServico)}</p>` : ''}
+        ${o.problemasEncontrados ? `<p class="sec prob">Problemas encontrados</p><p class="txt prob-box">${esc(o.problemasEncontrados)}</p>` : ''}
+        ${o.proximaPreventiva ? `<p class="sec">Próxima preventiva</p><p class="txt prev">${esc(o.proximaPreventiva)}</p>` : ''}
+        <p class="sec">Peças utilizadas</p>${pecas}
+      </div>`
+    }).join('')
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Relatório de Manutenções</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    body { font-family: Arial, sans-serif; color: #111; max-width: 720px; margin: 0 auto; font-size: 13px; }
+    .cab { border-bottom: 2px solid #CC0000; padding-bottom: 12px; margin: 18px 0 4px; }
+    .cab h1 { color: #CC0000; margin: 0; font-size: 20px; }
+    .cab p { margin: 4px 0 0; color: #555; font-size: 12px; }
+    .os { border: 1px solid #e2e2e2; border-radius: 8px; padding: 12px 14px; margin-top: 14px; page-break-inside: avoid; break-inside: avoid; }
+    .os-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
+    .os-head .num { font-weight: bold; color: #CC0000; font-family: monospace; font-size: 13px; }
+    .os-head .equip { flex: 1; font-weight: 600; }
+    .os-head .equip em { color: #888; font-weight: 400; font-style: normal; font-size: 11px; }
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: bold; background: #e5f5e5; color: #2a7a2a; }
+    .meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 11px; color: #444; margin-bottom: 6px; }
+    .meta b { color: #888; font-weight: 600; }
+    .sec { font-size: 10px; font-weight: bold; color: #666; margin: 10px 0 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .sec.prob { color: #c05000; }
+    .txt { font-size: 12.5px; margin: 0; white-space: pre-wrap; }
+    .txt.prob-box { color: #c05000; background: #fff7ed; padding: 6px 10px; border-radius: 6px; }
+    .txt.prev { font-weight: bold; color: #1d4ed8; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12px; }
+    th { background: #f0f0f0; text-align: left; padding: 5px 9px; border-bottom: 2px solid #ccc; }
+    td { padding: 4px 9px; border-bottom: 1px solid #eee; }
+    .vazio { font-size: 12px; color: #999; margin: 2px 0; }
+    .footer { margin-top: 18px; font-size: 10px; color: #aaa; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="cab">
+    <h1>SOS Energia — Relatório de Manutenções</h1>
+    <p>Período (conclusão): <b>${periodoLabel}</b> &nbsp;•&nbsp; ${filtradas.length} ${filtradas.length === 1 ? 'serviço' : 'serviços'}</p>
+  </div>
+  ${blocos}
+  <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+</body>
+</html>`
+
+    // imprime por iframe oculto (mesmo padrão do PDF da OS — não abre aba nova)
+    const anterior = document.getElementById('os-relatorio-frame')
+    if (anterior) anterior.remove()
+    const iframe = document.createElement('iframe')
+    iframe.id = 'os-relatorio-frame'
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
+    iframe.onload = () => {
+      setTimeout(() => {
+        try { iframe.contentWindow.focus(); iframe.contentWindow.print() } catch { /* ignore */ }
+        setTimeout(() => iframe.remove(), 60000)
+      }, 300)
+    }
+    document.body.appendChild(iframe)
+    iframe.srcdoc = html
+  }
+
   const stats = useMemo(() => {
     const agora = new Date()
     const limiteAtrasada = 2 * 24 * 60 * 60 * 1000
@@ -185,10 +280,16 @@ export default function Manutencao() {
         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-xs font-semibold text-gray-500">Período (por data de conclusão)</p>
-            <button onClick={baixarPlanilha} disabled={!filtradas.length}
-              className="btn-secondary text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-              ↓ Baixar planilha ({filtradas.length})
-            </button>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={gerarRelatorio} disabled={!filtradas.length}
+                className="btn-primary text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                ↓ Baixar relatório ({filtradas.length})
+              </button>
+              <button onClick={baixarPlanilha} disabled={!filtradas.length}
+                className="btn-secondary text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                ↓ Planilha (.csv)
+              </button>
+            </div>
           </div>
           <div className="flex gap-2 flex-wrap">
             {[['mes', 'Este mês'], ['trimestre', 'Trimestre'], ['semestre', 'Semestre'], ['ano', 'Ano']].map(([chave, label]) => (
