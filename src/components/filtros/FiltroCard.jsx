@@ -93,12 +93,14 @@ export default function FiltroCard({ filtro, filtros = [], onEntrada, onBaixa })
     <div className={`card border-l-4 ${critico ? 'border-red-500' : baixo ? 'border-yellow-500' : 'border-green-500'} relative`}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-brand-black text-sm leading-tight">{filtro.nome}</p>
-          {filtro.potenciaGG && (
-            <span className="inline-block mt-1 text-xs font-bold text-brand-red bg-brand-red/10 px-2 py-0.5 rounded-full">
-              {filtro.potenciaGG}
-            </span>
-          )}
+          <p className="font-semibold text-brand-black text-sm leading-tight">
+            {filtro.nome}
+            {filtro.potenciaGG && (
+              <span className="ml-1.5 align-middle text-xs font-bold text-brand-red bg-brand-red/10 px-2 py-0.5 rounded-full whitespace-nowrap">
+                {filtro.potenciaGG}
+              </span>
+            )}
+          </p>
           {filtro.referencia && (
             <p className="text-xs text-brand-red font-mono mt-0.5">{filtro.referencia}</p>
           )}
