@@ -18,7 +18,7 @@ const CONFIANCA_COR = {
 export default function ScanPapelModal({ materiais, itensSelecionados, onAdicionar, onFechar }) {
   const [fase, setFase] = useState('upload') // upload | lendo | revisao
   const [erro, setErro] = useState('')
-  const [foto, setFoto] = useState(null) // { base64, mediaType, dataUrl }
+  const [fotos, setFotos] = useState([]) // [{ id, base64, mediaType, dataUrl }]
   const [linhas, setLinhas] = useState([])
   const [extras, setExtras] = useState([]) // materiais cadastrados agora nesta sessao
   const [cadastroLinha, setCadastroLinha] = useState(null) // indice da linha em cadastro
@@ -34,18 +34,26 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
   }
 
   async function aoEscolherFoto(e) {
-    const file = e.target.files?.[0]
+    const arquivos = Array.from(e.target.files || [])
     e.target.value = '' // permite reescolher o mesmo arquivo
-    if (!file) return
+    if (arquivos.length === 0) return
     setErro('')
     setPreparando(true)
     try {
-      // Comprime/redimensiona antes de enviar: foto de celular (3-12 MB) vira ~200 KB
-      // com o maior lado em ~1568px (o que a API usa internamente), o que acelera MUITO
-      // o upload e a leitura. Tambem re-encoda para JPEG, resolvendo HEIC de iPhone.
-      const dataUrl = await comprimirParaDataUrl(file, 900000, 1568)
-      const base64 = dataUrl.split(',')[1] || ''
-      setFoto({ base64, mediaType: 'image/jpeg', dataUrl })
+      // Comprime/redimensiona cada foto antes de enviar: foto de celular (3-12 MB) vira
+      // ~200 KB com o maior lado em ~1568px (o que a API usa internamente), o que acelera
+      // MUITO o upload e a leitura. Tambem re-encoda para JPEG, resolvendo HEIC de iPhone.
+      const novas = []
+      for (const file of arquivos) {
+        const dataUrl = await comprimirParaDataUrl(file, 900000, 1568)
+        novas.push({
+          id: crypto.randomUUID?.() || String(Date.now() + Math.random()),
+          base64: dataUrl.split(',')[1] || '',
+          mediaType: 'image/jpeg',
+          dataUrl,
+        })
+      }
+      setFotos(prev => [...prev, ...novas])
     } catch (err) {
       setErro(err.message || 'Não foi possível preparar a imagem.')
     } finally {
@@ -53,14 +61,18 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
     }
   }
 
+  function removerFoto(id) {
+    setFotos(prev => prev.filter(f => f.id !== id))
+  }
+
   async function lerPapel() {
-    if (!foto) return
+    if (fotos.length === 0) return
     setFase('lendo')
     setErro('')
     try {
-      const itens = await escanearRomaneio(foto.base64, foto.mediaType)
+      const itens = await escanearRomaneio(fotos.map(f => ({ base64: f.base64, mediaType: f.mediaType })))
       if (itens.length === 0) {
-        setErro('Nenhum material foi identificado na foto. Tente uma foto mais nitida e reta.')
+        setErro('Nenhum material foi identificado nas fotos. Tente fotos mais nítidas e retas.')
         setFase('upload')
         return
       }
@@ -113,7 +125,7 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
           <div>
             <h2 className="font-bold text-brand-black">Escanear do papel</h2>
-            <p className="text-xs text-gray-500">Foto do romaneio anotado à mão</p>
+            <p className="text-xs text-gray-500">Uma ou mais fotos do romaneio anotado à mão</p>
           </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,13 +145,12 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={aoEscolherFoto}
               />
 
-              {foto ? (
-                <img src={foto.dataUrl} alt="Prévia do romaneio" className="w-full rounded-xl border border-gray-200 max-h-72 object-contain bg-gray-50" />
-              ) : (
+              {fotos.length === 0 ? (
                 <button
                   type="button"
                   onClick={abrirSeletor}
@@ -158,31 +169,57 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
                       <span className="text-sm font-medium">Tirar foto ou escolher da galeria</span>
-                      <span className="text-xs text-gray-400">Toque para abrir a câmera ou os seus arquivos</span>
+                      <span className="text-xs text-gray-400">Pode adicionar mais de uma foto do romaneio</span>
                     </>
                   )}
                 </button>
-              )}
-
-              {erro && <p className="text-sm text-brand-red">{erro}</p>}
-
-              {foto && (
-                <div className="flex gap-3">
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {fotos.map((f, idx) => (
+                    <div key={f.id} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                      <img src={f.dataUrl} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1 left-1 text-[10px] font-semibold bg-black/55 text-white px-1.5 py-0.5 rounded">{idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() => removerFoto(f.id)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-black/60 hover:bg-brand-red text-white rounded-full flex items-center justify-center transition-colors"
+                        aria-label="Remover foto"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                   <button
                     type="button"
                     onClick={abrirSeletor}
                     disabled={preparando}
-                    className="btn-secondary flex-1 justify-center disabled:opacity-60"
+                    className={`aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 transition-colors ${preparando ? 'opacity-60 cursor-wait' : 'hover:border-brand-red hover:text-brand-red'}`}
                   >
-                    {preparando ? 'Preparando…' : 'Trocar foto'}
-                  </button>
-                  <button onClick={lerPapel} disabled={preparando} className="btn-primary flex-1 justify-center gap-1.5 disabled:opacity-50">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                    </svg>
-                    Ler papel
+                    {preparando ? (
+                      <div className="w-6 h-6 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span className="text-[11px] font-medium">Adicionar</span>
+                      </>
+                    )}
                   </button>
                 </div>
+              )}
+
+              {erro && <p className="text-sm text-brand-red">{erro}</p>}
+
+              {fotos.length > 0 && (
+                <button onClick={lerPapel} disabled={preparando} className="btn-primary w-full justify-center gap-1.5 disabled:opacity-50">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  Ler papel ({fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'})
+                </button>
               )}
 
               <p className="text-xs text-gray-400 text-center">

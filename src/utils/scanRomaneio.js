@@ -10,7 +10,12 @@
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
 const PROMPT = `Voce le romaneios MANUSCRITOS do almoxarifado da SOS Energia (locacao de geradores).
-A foto e uma lista de materiais que um colaborador anotou a mao para dar SAIDA a um evento.
+As imagens sao uma lista de materiais que um colaborador anotou a mao para dar SAIDA a um evento.
+
+Pode haver MAIS DE UMA foto (paginas/partes diferentes do mesmo romaneio, ou romaneios
+diferentes). Leia TODAS as imagens e devolva um UNICO array com os itens de todas, na ordem
+em que aparecem. Nao repita um item que aparece em mais de uma foto por engano — cada linha
+de material vira um item.
 
 Extraia SOMENTE as linhas de material. IGNORE titulos, nomes de pessoas, nomes de evento,
 datas, chaves/colchetes e qualquer texto que nao seja um item de material.
@@ -66,12 +71,27 @@ function parseItens(texto) {
 
 const MEDIA_SUPORTADAS = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
-// Recebe o base64 PURO (sem o prefixo data:) e o media type da foto.
-export async function escanearRomaneio(imagemBase64, mediaType = 'image/jpeg') {
+// Recebe uma ou mais imagens e devolve um unico array de itens.
+// `imagens`: array de { base64, mediaType } (base64 PURO, sem o prefixo data:).
+// Aceita tambem uma unica imagem (retrocompat), como (base64, mediaType).
+export async function escanearRomaneio(imagens, mediaTypeLegado = 'image/jpeg') {
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('Leitura por IA nao configurada. Adicione VITE_ANTHROPIC_API_KEY no .env.')
 
-  const media = MEDIA_SUPORTADAS.includes(mediaType) ? mediaType : 'image/jpeg'
+  const lista = Array.isArray(imagens)
+    ? imagens
+    : [{ base64: imagens, mediaType: mediaTypeLegado }]
+  const validas = lista.filter(img => img && img.base64)
+  if (validas.length === 0) throw new Error('Nenhuma imagem para ler.')
+
+  const blocosImagem = validas.map(img => ({
+    type: 'image',
+    source: {
+      type: 'base64',
+      media_type: MEDIA_SUPORTADAS.includes(img.mediaType) ? img.mediaType : 'image/jpeg',
+      data: img.base64,
+    },
+  }))
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -83,11 +103,11 @@ export async function escanearRomaneio(imagemBase64, mediaType = 'image/jpeg') {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5',
-      max_tokens: 3000,
+      max_tokens: 4000,
       messages: [{
         role: 'user',
         content: [
-          { type: 'image', source: { type: 'base64', media_type: media, data: imagemBase64 } },
+          ...blocosImagem,
           { type: 'text', text: PROMPT },
         ],
       }],
