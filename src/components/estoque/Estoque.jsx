@@ -10,7 +10,9 @@ const STATUS_OPCOES = [
   { label: 'Disponível', value: 'disponivel', ativo: 'bg-green-500 text-white border-green-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-green-400 hover:text-green-600' },
   { label: 'Em Evento', value: 'em_evento', ativo: 'bg-yellow-500 text-white border-yellow-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-yellow-400 hover:text-yellow-600' },
   { label: 'Manutenção', value: 'manutencao', ativo: 'bg-blue-500 text-white border-blue-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600' },
+  { label: 'Emprestado', value: 'emprestado', ativo: 'bg-indigo-500 text-white border-indigo-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-indigo-400 hover:text-indigo-600' },
   { label: 'Perdido', value: 'perdido', ativo: 'bg-red-500 text-white border-red-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-600' },
+  { label: 'Consumido', value: 'consumido', ativo: 'bg-gray-500 text-white border-gray-500', inativo: 'bg-white border-gray-200 text-gray-600 hover:border-gray-400 hover:text-gray-700' },
 ]
 
 export default function Estoque() {
@@ -51,6 +53,8 @@ export default function Estoque() {
     emCampo: materiais.filter(m => m.status === 'em_evento').length,
     manutencao: materiais.filter(m => m.status === 'manutencao').length,
     perdido: materiais.filter(m => m.status === 'perdido').length,
+    emprestado: materiais.filter(m => m.status === 'emprestado').length,
+    consumido: materiais.filter(m => m.status === 'consumido').length,
     estoqueBaixo: materiais.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length,
   }), [materiais])
 
@@ -60,6 +64,8 @@ export default function Estoque() {
     em_evento: stats.emCampo,
     manutencao: stats.manutencao,
     perdido: stats.perdido,
+    emprestado: stats.emprestado,
+    consumido: stats.consumido,
   }
 
   return (

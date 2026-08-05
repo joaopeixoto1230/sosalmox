@@ -241,12 +241,27 @@ export default function Relatorios() {
                   {ordensFiltradas.map(o => (
                     <tr key={o.id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="py-2 font-mono text-xs text-brand-red">{o.numero || o.id.slice(0, 6).toUpperCase()}</td>
-                      <td className="py-2 font-medium text-brand-black">{o.eventoNome || '—'}</td>
+                      <td className="py-2 font-medium text-brand-black">
+                        {o.tipo === 'uso_interno' ? (
+                          <span className="inline-flex items-center gap-1.5 flex-wrap">
+                            <span className={`badge ${o.subtipo === 'emprestimo' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
+                              {o.subtipo === 'emprestimo' ? 'Empréstimo' : 'Consumo'}
+                            </span>
+                            <span className="text-gray-500 text-xs font-normal">{o.responsavelNome || '—'}</span>
+                          </span>
+                        ) : (o.eventoNome || '—')}
+                      </td>
                       <td className="py-2 text-gray-500 hidden sm:table-cell">{o.operadorNome || '—'}</td>
                       <td className="py-2">
-                        <span className={`badge ${o.status === 'devolvida' ? 'bg-green-100 text-green-700' : o.status === 'cancelada' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
-                          {o.status === 'devolvida' ? 'Devolvida' : o.status === 'cancelada' ? 'Cancelada' : 'Em aberto'}
-                        </span>
+                        {o.tipo === 'uso_interno' && o.subtipo === 'emprestimo' ? (
+                          <span className={`badge ${o.statusEmprestimo === 'devolvido' ? 'bg-green-100 text-green-700' : o.statusEmprestimo === 'parcial' ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {o.statusEmprestimo === 'devolvido' ? 'Devolvido' : o.statusEmprestimo === 'parcial' ? 'Parcial' : 'Pendente'}
+                          </span>
+                        ) : (
+                          <span className={`badge ${o.status === 'devolvida' ? 'bg-green-100 text-green-700' : o.status === 'cancelada' ? 'bg-gray-100 text-gray-600' : 'bg-blue-100 text-blue-700'}`}>
+                            {o.status === 'devolvida' ? 'Devolvida' : o.status === 'cancelada' ? 'Cancelada' : 'Em aberto'}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 text-gray-400 text-xs hidden sm:table-cell">{formatarData(o.criadoEm)}</td>
                       <td className="py-2 text-right">
