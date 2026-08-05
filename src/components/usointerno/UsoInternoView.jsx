@@ -22,7 +22,9 @@ export default function UsoInternoView() {
 
   const emprestimosPendentes = useMemo(() => {
     return ordens
-      .filter(o => o.tipo === 'uso_interno' && o.subtipo === 'emprestimo' && o.statusEmprestimo !== 'devolvido')
+      // Pendentes = ainda não devolvidos. Uma devolução já registrada (devolvido OU
+      // parcial) sai da fila — a devolução é um evento único, não se repete.
+      .filter(o => o.tipo === 'uso_interno' && o.subtipo === 'emprestimo' && (o.statusEmprestimo || 'pendente') === 'pendente')
       .sort((a, b) => {
         // Mais atrasado primeiro: menor dataPrevistaDevolucao no topo.
         const da = a.dataPrevistaDevolucao || '9999-12-31'
