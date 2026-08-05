@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { escanearRomaneio, casarMaterial } from '../../utils/scanRomaneio'
 import { materialPorQuantidade } from '../../utils/formatters'
 import { comprimirParaDataUrl } from '../../utils/imagem'
 import NovoMaterialModal from '../estoque/NovoMaterialModal'
+import FotoPickerBotoes from '../ui/FotoPickerBotoes'
 
 // Le a foto do romaneio manuscrito, casa cada linha com o estoque e mostra uma tela
 // de CONFERENCIA. Nada e lancado sozinho: o colaborador confirma linha a linha e, para
@@ -27,16 +28,9 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
   const jaSelecionado = id => itensSelecionados.some(i => i.id === id)
 
   const [preparando, setPreparando] = useState(false)
-  const fileInputRef = useRef(null)
 
-  function abrirSeletor() {
-    if (!preparando) fileInputRef.current?.click()
-  }
-
-  async function aoEscolherFoto(e) {
-    const arquivos = Array.from(e.target.files || [])
-    e.target.value = '' // permite reescolher o mesmo arquivo
-    if (arquivos.length === 0) return
+  async function aoEscolherFoto(arquivos) {
+    if (!arquivos?.length) return
     setErro('')
     setPreparando(true)
     try {
@@ -138,42 +132,7 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
           {/* --- Passo 1: escolher a foto --- */}
           {fase === 'upload' && (
             <div className="space-y-4">
-              {/* Input unico controlado por ref. Padrao identico ao StepConfirmacao
-                  (fotos da saida), que funciona no mobile — ao contrario de um input
-                  display:none dentro de <label>, que o iOS/alguns navegadores ignoram. */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={aoEscolherFoto}
-              />
-
-              {fotos.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={abrirSeletor}
-                  disabled={preparando}
-                  className={`w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-10 transition-colors text-gray-500 ${preparando ? 'opacity-60 cursor-wait' : 'cursor-pointer hover:border-brand-red hover:bg-red-50/40'}`}
-                >
-                  {preparando ? (
-                    <>
-                      <div className="w-8 h-8 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
-                      <span className="text-sm font-medium">Preparando imagem…</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-10 h-10 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span className="text-sm font-medium">Tirar foto ou escolher da galeria</span>
-                      <span className="text-xs text-gray-400">Pode adicionar mais de uma foto do romaneio</span>
-                    </>
-                  )}
-                </button>
-              ) : (
+              {fotos.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
                   {fotos.map((f, idx) => (
                     <div key={f.id} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
@@ -191,25 +150,31 @@ export default function ScanPapelModal({ materiais, itensSelecionados, onAdicion
                       </button>
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={abrirSeletor}
-                    disabled={preparando}
-                    className={`aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 transition-colors ${preparando ? 'opacity-60 cursor-wait' : 'hover:border-brand-red hover:text-brand-red'}`}
-                  >
-                    {preparando ? (
-                      <div className="w-6 h-6 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span className="text-[11px] font-medium">Adicionar</span>
-                      </>
-                    )}
-                  </button>
                 </div>
               )}
+
+              {fotos.length === 0 && !preparando && (
+                <div className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-xl py-8 text-gray-500">
+                  <svg className="w-10 h-10 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="text-sm font-medium">Foto do romaneio anotado à mão</span>
+                  <span className="text-xs text-gray-400">Pode adicionar mais de uma foto</span>
+                </div>
+              )}
+
+              {preparando && (
+                <div className="flex items-center justify-center gap-2 py-4 text-gray-500">
+                  <div className="w-6 h-6 border-4 border-brand-red border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm font-medium">Preparando imagem…</span>
+                </div>
+              )}
+
+              {/* Dois botoes: camera e galeria. Garante as duas opcoes em qualquer
+                  aparelho (Motorola/Android costumava abrir so o Google Fotos num
+                  input sem capture). Ver FotoPickerBotoes. */}
+              <FotoPickerBotoes onArquivos={aoEscolherFoto} disabled={preparando} />
 
               {erro && <p className="text-sm text-brand-red">{erro}</p>}
 

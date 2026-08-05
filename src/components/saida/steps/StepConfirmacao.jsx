@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   runTransaction,
@@ -13,6 +13,7 @@ import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
 import { comprimirParaDataUrl } from '../../../utils/imagem'
 import SignaturePad from '../../ui/SignaturePad'
+import FotoPickerBotoes from '../../ui/FotoPickerBotoes'
 
 export default function StepConfirmacao({ evento, geradores, itens, observacoes, responsavel, onNovaSaida }) {
   const { uid, nome } = useAuth()
@@ -21,7 +22,6 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
   const [erro, setErro] = useState('')
   const [fotos, setFotos] = useState([])
   const [progresso, setProgresso] = useState(null) // { atual, total } durante o envio
-  const fotoInputRef = useRef(null)
   const [assinaturaEntregou, setAssinaturaEntregou] = useState('')
   const [assinaturaRecebeu, setAssinaturaRecebeu] = useState('')
   const [tokenGerado, setTokenGerado] = useState(null)
@@ -33,11 +33,9 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     return () => fotos.forEach(f => URL.revokeObjectURL(f.preview))
   }, [fotos])
 
-  function adicionarFotos(e) {
-    const arquivos = Array.from(e.target.files || [])
-    if (arquivos.length === 0) return
+  function adicionarFotos(arquivos) {
+    if (!arquivos?.length) return
     setFotos(prev => [...prev, ...arquivos.map(file => ({ file, preview: URL.createObjectURL(file) }))])
-    if (fotoInputRef.current) fotoInputRef.current.value = ''
   }
 
   function removerFoto(idx) {
@@ -264,25 +262,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             </div>
           )}
 
-          <input
-            ref={fotoInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={adicionarFotos}
-            className="hidden"
-          />
-          <button
-            onClick={() => fotoInputRef.current?.click()}
-            disabled={status === 'carregando'}
-            className="btn-secondary w-full justify-center gap-2 disabled:opacity-50"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            {fotos.length > 0 ? 'Adicionar mais fotos' : 'Adicionar fotos'}
-          </button>
+          <FotoPickerBotoes onArquivos={adicionarFotos} disabled={status === 'carregando'} />
         </div>
 
         <div className="card space-y-4">

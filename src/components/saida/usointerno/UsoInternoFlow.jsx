@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { runTransaction, doc, collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
@@ -8,6 +8,7 @@ import { OPERADORES } from '../../../utils/operadores'
 import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
 import { comprimirParaDataUrl } from '../../../utils/imagem'
 import DatePicker from '../../ui/DatePicker'
+import FotoPickerBotoes from '../../ui/FotoPickerBotoes'
 
 // Fluxo de Uso Interno da Saida de Material. Dois subtipos:
 // - emprestimo: ferramenta/equipamento que DEVE voltar (statusEmprestimo pendente,
@@ -39,7 +40,6 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
   const [erro, setErro] = useState('')
   const [progresso, setProgresso] = useState(null)
   const [numeroOrdem, setNumeroOrdem] = useState(null)
-  const fotoInputRef = useRef(null)
 
   useEffect(() => () => fotos.forEach(f => URL.revokeObjectURL(f.preview)), [fotos])
 
@@ -74,11 +74,9 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
     setItens(prev => prev.map(i => (i.avulso ? i.tempId : i.id) === chave ? { ...i, quantidade: n } : i))
   }
 
-  function adicionarFotos(e) {
-    const arquivos = Array.from(e.target.files || [])
-    if (arquivos.length === 0) return
+  function adicionarFotos(arquivos) {
+    if (!arquivos?.length) return
     setFotos(prev => [...prev, ...arquivos.map(file => ({ file, preview: URL.createObjectURL(file) }))])
-    if (fotoInputRef.current) fotoInputRef.current.value = ''
   }
 
   function removerFoto(idx) {
@@ -457,14 +455,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
             ))}
           </div>
         )}
-        <input ref={fotoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={adicionarFotos} />
-        <button onClick={() => fotoInputRef.current?.click()} disabled={status === 'carregando'} className="btn-secondary w-full justify-center gap-2 disabled:opacity-50">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          {fotos.length > 0 ? 'Adicionar mais fotos' : 'Adicionar fotos'}
-        </button>
+        <FotoPickerBotoes onArquivos={adicionarFotos} disabled={status === 'carregando'} />
       </div>
 
       {erro && (
