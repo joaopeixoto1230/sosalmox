@@ -72,6 +72,7 @@ export default function UsoInternoView() {
 function FerramentasEmCampo({ emprestimos }) {
   const [fotosPorOrdem, setFotosPorOrdem] = useState({}) // { ordemId: { saida: [], devolucao: [] } }
   const [devolvendo, setDevolvendo] = useState(null) // ordem em devolução
+  const [adicionando, setAdicionando] = useState(null) // ordem recebendo mais itens
 
   // Carrega fotos (saída/devolução) das ordens visíveis, uma query por ordem.
   useEffect(() => {
@@ -134,9 +135,21 @@ function FerramentasEmCampo({ emprestimos }) {
                   {o.destinoMotivo ? ` · ${o.destinoMotivo}` : ''}
                 </p>
               </div>
-              <button onClick={() => setDevolvendo(o)} className="btn-primary flex-shrink-0 text-sm py-1.5 px-3">
-                Devolver
-              </button>
+              <div className="flex gap-1.5 flex-shrink-0">
+                <button
+                  onClick={() => setAdicionando(o)}
+                  className="btn-secondary text-sm py-1.5 px-3 gap-1"
+                  title="Adicionar mais itens a este empréstimo"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Itens
+                </button>
+                <button onClick={() => setDevolvendo(o)} className="btn-primary text-sm py-1.5 px-3">
+                  Devolver
+                </button>
+              </div>
             </div>
 
             <div className="mt-2 border-t border-gray-100 pt-2">
@@ -166,6 +179,240 @@ function FerramentasEmCampo({ emprestimos }) {
           onFechar={() => setDevolvendo(null)}
         />
       )}
+
+      {adicionando && (
+        <AdicionarItensModal
+          ordem={adicionando}
+          onFechar={() => setAdicionando(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Adiciona mais itens a um empréstimo PENDENTE existente (pessoa que volta pra
+// pegar mais no mesmo dia). Atualiza itens da ordem e do doc de assinatura, e
+// prende os cadastrados no estoque (status 'emprestado') — mesma lógica do fluxo.
+const UNIDADES_AVULSO = ['un', 'm', 'kg', 'l', 'cx']
+
+function AdicionarItensModal({ ordem, onFechar }) {
+  const { dados: materiais } = useCollection('materiais')
+  const [busca, setBusca] = useState('')
+  const [itens, setItens] = useState([])
+  const [avulsoAberto, setAvulsoAberto] = useState(false)
+  const [avulso, setAvulso] = useState({ nome: '', quantidade: 1, unidade: 'un' })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const disponiveis = useMemo(() => {
+    if (!busca.trim()) return []
+    const q = busca.toLowerCase()
+    return materiais
+      .filter(m => m.status === 'disponivel')
+      .filter(m => m.nome?.toLowerCase().includes(q) || m.codigo?.toLowerCase().includes(q))
+      .slice(0, 8)
+  }, [materiais, busca])
+
+  function addCadastrado(m) {
+    if (itens.some(i => i.id === m.id)) return
+    setItens(prev => [...prev, materialPorQuantidade(m) ? { ...m, quantidade: 1 } : m])
+    setBusca('')
+  }
+
+  function addAvulso() {
+    if (!avulso.nome.trim()) return
+    setItens(prev => [...prev, {
+      avulso: true,
+      tempId: String(Date.now() + Math.random()),
+      nome: avulso.nome.trim(),
+      quantidade: Math.max(1, Number(avulso.quantidade) || 1),
+      unidade: avulso.unidade,
+    }])
+    setAvulso({ nome: '', quantidade: 1, unidade: 'un' })
+    setAvulsoAberto(false)
+  }
+
+  function remover(chave) {
+    setItens(prev => prev.filter(i => (i.avulso ? i.tempId : i.id) !== chave))
+  }
+
+  async function confirmar() {
+    if (itens.length === 0) return
+    setSalvando(true)
+    setErro('')
+    try {
+      await runTransaction(db, async (tx) => {
+        // ===== LEITURAS =====
+        const ordemRef = doc(db, 'ordens_saida', ordem.id)
+        const ordemSnap = await tx.get(ordemRef)
+        if (!ordemSnap.exists()) throw new Error('Este empréstimo não existe mais.')
+        const dados = ordemSnap.data()
+        let assRef = null
+        let assDados = null
+        if (dados.tokenAssinatura) {
+          assRef = doc(db, 'assinaturas_saida', dados.tokenAssinatura)
+          const aSnap = await tx.get(assRef)
+          assDados = aSnap.exists() ? aSnap.data() : null
+        }
+        const cadastrados = itens.filter(it => !it.avulso && !materialPorQuantidade(it))
+        for (const it of cadastrados) {
+          const snap = await tx.get(doc(db, 'materiais', it.id))
+          if (!snap.exists()) throw new Error(`Material ${it.nome} não encontrado.`)
+          if (snap.data().status !== 'disponivel') throw new Error(`${it.nome} não está mais disponível.`)
+        }
+
+        // ===== ESCRITAS =====
+        const novos = itens.map(it => it.avulso
+          ? { avulso: true, id: null, codigo: null, nome: it.nome, quantidade: it.quantidade || 1, unidade: it.unidade || 'un' }
+          : {
+            id: it.id,
+            nome: it.nome || null,
+            codigo: it.codigo || null,
+            categoria: it.categoria || null,
+            ...(materialPorQuantidade(it) ? { quantidade: it.quantidade || 1 } : {}),
+          })
+        tx.update(ordemRef, { itens: [...(dados.itens || []), ...novos] })
+        if (assRef && assDados) {
+          tx.update(assRef, {
+            itens: [...(assDados.itens || []), ...itens.map(it => ({
+              nome: it.nome || null,
+              codigo: it.codigo || null,
+              ...((it.avulso || materialPorQuantidade(it)) ? { quantidade: it.quantidade || 1 } : {}),
+            }))],
+          })
+        }
+        for (const it of cadastrados) {
+          tx.update(doc(db, 'materiais', it.id), { status: 'emprestado', eventoAtual: null, estoqueAtual: 0 })
+        }
+      })
+      onFechar()
+    } catch (e) {
+      console.error(e)
+      const detalhe = e?.code ? `${e.message} (${e.code})` : e?.message
+      setErro(detalhe || 'Erro ao adicionar itens.')
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
+          <div>
+            <h2 className="font-bold text-brand-black">Adicionar itens</h2>
+            <p className="text-xs text-gray-500">{ordem.numeroFormatado} · {ordem.responsavelNome}</p>
+          </div>
+          <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 overflow-y-auto flex-1 space-y-4">
+          <div className="relative">
+            <input
+              type="search"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              placeholder="Buscar material cadastrado por nome ou código..."
+              className="input"
+            />
+            {disponiveis.length > 0 && (
+              <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+                {disponiveis.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => addCadastrado(m)}
+                    disabled={itens.some(i => i.id === m.id)}
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between gap-2 disabled:opacity-40"
+                  >
+                    <span className="text-sm text-brand-black truncate">{m.nome}</span>
+                    <span className="text-xs text-gray-400 font-mono flex-shrink-0">{m.codigo}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {avulsoAberto ? (
+            <div className="border border-gray-200 rounded-xl p-3 space-y-3">
+              <input
+                value={avulso.nome}
+                onChange={e => setAvulso(p => ({ ...p, nome: e.target.value }))}
+                placeholder="Nome do item (ex: Broca 8mm)"
+                className="input"
+                autoFocus
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="number" min="1"
+                  value={avulso.quantidade}
+                  onChange={e => setAvulso(p => ({ ...p, quantidade: e.target.value }))}
+                  className="input"
+                />
+                <select
+                  value={avulso.unidade}
+                  onChange={e => setAvulso(p => ({ ...p, unidade: e.target.value }))}
+                  className="input"
+                >
+                  {UNIDADES_AVULSO.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setAvulsoAberto(false)} className="btn-secondary flex-1 text-sm">Cancelar</button>
+                <button onClick={addAvulso} disabled={!avulso.nome.trim()} className="btn-primary flex-1 text-sm disabled:opacity-50">Adicionar avulso</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAvulsoAberto(true)} className="text-xs font-semibold text-brand-red hover:underline inline-flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              Item não cadastrado
+            </button>
+          )}
+
+          {itens.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-3">Busque um material ou adicione um item avulso.</p>
+          ) : (
+            <div className="space-y-2">
+              {itens.map(it => {
+                const chave = it.avulso ? it.tempId : it.id
+                return (
+                  <div key={chave} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-brand-black truncate">
+                        {it.nome}
+                        {it.avulso && <span className="ml-2 text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">avulso</span>}
+                      </p>
+                      <p className="text-xs text-gray-500 font-mono">{it.avulso ? `${it.quantidade} ${it.unidade}` : it.codigo}</p>
+                    </div>
+                    <button onClick={() => remover(chave)} className="text-gray-400 hover:text-brand-red flex-shrink-0" aria-label="Remover item">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {erro && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{erro}</div>}
+        </div>
+
+        <div className="flex gap-3 px-5 py-4 border-t border-gray-100 flex-shrink-0">
+          <button onClick={onFechar} disabled={salvando} className="btn-secondary">Cancelar</button>
+          <button
+            onClick={confirmar}
+            disabled={salvando || itens.length === 0}
+            className="btn-primary flex-1 justify-center disabled:opacity-50"
+          >
+            {salvando ? 'Salvando...' : `Adicionar ${itens.length > 0 ? `${itens.length} ` : ''}à ${ordem.numeroFormatado}`}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

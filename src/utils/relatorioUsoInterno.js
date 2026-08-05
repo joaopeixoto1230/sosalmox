@@ -134,5 +134,9 @@ export function gerarRelatorioUsoInterno(ordem, assinatura = null, fotos = []) {
   const win = window.open('', '_blank')
   win.document.write(html)
   win.document.close()
-  win.print()
+  // Espera TODAS as imagens (fotos JPEG grandes inclusive) decodificarem antes de
+  // imprimir — senao o print dispara com as fotos ainda em branco no PDF.
+  const imgs = Array.from(win.document.images || [])
+  Promise.all(imgs.map(img => (img.decode ? img.decode() : Promise.resolve()).catch(() => {})))
+    .then(() => { win.focus(); win.print() })
 }

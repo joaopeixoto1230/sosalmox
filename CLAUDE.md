@@ -109,7 +109,12 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   daquela ordem, apaga o doc de assinatura e as fotos da ordem).
 - **Anexar à saída do dia**: se o mesmo responsável já tem saída do mesmo subtipo HOJE
   (empréstimo ainda pendente), o fluxo oferece anexar os itens à ordem existente (checkbox) em vez
-  de criar ordem nova — atualiza `itens` da ordem E do doc de assinatura.
+  de criar ordem nova — atualiza `itens` da ordem E do doc de assinatura. `criadoEm` pendente
+  (serverTimestamp não confirmado) conta como hoje.
+- Botão **"+ Itens"** nos cards de Ferramentas em Campo (`AdicionarItensModal`): adiciona
+  cadastrado/avulso direto a um empréstimo pendente, mesma transaction do anexar.
+- O relatório espera as imagens decodificarem (`img.decode()`) antes do `print()` — senão as
+  fotos JPEG saem em branco no PDF. Não voltar ao `win.print()` imediato.
 
 ### Outros
 - Devolução (Evento), transferência, estoque com filtro de status em pills coloridas
