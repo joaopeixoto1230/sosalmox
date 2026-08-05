@@ -196,13 +196,30 @@ function FerramentasEmCampo({ emprestimos }) {
 const UNIDADES_AVULSO = ['un', 'm', 'kg', 'l', 'cx']
 
 function AdicionarItensModal({ ordem, onFechar }) {
+  const { uid, nome } = useAuth()
   const { dados: materiais } = useCollection('materiais')
   const [busca, setBusca] = useState('')
   const [itens, setItens] = useState([])
   const [avulsoAberto, setAvulsoAberto] = useState(false)
   const [avulso, setAvulso] = useState({ nome: '', quantidade: 1, unidade: 'un' })
+  const [fotos, setFotos] = useState([]) // { file, preview }
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  useEffect(() => () => fotos.forEach(f => URL.revokeObjectURL(f.preview)), [fotos])
+
+  function adicionarFotos(arquivos) {
+    if (!arquivos?.length) return
+    setFotos(prev => [...prev, ...arquivos.map(file => ({ file, preview: URL.createObjectURL(file) }))])
+  }
+
+  function removerFoto(idx) {
+    setFotos(prev => {
+      const f = prev[idx]
+      if (f) URL.revokeObjectURL(f.preview)
+      return prev.filter((_, i) => i !== idx)
+    })
+  }
 
   const disponiveis = useMemo(() => {
     if (!busca.trim()) return []
@@ -241,6 +258,20 @@ function AdicionarItensModal({ ordem, onFechar }) {
     setSalvando(true)
     setErro('')
     try {
+      // Fotos primeiro (base64 em fotos_saida, momento 'saida'), como no fluxo.
+      for (let i = 0; i < fotos.length; i++) {
+        const dataUrl = await comprimirParaDataUrl(fotos[i].file)
+        await addDoc(collection(db, 'fotos_saida'), {
+          ordemId: ordem.id,
+          ordem: i,
+          dataUrl,
+          momento: 'saida',
+          criadoPor: uid,
+          criadoPorNome: nome,
+          criadoEm: serverTimestamp(),
+        })
+      }
+
       await runTransaction(db, async (tx) => {
         // ===== LEITURAS =====
         const ordemRef = doc(db, 'ordens_saida', ordem.id)
@@ -271,7 +302,10 @@ function AdicionarItensModal({ ordem, onFechar }) {
             categoria: it.categoria || null,
             ...(materialPorQuantidade(it) ? { quantidade: it.quantidade || 1 } : {}),
           })
-        tx.update(ordemRef, { itens: [...(dados.itens || []), ...novos] })
+        tx.update(ordemRef, {
+          itens: [...(dados.itens || []), ...novos],
+          qtdFotos: (dados.qtdFotos || 0) + fotos.length,
+        })
         if (assRef && assDados) {
           tx.update(assRef, {
             itens: [...(assDados.itens || []), ...itens.map(it => ({
@@ -398,6 +432,32 @@ function AdicionarItensModal({ ordem, onFechar }) {
               })}
             </div>
           )}
+
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1.5">
+              {fotos.length > 0 ? `Fotos (${fotos.length})` : 'Fotos (opcional)'}
+            </p>
+            <FotoPickerBotoes onArquivos={adicionarFotos} disabled={salvando} />
+            {fotos.length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mt-2">
+                {fotos.map((f, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                    <img src={f.preview} alt={`Foto ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removerFoto(idx)}
+                      disabled={salvando}
+                      className="absolute top-1 right-1 w-5 h-5 bg-black/60 hover:bg-brand-red text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-40"
+                      aria-label="Remover foto"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {erro && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{erro}</div>}
         </div>
