@@ -22,6 +22,7 @@ export const MODULOS = {
   FILA_SOLICITACOES: 'fila_solicitacoes',
   GESTAO_USUARIOS: 'gestao_usuarios',
   EVENTOS: 'eventos',
+  USO_INTERNO: 'uso_interno',
 }
 
 const permissoes = {
@@ -41,6 +42,7 @@ const permissoes = {
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
     MODULOS.EVENTOS,
+    MODULOS.USO_INTERNO,
   ],
   [PERFIS.ALMOXARIFE]: [
     MODULOS.DASHBOARD,
@@ -57,6 +59,7 @@ const permissoes = {
     MODULOS.EVENTOS,
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
+    MODULOS.USO_INTERNO,
   ],
   [PERFIS.FRANCA]: [
     MODULOS.FILTROS,
@@ -83,6 +86,7 @@ export function getMenuItems(perfil) {
     { label: 'Saída de Material', path: '/saida', modulo: MODULOS.SAIDA, icon: 'arrow-up-right' },
     { label: 'Eventos', path: '/eventos', modulo: MODULOS.EVENTOS, icon: 'calendar' },
     { label: 'Devolução', path: '/devolucao', modulo: MODULOS.DEVOLUCAO, icon: 'arrow-down-left' },
+    { label: 'Uso Interno', path: '/uso-interno', modulo: MODULOS.USO_INTERNO, icon: 'briefcase' },
     { label: 'Transferência', path: '/transferencia', modulo: MODULOS.TRANSFERENCIA, icon: 'repeat' },
     { label: 'Estoque', path: '/estoque', modulo: MODULOS.ESTOQUE, icon: 'package' },
     { label: 'Filtros', path: '/filtros', modulo: MODULOS.FILTROS, icon: 'filter' },

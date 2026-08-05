@@ -7,6 +7,7 @@ import MainLayout from './components/layout/MainLayout'
 import Dashboard from './components/dashboard/Dashboard'
 import SaidaMaterial from './components/saida/SaidaMaterial'
 import DevolucaoMaterial from './components/devolucao/DevolucaoMaterial'
+import UsoInternoView from './components/usointerno/UsoInternoView'
 import Transferencia from './components/transferencia/Transferencia'
 import Estoque from './components/estoque/Estoque'
 import Filtros from './components/filtros/Filtros'
@@ -23,7 +24,6 @@ import ComprasDashboard from './components/compras/ComprasDashboard'
 import FilaSolicitacoes from './components/compras/FilaSolicitacoes'
 import Relatorios from './components/relatorios/Relatorios'
 import Eventos from './components/eventos/Eventos'
-import EmBreve from './components/shared/EmBreve'
 import RootRedirect from './components/shared/RootRedirect'
 import AssinaturaPublica from './components/saida/AssinaturaPublica'
 import { MODULOS } from './utils/permissions'
@@ -58,6 +58,9 @@ export default function App() {
             } />
             <Route path="devolucao" element={
               <ProtectedRoute modulo={MODULOS.DEVOLUCAO}><DevolucaoMaterial /></ProtectedRoute>
+            } />
+            <Route path="uso-interno" element={
+              <ProtectedRoute modulo={MODULOS.USO_INTERNO}><UsoInternoView /></ProtectedRoute>
             } />
             <Route path="transferencia" element={
               <ProtectedRoute modulo={MODULOS.TRANSFERENCIA}><Transferencia /></ProtectedRoute>

@@ -223,6 +223,9 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         </div>
         <div className="flex gap-3 justify-center flex-wrap">
           <button onClick={novaSaida} className="btn-primary">Nova saída interna</button>
+          {subtipo === 'emprestimo' && (
+            <Link to="/uso-interno" className="btn-secondary">Ferramentas em Campo</Link>
+          )}
           <Link to="/estoque" className="btn-secondary">Ver Estoque</Link>
         </div>
       </div>
