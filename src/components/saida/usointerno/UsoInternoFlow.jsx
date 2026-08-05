@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { runTransaction, doc, collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { runTransaction, doc, collection, addDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useCollection } from '../../../hooks/useFirestore'
@@ -9,6 +9,8 @@ import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/forma
 import { comprimirParaDataUrl } from '../../../utils/imagem'
 import DatePicker from '../../ui/DatePicker'
 import FotoPickerBotoes from '../../ui/FotoPickerBotoes'
+import SignaturePad from '../../ui/SignaturePad'
+import { gerarRelatorioUsoInterno } from '../../../utils/relatorioUsoInterno'
 
 // Fluxo de Uso Interno da Saida de Material. Dois subtipos:
 // - emprestimo: ferramenta/equipamento que DEVE voltar (statusEmprestimo pendente,
@@ -23,6 +25,7 @@ const UNIDADES = ['un', 'm', 'kg', 'l', 'cx']
 export default function UsoInternoFlow({ onTrocarTipo }) {
   const { uid, nome } = useAuth()
   const { dados: materiais } = useCollection('materiais')
+  const { dados: ordens } = useCollection('ordens_saida')
 
   const [subtipo, setSubtipo] = useState(null) // emprestimo | consumo
   const [responsavel, setResponsavel] = useState('')
@@ -41,9 +44,39 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
   const [progresso, setProgresso] = useState(null)
   const [numeroOrdem, setNumeroOrdem] = useState(null)
 
+  // Assinaturas (mesmo padrao da saida externa: entregou assina agora, recebeu
+  // pode assinar agora ou depois por link /assinar/:token).
+  const [assinaturaEntregou, setAssinaturaEntregou] = useState('')
+  const [assinaturaRecebeu, setAssinaturaRecebeu] = useState('')
+  const [tokenGerado, setTokenGerado] = useState(null)
+  const [recebeuPendente, setRecebeuPendente] = useState(false)
+  const [linkCopiado, setLinkCopiado] = useState(false)
+
+  // Anexar a uma saida ja feita hoje pelo mesmo responsavel (nao cria ordem nova).
+  const [usarExistente, setUsarExistente] = useState(false)
+  const [ordemCriada, setOrdemCriada] = useState(null) // dados p/ relatorio no sucesso
+
   useEffect(() => () => fotos.forEach(f => URL.revokeObjectURL(f.preview)), [fotos])
 
   const responsavelFinal = mostrarOutro ? outroResp.trim() : responsavel
+
+  // Saida interna ja feita HOJE pelo mesmo responsavel e subtipo — oferece anexar
+  // os itens a ela em vez de criar ordem nova (pessoa que volta pra pegar mais).
+  const ordemDoDia = useMemo(() => {
+    if (!subtipo || !responsavelFinal) return null
+    const hoje = new Date().toDateString()
+    return ordens.find(o => {
+      if (o.tipo !== 'uso_interno' || o.subtipo !== subtipo) return false
+      if ((o.responsavelNome || '').trim().toLowerCase() !== responsavelFinal.trim().toLowerCase()) return false
+      if (subtipo === 'emprestimo' && (o.statusEmprestimo || 'pendente') !== 'pendente') return false
+      const d = o.criadoEm?.toDate?.()
+      return d && d.toDateString() === hoje
+    }) || null
+  }, [ordens, subtipo, responsavelFinal])
+
+  // `anexando` so vale com a ordem do dia presente — se ela sumir (responsavel
+  // trocado, devolucao registrada), o checkbox orfao deixa de ter efeito sozinho.
+  const anexando = usarExistente && !!ordemDoDia
 
   const disponiveis = useMemo(() => {
     if (!busca.trim()) return []
@@ -90,15 +123,41 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
   const podeConfirmar =
     !!responsavelFinal &&
     itens.length > 0 &&
-    (subtipo === 'emprestimo' ? !!dataPrevista : !!motivo)
+    (anexando ? true : (subtipo === 'emprestimo' ? !!dataPrevista : !!motivo))
+
+  // Retrato do item gravado na ordem e no doc de assinatura.
+  function itemParaOrdem(it) {
+    return it.avulso
+      ? { avulso: true, id: null, codigo: null, nome: it.nome, quantidade: it.quantidade || 1, unidade: it.unidade || 'un' }
+      : {
+        id: it.id,
+        nome: it.nome || null,
+        codigo: it.codigo || null,
+        categoria: it.categoria || null,
+        ...(materialPorQuantidade(it) ? { quantidade: it.quantidade || 1 } : {}),
+      }
+  }
+
+  function itemParaAssinatura(it) {
+    return {
+      nome: it.nome || null,
+      codigo: it.codigo || null,
+      ...((it.avulso || materialPorQuantidade(it)) ? { quantidade: it.quantidade || 1 } : {}),
+    }
+  }
 
   async function confirmar() {
     if (!podeConfirmar) return
     setStatus('carregando')
     setErro('')
     try {
-      const ordemRef = doc(collection(db, 'ordens_saida'))
+      // Anexando: reusa a ordem do dia; senao cria ordem nova + doc de assinatura
+      // (capability URL, mesmo padrao do StepConfirmacao da saida externa).
+      const appendEm = anexando ? ordemDoDia : null
+      const ordemRef = appendEm ? doc(db, 'ordens_saida', appendEm.id) : doc(collection(db, 'ordens_saida'))
       const contadorRef = doc(db, 'contadores', 'ordens_saida')
+      const assinaturaRef = appendEm ? null : doc(collection(db, 'assinaturas_saida'))
+      const tokenAssinatura = assinaturaRef?.id || null
 
       // Fotos primeiro (base64 em fotos_saida, momento 'saida') — mesmo padrao da Saida/OS.
       if (fotos.length > 0) {
@@ -119,10 +178,25 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
       }
 
       let novoNumero
+      let resultado = null // dados finais da ordem p/ tela de sucesso e relatorio
       await runTransaction(db, async (tx) => {
-        // ===== LEITURAS =====
-        const contSnap = await tx.get(contadorRef)
-        novoNumero = (contSnap.exists() ? contSnap.data().ultimo : 0) + 1
+        // ===== LEITURAS (todas antes de qualquer escrita) =====
+        let dadosExistente = null
+        let assRefExistente = null
+        let assinaturaExistente = null
+        if (appendEm) {
+          const snap = await tx.get(ordemRef)
+          if (!snap.exists()) throw new Error('A saída original não existe mais.')
+          dadosExistente = snap.data()
+          if (dadosExistente.tokenAssinatura) {
+            assRefExistente = doc(db, 'assinaturas_saida', dadosExistente.tokenAssinatura)
+            const aSnap = await tx.get(assRefExistente)
+            assinaturaExistente = aSnap.exists() ? aSnap.data() : null
+          }
+        } else {
+          const contSnap = await tx.get(contadorRef)
+          novoNumero = (contSnap.exists() ? contSnap.data().ultimo : 0) + 1
+        }
 
         const cadastrados = itens.filter(it => !it.avulso && !materialPorQuantidade(it))
         for (const it of cadastrados) {
@@ -132,44 +206,53 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         }
 
         // ===== ESCRITAS =====
-        tx.set(ordemRef, {
-          numero: novoNumero,
-          numeroFormatado: formatarNumeroOrdem(novoNumero),
-          tipo: 'uso_interno',
-          subtipo,
-          eventoId: null,
-          eventoNome: null,
-          geradores: [],
-          geradorCodigo: null,
-          itens: itens.map(it => it.avulso
-            ? { avulso: true, id: null, codigo: null, nome: it.nome, quantidade: it.quantidade || 1, unidade: it.unidade || 'un' }
-            : {
-              id: it.id,
-              nome: it.nome || null,
-              codigo: it.codigo || null,
-              categoria: it.categoria || null,
-              ...(materialPorQuantidade(it) ? { quantidade: it.quantidade || 1 } : {}),
-            }
-          ),
-          responsavelNome: responsavelFinal,
-          observacoes: null,
-          qtdFotos: fotos.length,
-          operadorUid: uid || null,
-          operadorNome: nome || null,
-          status: 'ativo',
-          criadoEm: serverTimestamp(),
-          ...(subtipo === 'emprestimo'
-            ? {
-              dataPrevistaDevolucao: dataPrevista,
-              destinoMotivo: destinoMotivo.trim() || null,
-              statusEmprestimo: 'pendente',
-            }
-            : {
-              motivo,
-            }),
-        })
+        const novosItens = itens.map(itemParaOrdem)
+        if (appendEm) {
+          const itensFinais = [...(dadosExistente.itens || []), ...novosItens]
+          tx.update(ordemRef, {
+            itens: itensFinais,
+            qtdFotos: (dadosExistente.qtdFotos || 0) + fotos.length,
+          })
+          // Mantem o doc de assinatura em dia para o link/relatorio mostrarem tudo.
+          if (assRefExistente && assinaturaExistente) {
+            tx.update(assRefExistente, {
+              itens: [...(assinaturaExistente.itens || []), ...itens.map(itemParaAssinatura)],
+            })
+          }
+          resultado = { id: appendEm.id, ...dadosExistente, itens: itensFinais }
+        } else {
+          tx.set(ordemRef, {
+            numero: novoNumero,
+            numeroFormatado: formatarNumeroOrdem(novoNumero),
+            tipo: 'uso_interno',
+            subtipo,
+            eventoId: null,
+            eventoNome: null,
+            geradores: [],
+            geradorCodigo: null,
+            itens: novosItens,
+            responsavelNome: responsavelFinal,
+            observacoes: null,
+            qtdFotos: fotos.length,
+            tokenAssinatura,
+            assinaturaStatus: assinaturaRecebeu ? 'assinada' : 'pendente',
+            operadorUid: uid || null,
+            operadorNome: nome || null,
+            status: 'ativo',
+            criadoEm: serverTimestamp(),
+            ...(subtipo === 'emprestimo'
+              ? {
+                dataPrevistaDevolucao: dataPrevista,
+                destinoMotivo: destinoMotivo.trim() || null,
+                statusEmprestimo: 'pendente',
+              }
+              : {
+                motivo,
+              }),
+          })
 
-        tx.set(contadorRef, { ultimo: novoNumero }, { merge: true })
+          tx.set(contadorRef, { ultimo: novoNumero }, { merge: true })
+        }
 
         // Baixa de estoque dos itens CADASTRADOS (avulso e por-quantidade nao mexem).
         for (const it of cadastrados) {
@@ -181,7 +264,46 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         }
       })
 
-      setNumeroOrdem(formatarNumeroOrdem(novoNumero))
+      if (appendEm) {
+        setNumeroOrdem(appendEm.numeroFormatado)
+        setTokenGerado(resultado?.tokenAssinatura || null)
+        setRecebeuPendente(!!resultado?.tokenAssinatura && (resultado?.assinaturaStatus || 'pendente') === 'pendente')
+        setOrdemCriada(resultado)
+      } else {
+        // Doc de assinatura fora da transaction (mesmo padrao do StepConfirmacao).
+        await setDoc(assinaturaRef, {
+          ordemId: ordemRef.id,
+          numeroFormatado: formatarNumeroOrdem(novoNumero),
+          eventoNome: subtipo === 'emprestimo' ? 'Uso interno — Empréstimo' : 'Uso interno — Consumo',
+          local: subtipo === 'emprestimo' ? (destinoMotivo.trim() || null) : (motivo || null),
+          dataEvento: null,
+          itens: itens.map(itemParaAssinatura),
+          entregouNome: nome || null,
+          entregouAssinatura: assinaturaEntregou || null,
+          recebeuNome: responsavelFinal || null,
+          recebeuAssinatura: assinaturaRecebeu || null,
+          status: assinaturaRecebeu ? 'assinada' : 'pendente',
+          criadoEm: serverTimestamp(),
+          assinadoEm: assinaturaRecebeu ? serverTimestamp() : null,
+        })
+
+        const numeroFmt = formatarNumeroOrdem(novoNumero)
+        setNumeroOrdem(numeroFmt)
+        setTokenGerado(tokenAssinatura)
+        setRecebeuPendente(!assinaturaRecebeu)
+        setOrdemCriada({
+          numeroFormatado: numeroFmt,
+          tipo: 'uso_interno',
+          subtipo,
+          responsavelNome: responsavelFinal,
+          operadorNome: nome,
+          criadoEm: new Date(),
+          itens: itens.map(itemParaOrdem),
+          ...(subtipo === 'emprestimo'
+            ? { dataPrevistaDevolucao: dataPrevista, destinoMotivo: destinoMotivo.trim() || null }
+            : { motivo }),
+        })
+      }
       setStatus('sucesso')
     } catch (err) {
       console.error(err)
@@ -192,6 +314,16 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
     }
   }
 
+  function imprimirRelatorio() {
+    if (!ordemCriada) return
+    gerarRelatorioUsoInterno(ordemCriada, {
+      entregouNome: ordemCriada.operadorNome || nome || null,
+      recebeuNome: ordemCriada.responsavelNome || null,
+      entregouAssinatura: assinaturaEntregou || null,
+      recebeuAssinatura: assinaturaRecebeu || null,
+    })
+  }
+
   function novaSaida() {
     fotos.forEach(f => URL.revokeObjectURL(f.preview))
     setSubtipo(null)
@@ -199,10 +331,15 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
     setDataPrevista(''); setDestinoMotivo(''); setMotivo('')
     setItens([]); setFotos([]); setBusca('')
     setStatus('idle'); setErro(''); setNumeroOrdem(null)
+    setAssinaturaEntregou(''); setAssinaturaRecebeu('')
+    setTokenGerado(null); setRecebeuPendente(false); setLinkCopiado(false)
+    setUsarExistente(false); setOrdemCriada(null)
   }
 
   // ---- Sucesso ----
   if (status === 'sucesso') {
+    const link = tokenGerado ? `${window.location.origin}/assinar/${tokenGerado}` : null
+    const msg = link ? `Confirme o recebimento do material da SOS Energia assinando aqui: ${link}` : ''
     return (
       <div className="text-center py-8 space-y-6">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
@@ -219,8 +356,44 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
             {numeroOrdem}
           </div>
         </div>
+
+        {recebeuPendente && link && (
+          <div className="card text-left max-w-md mx-auto space-y-3">
+            <div>
+              <p className="font-semibold text-sm text-brand-black">Falta a assinatura de quem recebeu</p>
+              <p className="text-xs text-gray-500 mt-0.5">Envie o link para {ordemCriada?.responsavelNome || 'o responsável'} assinar.</p>
+            </div>
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              <span className="text-xs text-gray-600 font-mono truncate flex-1">{link}</span>
+              <button
+                onClick={() => { navigator.clipboard?.writeText(link); setLinkCopiado(true); setTimeout(() => setLinkCopiado(false), 2000) }}
+                className="text-xs font-semibold text-brand-red flex-shrink-0"
+              >
+                {linkCopiado ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary w-full justify-center gap-2 bg-green-600 hover:bg-green-700"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.207zM17.41 14.382c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.247-.694.247-1.289.173-1.413z" />
+              </svg>
+              Enviar pelo WhatsApp
+            </a>
+          </div>
+        )}
+
         <div className="flex gap-3 justify-center flex-wrap">
           <button onClick={novaSaida} className="btn-primary">Nova saída interna</button>
+          <button onClick={imprimirRelatorio} className="btn-secondary gap-1.5">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Imprimir relatório
+          </button>
           {subtipo === 'emprestimo' && (
             <Link to="/uso-interno" className="btn-secondary">Ferramentas em Campo</Link>
           )}
@@ -316,7 +489,28 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         )}
       </div>
 
-      {/* Campos por subtipo */}
+      {/* Já pegou material hoje: opção de anexar à saída existente */}
+      {ordemDoDia && (
+        <div className="card bg-amber-50 border-amber-200">
+          <p className="text-sm font-semibold text-amber-800">
+            {responsavelFinal} já retirou {subtipo === 'emprestimo' ? 'empréstimo' : 'material'} hoje ({ordemDoDia.numeroFormatado})
+          </p>
+          <label className="flex items-start gap-2 mt-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={usarExistente}
+              onChange={e => setUsarExistente(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-brand-red flex-shrink-0"
+            />
+            <span className="text-sm text-amber-700">
+              Adicionar os itens a essa saída, em vez de criar uma nova ordem.
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* Campos por subtipo (ocultos ao anexar — herdam da ordem original) */}
+      {!anexando && (
       <div className="card space-y-4">
         {subtipo === 'emprestimo' ? (
           <>
@@ -349,6 +543,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
           </div>
         )}
       </div>
+      )}
 
       {/* Itens */}
       <div className="card space-y-3">
@@ -458,6 +653,36 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         <FotoPickerBotoes onArquivos={adicionarFotos} disabled={status === 'carregando'} />
       </div>
 
+      {/* Assinaturas (mesmo padrao da saida externa). Ocultas ao anexar: a ordem
+          original ja tem assinatura/link proprios. */}
+      {!anexando && (
+        <div className="card space-y-4">
+          <div>
+            <h3 className="font-semibold text-sm text-gray-700">Assinaturas</h3>
+            <p className="text-xs text-gray-400">
+              Quem entrega assina agora. Quem recebe pode assinar agora (se presente) ou depois, por link.
+            </p>
+          </div>
+          <SignaturePad
+            titulo={`Quem entregou${nome ? ` — ${nome}` : ''}`}
+            valor={assinaturaEntregou}
+            onChange={setAssinaturaEntregou}
+            altura={120}
+          />
+          <SignaturePad
+            titulo={`Quem recebeu${responsavelFinal ? ` — ${responsavelFinal}` : ''} (opcional)`}
+            valor={assinaturaRecebeu}
+            onChange={setAssinaturaRecebeu}
+            altura={120}
+          />
+          {!assinaturaRecebeu && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Sem a assinatura de quem recebeu, um link será gerado para assinar depois (WhatsApp).
+            </p>
+          )}
+        </div>
+      )}
+
       {erro && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{erro}</div>
       )}
@@ -471,7 +696,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
             </svg>
             {progresso ? `Enviando foto ${progresso.atual}/${progresso.total}...` : 'Processando...'}
           </>
-        ) : `Confirmar ${subtipo === 'emprestimo' ? 'Empréstimo' : 'Consumo'}`}
+        ) : anexando ? `Adicionar à ${ordemDoDia.numeroFormatado}` : `Confirmar ${subtipo === 'emprestimo' ? 'Empréstimo' : 'Consumo'}`}
       </button>
 
       {avulsoAberto && <ItemAvulsoModal onFechar={() => setAvulsoAberto(false)} onAdicionar={adicionarAvulso} />}

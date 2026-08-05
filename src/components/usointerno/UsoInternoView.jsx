@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import { collection, query, where, getDocs, doc, runTransaction, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, getDocs, getDoc, deleteDoc, doc, runTransaction, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
-import { formatarData, materialPorQuantidade, statusDevolucaoCor } from '../../utils/formatters'
+import { formatarData, formatarDataHora, materialPorQuantidade, statusDevolucaoCor } from '../../utils/formatters'
 import { comprimirParaDataUrl } from '../../utils/imagem'
+import { gerarRelatorioUsoInterno } from '../../utils/relatorioUsoInterno'
 import FotoPickerBotoes from '../ui/FotoPickerBotoes'
 
-const ABAS = ['Ferramentas em Campo', 'Itens Avulsos']
+const ABAS = ['Ferramentas em Campo', 'Itens Avulsos', 'Histórico']
 
 // Dias de atraso (negativo = ainda no prazo). Base: dataPrevistaDevolucao 'YYYY-MM-DD'.
 function diasAtraso(dataPrevista) {
@@ -58,9 +59,9 @@ export default function UsoInternoView() {
         ))}
       </div>
 
-      {aba === 'Ferramentas em Campo'
-        ? <FerramentasEmCampo emprestimos={emprestimosPendentes} />
-        : <ItensAvulsos ordens={ordens} />}
+      {aba === 'Ferramentas em Campo' && <FerramentasEmCampo emprestimos={emprestimosPendentes} />}
+      {aba === 'Itens Avulsos' && <ItensAvulsos ordens={ordens} />}
+      {aba === 'Histórico' && <HistoricoInternas ordens={ordens} />}
     </div>
   )
 }
@@ -452,6 +453,163 @@ function ItensAvulsos({ ordens }) {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Histórico de saídas internas (empréstimo + consumo): relatório e exclusão
+// ---------------------------------------------------------------------------
+function HistoricoInternas({ ordens }) {
+  const [excluindo, setExcluindo] = useState(null)
+  const [processando, setProcessando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const internas = useMemo(() =>
+    ordens
+      .filter(o => o.tipo === 'uso_interno')
+      .sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0)),
+    [ordens])
+
+  // Relatório: busca o doc de assinatura (imagens de quem entregou/recebeu) e imprime.
+  async function imprimir(o) {
+    let ass = null
+    if (o.tokenAssinatura) {
+      try {
+        const snap = await getDoc(doc(db, 'assinaturas_saida', o.tokenAssinatura))
+        if (snap.exists()) ass = snap.data()
+      } catch { /* sem assinatura: imprime com linhas em branco */ }
+    }
+    gerarRelatorioUsoInterno(o, ass)
+  }
+
+  // Exclusão: apaga a ordem e devolve ao estoque os itens que AINDA estão presos por
+  // ela (status emprestado/consumido). Itens já devolvidos/transicionados não são
+  // tocados. Apaga também o doc de assinatura e as fotos da ordem.
+  async function confirmarExclusao() {
+    const ordem = excluindo
+    if (!ordem) return
+    setProcessando(true)
+    setErro('')
+    try {
+      await runTransaction(db, async (tx) => {
+        // ===== LEITURAS =====
+        const cadastrados = (ordem.itens || []).filter(it => it.id && !materialPorQuantidade(it))
+        const snaps = []
+        for (const it of cadastrados) {
+          snaps.push([it, await tx.get(doc(db, 'materiais', it.id))])
+        }
+        // ===== ESCRITAS =====
+        tx.delete(doc(db, 'ordens_saida', ordem.id))
+        if (ordem.tokenAssinatura) tx.delete(doc(db, 'assinaturas_saida', ordem.tokenAssinatura))
+        const esperado = ordem.subtipo === 'consumo' ? 'consumido' : 'emprestado'
+        for (const [it, snap] of snaps) {
+          if (snap.exists() && snap.data().status === esperado) {
+            tx.update(doc(db, 'materiais', it.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+          }
+        }
+      })
+      // Fotos fora da transaction (não bloqueiam a exclusão se falharem).
+      try {
+        const fs = await getDocs(query(collection(db, 'fotos_saida'), where('ordemId', '==', ordem.id)))
+        await Promise.all(fs.docs.map(d => deleteDoc(d.ref)))
+      } catch (e) { console.error(e) }
+      setExcluindo(null)
+    } catch (e) {
+      console.error(e)
+      setErro(e.message || 'Erro ao excluir o lançamento.')
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  if (internas.length === 0) {
+    return (
+      <div className="card text-center py-12 text-gray-400">
+        <p>Nenhuma saída interna registrada ainda.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {internas.map(o => (
+        <div key={o.id} className="card">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-brand-black">{o.numeroFormatado}</span>
+                <span className={`badge ${o.subtipo === 'emprestimo' ? 'bg-indigo-100 text-indigo-700' : 'bg-orange-100 text-orange-700'}`}>
+                  {o.subtipo === 'emprestimo' ? 'Empréstimo' : 'Consumo'}
+                </span>
+                {o.subtipo === 'emprestimo' && (
+                  <span className={`badge ${o.statusEmprestimo === 'devolvido' ? 'bg-green-100 text-green-700' : o.statusEmprestimo === 'parcial' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {o.statusEmprestimo === 'devolvido' ? 'Devolvido' : o.statusEmprestimo === 'parcial' ? 'Parcial' : 'Pendente'}
+                  </span>
+                )}
+                {o.tokenAssinatura && (
+                  <span className={`badge ${o.assinaturaStatus === 'assinada' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {o.assinaturaStatus === 'assinada' ? 'Assinada' : 'Assinatura pendente'}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                <span className="text-gray-400">Responsável:</span> {o.responsavelNome || '—'}
+                {o.motivo ? ` · ${o.motivo}` : ''}
+              </p>
+              <p className="text-xs text-gray-400">
+                {formatarDataHora(o.criadoEm)} · {(o.itens || []).length} {(o.itens || []).length === 1 ? 'item' : 'itens'}
+              </p>
+            </div>
+            <div className="flex gap-1.5 flex-shrink-0">
+              <button
+                onClick={() => imprimir(o)}
+                className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red transition-colors"
+                title="Imprimir relatório"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => { setErro(''); setExcluindo(o) }}
+                className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:border-brand-red hover:text-brand-red hover:bg-red-50 transition-colors"
+                title="Excluir lançamento"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {excluindo && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-5 space-y-4">
+            <div>
+              <p className="font-semibold text-brand-black">Excluir lançamento</p>
+              <p className="text-sm text-gray-500 mt-1">
+                <strong>{excluindo.numeroFormatado}</strong> — {excluindo.responsavelNome || '—'}.
+                Os itens que ainda estiverem {excluindo.subtipo === 'consumo' ? 'consumidos' : 'emprestados'} por
+                esta saída voltam ao estoque como disponíveis. Fotos e link de assinatura serão apagados.
+              </p>
+            </div>
+            {erro && <p className="text-sm text-brand-red">{erro}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setExcluindo(null)} disabled={processando} className="btn-secondary flex-1">Cancelar</button>
+              <button
+                onClick={confirmarExclusao}
+                disabled={processando}
+                className="btn-primary flex-1 justify-center disabled:opacity-50"
+              >
+                {processando ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
           </div>
         </div>
       )}

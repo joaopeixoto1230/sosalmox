@@ -100,6 +100,16 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   atrasado primeiro, devolver, fotos saída/devolução) e "Itens Avulsos" (agrupa por nome/frequência).
 - Fotos são por ORDEM (base64 em `fotos_saida`, campo `momento:'saida'|'devolucao'`), não por item.
 - Status de material novos: `emprestado`, `consumido` (em `utils/formatters` e nas pills do Estoque).
+- **Assinaturas** iguais à externa: entregou/recebeu no fluxo + link `/assinar/:token`
+  (doc em `assinaturas_saida`, campo `tokenAssinatura`/`assinaturaStatus` na ordem).
+- **Relatório imprimível** (`utils/relatorioUsoInterno.js`): usado na tela de sucesso do fluxo e
+  na aba Histórico (busca as imagens de assinatura pelo token).
+- Aba **Histórico** na view `/uso-interno`: todas as saídas internas, com imprimir relatório e
+  **excluir lançamento** (transaction: devolve ao estoque só itens ainda `emprestado`/`consumido`
+  daquela ordem, apaga o doc de assinatura e as fotos da ordem).
+- **Anexar à saída do dia**: se o mesmo responsável já tem saída do mesmo subtipo HOJE
+  (empréstimo ainda pendente), o fluxo oferece anexar os itens à ordem existente (checkbox) em vez
+  de criar ordem nova — atualiza `itens` da ordem E do doc de assinatura.
 
 ### Outros
 - Devolução (Evento), transferência, estoque com filtro de status em pills coloridas
