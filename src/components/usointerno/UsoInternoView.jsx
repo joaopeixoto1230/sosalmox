@@ -474,7 +474,8 @@ function HistoricoInternas({ ordens }) {
       .sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0)),
     [ordens])
 
-  // Relatório: busca o doc de assinatura (imagens de quem entregou/recebeu) e imprime.
+  // Relatório: busca o doc de assinatura (imagens de quem entregou/recebeu) e as
+  // fotos da ordem, e imprime.
   async function imprimir(o) {
     let ass = null
     if (o.tokenAssinatura) {
@@ -483,7 +484,12 @@ function HistoricoInternas({ ordens }) {
         if (snap.exists()) ass = snap.data()
       } catch { /* sem assinatura: imprime com linhas em branco */ }
     }
-    gerarRelatorioUsoInterno(o, ass)
+    let fotosOrdem = []
+    try {
+      const fsnap = await getDocs(query(collection(db, 'fotos_saida'), where('ordemId', '==', o.id)))
+      fotosOrdem = fsnap.docs.map(d => d.data()).sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+    } catch (e) { console.error(e) }
+    gerarRelatorioUsoInterno(o, ass, fotosOrdem)
   }
 
   // Exclusão: apaga a ordem e devolve ao estoque os itens que AINDA estão presos por

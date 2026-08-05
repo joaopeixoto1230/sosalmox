@@ -5,9 +5,11 @@
 // `assinatura` (opcional): doc de assinaturas_saida ou objeto local com
 // { entregouNome, recebeuNome, entregouAssinatura, recebeuAssinatura } — quando
 // ha imagem (dataURL) ela e impressa no lugar da linha de assinatura.
+// `fotos` (opcional): docs de fotos_saida da ordem [{ dataUrl, momento }] — saem
+// no relatorio em secoes separadas (Saida / Devolucao).
 import { statusDevolucaoLabel } from './formatters'
 
-export function gerarRelatorioUsoInterno(ordem, assinatura = null) {
+export function gerarRelatorioUsoInterno(ordem, assinatura = null, fotos = []) {
   const subtipoLabel = ordem.subtipo === 'emprestimo' ? 'Empréstimo' : 'Consumo'
   const d = ordem.criadoEm?.toDate ? ordem.criadoEm.toDate() : ordem.criadoEm ? new Date(ordem.criadoEm) : new Date()
   const dataStr = isNaN(d.getTime()) ? '—' : d.toLocaleString('pt-BR')
@@ -34,6 +36,13 @@ export function gerarRelatorioUsoInterno(ordem, assinatura = null) {
         <tr><td>${it.nome || '—'}</td><td>${statusDevolucaoLabel(it.statusDevolucao)}</td><td>${it.descricao || '—'}</td></tr>`).join('')}
       </tbody>
     </table>` : ''
+
+  const fotosSaida = fotos.filter(f => (f.momento || 'saida') === 'saida')
+  const fotosDevolucao = fotos.filter(f => f.momento === 'devolucao')
+  const gradeFotos = lista => `<div class="fotos">${lista.map(f => `<img class="foto" src="${f.dataUrl}"/>`).join('')}</div>`
+  const blocoFotos = (fotosSaida.length || fotosDevolucao.length) ? `
+    ${fotosSaida.length ? `<h2 class="sec">Fotos — Saída</h2>${gradeFotos(fotosSaida)}` : ''}
+    ${fotosDevolucao.length ? `<h2 class="sec">Fotos — Devolução</h2>${gradeFotos(fotosDevolucao)}` : ''}` : ''
 
   const entregouNome = assinatura?.entregouNome || ordem.operadorNome || ''
   const recebeuNome = assinatura?.recebeuNome || ordem.responsavelNome || ''
@@ -73,6 +82,8 @@ export function gerarRelatorioUsoInterno(ordem, assinatura = null) {
         .assinatura-linha { border-bottom: 1.5px solid #1a1a1a; margin-bottom: 6px; height: 36px; }
         .ass-img { height: 60px; object-fit: contain; display: block; margin-bottom: 4px; }
         .assinatura-label { font-size: 11px; color: #888; }
+        .fotos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+        .foto { width: 150px; height: 150px; object-fit: cover; border: 1px solid #ddd; border-radius: 8px; }
         .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #eee; font-size: 11px; color: #aaa; display: flex; justify-content: space-between; }
         @media print { body { padding: 16px; } }
       </style>
@@ -102,6 +113,8 @@ export function gerarRelatorioUsoInterno(ordem, assinatura = null) {
       <p class="total-linha">Total: ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}</p>
 
       ${blocoDevolucao}
+
+      ${blocoFotos}
 
       <div class="assinaturas">
         <div class="assinaturas-titulo">Assinaturas</div>

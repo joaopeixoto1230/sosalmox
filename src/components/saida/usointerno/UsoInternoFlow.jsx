@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { runTransaction, doc, collection, addDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { runTransaction, doc, collection, addDoc, setDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useCollection } from '../../../hooks/useFirestore'
@@ -69,6 +69,9 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
       if (o.tipo !== 'uso_interno' || o.subtipo !== subtipo) return false
       if ((o.responsavelNome || '').trim().toLowerCase() !== responsavelFinal.trim().toLowerCase()) return false
       if (subtipo === 'emprestimo' && (o.statusEmprestimo || 'pendente') !== 'pendente') return false
+      // criadoEm pendente (serverTimestamp ainda nao confirmado pelo servidor) =
+      // doc criado agora mesmo nesta sessao — conta como hoje.
+      if (!o.criadoEm) return true
       const d = o.criadoEm?.toDate?.()
       return d && d.toDateString() === hoje
     }) || null
@@ -292,6 +295,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         setTokenGerado(tokenAssinatura)
         setRecebeuPendente(!assinaturaRecebeu)
         setOrdemCriada({
+          id: ordemRef.id,
           numeroFormatado: numeroFmt,
           tipo: 'uso_interno',
           subtipo,
@@ -314,14 +318,22 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
     }
   }
 
-  function imprimirRelatorio() {
+  async function imprimirRelatorio() {
     if (!ordemCriada) return
+    // Busca as fotos da ordem (fotos_saida) para sairem no relatorio.
+    let fotosOrdem = []
+    if (ordemCriada.id) {
+      try {
+        const snap = await getDocs(query(collection(db, 'fotos_saida'), where('ordemId', '==', ordemCriada.id)))
+        fotosOrdem = snap.docs.map(d => d.data()).sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+      } catch (e) { console.error(e) }
+    }
     gerarRelatorioUsoInterno(ordemCriada, {
       entregouNome: ordemCriada.operadorNome || nome || null,
       recebeuNome: ordemCriada.responsavelNome || null,
       entregouAssinatura: assinaturaEntregou || null,
       recebeuAssinatura: assinaturaRecebeu || null,
-    })
+    }, fotosOrdem)
   }
 
   function novaSaida() {
