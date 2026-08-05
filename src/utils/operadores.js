@@ -1,0 +1,21 @@
+// Lista de operadores/colaboradores usada em varios fluxos (Saida de Evento,
+// Uso Interno etc.). Centralizada aqui para nao duplicar/divergir entre telas.
+export const OPERADORES = [
+  'Adjaiton',
+  'Adriano Carvalho',
+  'Andre França',
+  'Bruno Araujo',
+  'Fabio Alves',
+  'Francisco das Chagas',
+  'Gerson Rodrigues',
+  'Igor Fernando',
+  'João Felipe Peixoto',
+  'José Marcio',
+  'Laércio Rodrigues',
+  'Maycon Teixeira',
+  'Maykon Souza',
+  'Nilton Fernandes',
+  'Ricardo Goudinho',
+  'Robson José',
+  'Ronaldo Pedrosa',
+]

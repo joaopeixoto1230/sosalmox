@@ -53,6 +53,8 @@ export function statusMaterialLabel(status) {
   const map = {
     disponivel: 'Disponível',
     em_evento: 'Em Evento',
+    emprestado: 'Emprestado',
+    consumido: 'Consumido',
     manutencao: 'Manutenção',
     perdido: 'Perdido',
     inativo: 'Inativo',
@@ -64,9 +66,37 @@ export function statusMaterialCor(status) {
   const map = {
     disponivel: 'bg-green-100 text-green-700',
     em_evento: 'bg-yellow-100 text-yellow-700',
+    emprestado: 'bg-indigo-100 text-indigo-700',
+    consumido: 'bg-gray-200 text-gray-600',
     manutencao: 'bg-orange-100 text-orange-700',
     perdido: 'bg-red-100 text-red-700',
     inativo: 'bg-gray-100 text-gray-600',
+  }
+  return map[status] || 'bg-gray-100 text-gray-600'
+}
+
+// Status de devolucao (compartilhado entre devolucao de Evento e Emprestimo).
+// 'nao_devolvido' e novo, so usado no Emprestimo (ferramenta que nao voltou).
+export function statusDevolucaoLabel(status) {
+  const map = {
+    ok: 'Devolvido OK',
+    problema: 'Com problema',
+    cortado: 'Cortado',
+    perdido: 'Perdido',
+    nao_devolvido: 'Não devolvido',
+    aguardando: 'Aguardando',
+  }
+  return map[status] || status
+}
+
+export function statusDevolucaoCor(status) {
+  const map = {
+    ok: 'bg-green-100 text-green-700',
+    problema: 'bg-orange-100 text-orange-700',
+    cortado: 'bg-gray-200 text-gray-700',
+    perdido: 'bg-red-100 text-red-700',
+    nao_devolvido: 'bg-red-100 text-red-700',
+    aguardando: 'bg-gray-100 text-gray-500',
   }
   return map[status] || 'bg-gray-100 text-gray-600'
 }

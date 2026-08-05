@@ -5,8 +5,43 @@ import StepGerador from './steps/StepGerador'
 import StepMateriais from './steps/StepMateriais'
 import StepRomaneio from './steps/StepRomaneio'
 import StepConfirmacao from './steps/StepConfirmacao'
+import UsoInternoFlow from './usointerno/UsoInternoFlow'
 
 const PASSOS = ['Evento', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
+
+// Primeiro passo do modulo: escolher se a saida e para Evento (fluxo atual) ou
+// Uso Interno (emprestimo/consumo, sem vinculo a evento).
+function EscolhaTipo({ onEscolher }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold text-brand-black">Tipo de Saída</h2>
+        <p className="text-sm text-gray-500">O material está saindo para quê?</p>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <button onClick={() => onEscolher('evento')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
+          <div className="w-10 h-10 rounded-lg bg-brand-red/10 text-brand-red flex items-center justify-center mb-2">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <p className="font-bold text-brand-black">Evento</p>
+          <p className="text-sm text-gray-500 mt-0.5">Aluguel/saída vinculada a um evento de cliente (fluxo com gerador e romaneio).</p>
+        </button>
+        <button onClick={() => onEscolher('uso_interno')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
+          <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0H5m14 0h2M5 21H3m4-14h6m-6 4h6m-2 4h2" />
+            </svg>
+          </div>
+          <p className="font-bold text-brand-black">Uso Interno</p>
+          <p className="text-sm text-gray-500 mt-0.5">Empréstimo de ferramenta (que volta) ou consumo de material avulso (que não volta).</p>
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
   return (
@@ -61,6 +96,7 @@ function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
 }
 
 export default function SaidaMaterial() {
+  const [tipoSaida, setTipoSaida] = useState(null) // null | 'evento' | 'uso_interno'
   const [passo, setPasso] = useState(0)
   const [evento, setEvento] = useState(null)
   const [geradores, setGeradores] = useState([])
@@ -117,8 +153,28 @@ export default function SaidaMaterial() {
     <div className="max-w-3xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-brand-black">Saída de Material</h1>
-        <p className="text-gray-500 text-sm mt-1">Registre a saída de materiais para um evento.</p>
+        <p className="text-gray-500 text-sm mt-1">Registre a saída de materiais.</p>
       </div>
+
+      {tipoSaida === null && <EscolhaTipo onEscolher={setTipoSaida} />}
+
+      {tipoSaida === 'uso_interno' && (
+        <UsoInternoFlow onTrocarTipo={() => setTipoSaida(null)} />
+      )}
+
+      {tipoSaida === 'evento' && (
+      <>
+      {passo === 0 && (
+        <button
+          onClick={() => setTipoSaida(null)}
+          className="text-sm text-gray-500 hover:text-brand-red inline-flex items-center gap-1 mb-3"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Trocar tipo de saída
+        </button>
+      )}
 
       <div className="card mb-6">
         <Stepper passoAtual={passo} podeProsseguir={podeProsseguir} onVoltar={voltarPasso} onAvancar={avancarPasso} />
@@ -173,6 +229,8 @@ export default function SaidaMaterial() {
           responsavel={responsavel}
           onNovaSaida={resetar}
         />
+      )}
+      </>
       )}
     </div>
   )
