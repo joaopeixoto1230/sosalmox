@@ -15,12 +15,16 @@ const STATUS_OPCOES = [
   { value: 'perdido', label: 'Perdido' },
 ]
 
-export default function MaterialCard({ material, evento }) {
+export default function MaterialCard({ material, evento, especie }) {
   const [menuAberto, setMenuAberto] = useState(false)
   const [alterando, setAlterando] = useState(false)
   const [editando, setEditando] = useState(false)
 
-  const estoqueBaixo = material.estoqueAtual <= material.estoqueMin && material.estoqueMin > 0
+  // Item por unidade (cabo): o estoque e da especie (bitola), nao do doc.
+  // Consumivel (fita, parafuso): segue estoqueAtual/estoqueMin do proprio doc.
+  const estoqueBaixo = especie
+    ? especie.baixo
+    : material.estoqueAtual <= material.estoqueMin && material.estoqueMin > 0
 
   async function trocarStatus(novoStatus) {
     setAlterando(true)
@@ -110,7 +114,26 @@ export default function MaterialCard({ material, evento }) {
         )}
       </div>
 
-      {material.estoqueMin > 0 && (
+      {especie ? (
+        <div className="flex items-center gap-2" title={`Estoque de ${especie.rotulo}`}>
+          <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+            <div
+              className={`h-1.5 rounded-full transition-all ${estoqueBaixo ? 'bg-brand-red' : 'bg-green-500'}`}
+              style={{ width: `${especie.total > 0 ? Math.min(100, (especie.disponiveis / especie.total) * 100) : 0}%` }}
+            />
+          </div>
+          <span className={`text-xs font-medium whitespace-nowrap ${estoqueBaixo ? 'text-brand-red' : 'text-gray-500'}`}>
+            {especie.disponiveis} de {especie.total}
+          </span>
+          {estoqueBaixo && (
+            <span className="text-brand-red" title={`Só ${especie.disponiveis} de ${especie.total} disponíveis nesta bitola`}>
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
+        </div>
+      ) : material.estoqueMin > 0 && (
         <div className="flex items-center gap-2">
           <div className="flex-1 bg-gray-100 rounded-full h-1.5">
             <div

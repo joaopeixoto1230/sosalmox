@@ -126,6 +126,19 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   usadas por Estoque, NovoMaterialModal e ModalEditarMaterial. Não recriar constantes locais.
 - Cards de estatística CLICÁVEIS (filtram por status; Estoque Baixo alterna o checkbox;
   Total limpa filtros). No grupo uso_interno o 3º card vira "Emprestados".
+- **Estoque baixo é por ESPÉCIE, não por documento** (`estoque/estoqueEspecie.js`, coberto
+  por `estoqueEspecie.test.js` — rodar `npm test` antes de mexer). Cada cabo é um doc de
+  uma unidade (1/1); a regra antiga `estoqueAtual <= estoqueMin` marcava TODO cabo parado
+  no pátio como baixo (290 de 290 itens). Agora:
+  - Espécie = categoria + bitola normalizada ("35mm²" = "35"); o comprimento NÃO separa.
+    Sem bitola, agrupa pelo tipo. Perdido/consumido saem do acervo.
+  - Alerta se: 0 disponíveis; OU sobrou 1 tendo mais de 1 no acervo; OU ≤20% do total.
+    Bitola de unidade única parada no pátio NÃO alerta (regra do João: "se está na
+    empresa, não é estoque baixo").
+  - Consumíveis (protetor de cabo, fita, parafuso — `materialPorUnidade` = false) mantêm
+    a regra clássica estoqueAtual/estoqueMin. Não unificar as duas regras.
+  - O card mostra "X de Y" da bitola no lugar do antigo 1/1; o card de estatística conta
+    bitolas/tipos em falta, não itens.
 - Categorias extras criadas pelo usuário são derivadas dos materiais DO MESMO grupo.
 - NovoMaterialModal e ModalEditarMaterial têm o seletor de grupo (mover material de grupo
   na edição é permitido); "+ Nova categoria…" continua nos dois grupos.

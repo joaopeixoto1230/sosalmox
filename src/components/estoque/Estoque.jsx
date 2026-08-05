@@ -3,6 +3,7 @@ import { useCollection } from '../../hooks/useFirestore'
 import MaterialCard from './MaterialCard'
 import NovoMaterialModal from './NovoMaterialModal'
 import { GRUPOS, grupoDoMaterial, categoriasDoGrupo } from './categorias'
+import { calcularEspecies, chaveEspecie, materialPorUnidade, materialEmEstoqueBaixo, contarEstoqueBaixo } from './estoqueEspecie'
 
 const STATUS_OPCOES = [
   { label: 'Todos', value: null, ativo: 'bg-brand-black text-white', inativo: 'bg-white border-gray-200 text-gray-600' },
@@ -46,18 +47,22 @@ export default function Estoque() {
     [grupo, materiais]
   )
 
+  // Estoque real por especie (categoria + bitola): um cabo parado no patio nao
+  // e estoque baixo; o que conta e quantas unidades daquela bitola sobraram.
+  const especies = useMemo(() => calcularEspecies(materiaisDoGrupo), [materiaisDoGrupo])
+
   const filtrados = useMemo(() => {
     return materiaisDoGrupo.filter(m => {
       if (categoria !== 'Todos' && m.categoria !== categoria) return false
       if (statusFiltro && m.status !== statusFiltro) return false
-      if (apenasEstoqueBaixo && !(m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0)) return false
+      if (apenasEstoqueBaixo && !materialEmEstoqueBaixo(m, especies)) return false
       if (busca) {
         const q = busca.toLowerCase()
         return m.nome.toLowerCase().includes(q) || m.codigo.toLowerCase().includes(q)
       }
       return true
     })
-  }, [materiaisDoGrupo, categoria, statusFiltro, busca, apenasEstoqueBaixo])
+  }, [materiaisDoGrupo, categoria, statusFiltro, busca, apenasEstoqueBaixo, especies])
 
   const stats = useMemo(() => ({
     total: materiaisDoGrupo.length,
@@ -67,8 +72,8 @@ export default function Estoque() {
     perdido: materiaisDoGrupo.filter(m => m.status === 'perdido').length,
     emprestado: materiaisDoGrupo.filter(m => m.status === 'emprestado').length,
     consumido: materiaisDoGrupo.filter(m => m.status === 'consumido').length,
-    estoqueBaixo: materiaisDoGrupo.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length,
-  }), [materiaisDoGrupo])
+    estoqueBaixo: contarEstoqueBaixo(materiaisDoGrupo, especies),
+  }), [materiaisDoGrupo, especies])
 
   const contagemPorStatus = {
     null: stats.total,
@@ -220,9 +225,21 @@ export default function Estoque() {
         </div>
       ) : (
         <>
-          <p className="text-sm text-gray-500">{filtrados.length} {filtrados.length === 1 ? 'item encontrado' : 'itens encontrados'}</p>
+          <p className="text-sm text-gray-500">
+            {filtrados.length} {filtrados.length === 1 ? 'item encontrado' : 'itens encontrados'}
+            {apenasEstoqueBaixo && (
+              <span className="text-brand-red"> · {stats.estoqueBaixo} {stats.estoqueBaixo === 1 ? 'bitola/tipo em falta' : 'bitolas/tipos em falta'}</span>
+            )}
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filtrados.map(mat => <MaterialCard key={mat.id} material={mat} evento={eventosMap.get(mat.eventoAtual)} />)}
+            {filtrados.map(mat => (
+              <MaterialCard
+                key={mat.id}
+                material={mat}
+                evento={eventosMap.get(mat.eventoAtual)}
+                especie={materialPorUnidade(mat) ? especies.get(chaveEspecie(mat)) : null}
+              />
+            ))}
           </div>
         </>
       )}
