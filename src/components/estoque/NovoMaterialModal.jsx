@@ -2,42 +2,16 @@ import { useState, useMemo } from 'react'
 import { db } from '../../firebase/config'
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { useCollection } from '../../hooks/useFirestore'
+import { GRUPOS, CATEGORIAS_POR_GRUPO, TIPOS_POR_CATEGORIA, categoriasDoGrupo } from './categorias'
 
 // Valor sentinela da opcao "criar categoria nova" no select de categoria.
 const NOVA_CATEGORIA = '__nova__'
-
-const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
-
-const TIPOS_POR_CATEGORIA = {
-  'Cabos 4x': ['Cabo único', 'Cabo com terra'],
-  'Cabos 5x': ['Cabo único', 'Cabo com terra'],
-  'Cabos Terra': ['Cabo terra simples', 'Cabo terra CAMLOCK'],
-  'Cabos (Geral)': ['Cabo específico', 'Outro'],
-  'Jogos de Cabo': ['Jogo 3F+N', 'Jogo 3F'],
-  'Rabichos': ['Rabicho 3F+N', 'Rabicho 3F'],
-  'Outros Materiais': [
-    'Caixa de Passagem',
-    'Caixa de Desconexão',
-    'Caixa Blindada',
-    'Chave Reversora',
-    'QTA',
-    'Passa-cabos',
-    'Protetor de cabo',
-    'Fita Isolante',
-    'Fita de Alta Tensão',
-    'Fita de Baixa Tensão',
-    'Extintor',
-    'Conector',
-    'Equipamento',
-    'Acessório',
-    'Outro',
-  ],
-}
 
 export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
   // `inicial` pre-preenche o formulario (ex: vindo do escaneamento do romaneio).
   const [form, setForm] = useState(() => {
     const base = {
+      grupo: 'eventos',
       nome: '',
       codigo: '',
       categoria: 'Outros Materiais',
@@ -65,16 +39,14 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
   const [erro, setErro] = useState('')
   const [novaCategoria, setNovaCategoria] = useState('')
 
-  // Categorias extras: derivadas dos materiais ja cadastrados. Assim, uma
-  // categoria criada aqui passa a aparecer no dropdown nas proximas vezes,
+  // Categorias extras: derivadas dos materiais ja cadastrados no grupo. Assim,
+  // uma categoria criada aqui passa a aparecer no dropdown nas proximas vezes,
   // sem precisar de colecao nova nem de mexer nas regras do Firestore.
   const { dados: materiaisAll } = useCollection('materiais')
-  const categoriasNomes = useMemo(() => {
-    const extras = [...new Set(materiaisAll.map(m => m.categoria).filter(Boolean))]
-      .filter(c => !CATEGORIAS.includes(c))
-      .sort((a, b) => a.localeCompare(b))
-    return [...CATEGORIAS, ...extras]
-  }, [materiaisAll])
+  const categoriasNomes = useMemo(
+    () => categoriasDoGrupo(form.grupo, materiaisAll),
+    [form.grupo, materiaisAll]
+  )
 
   const categoriaFinal = form.categoria === NOVA_CATEGORIA ? novaCategoria.trim() : form.categoria
   const tiposDaCategoria = TIPOS_POR_CATEGORIA[categoriaFinal] || []
@@ -84,6 +56,11 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
       const next = { ...prev, [field]: value }
       if (field === 'categoria') {
         next.tipo = TIPOS_POR_CATEGORIA[value]?.[0] || ''
+      }
+      if (field === 'grupo') {
+        // Ao trocar de grupo, cai na primeira categoria dele (e no primeiro tipo dela).
+        next.categoria = CATEGORIAS_POR_GRUPO[value]?.[0] || ''
+        next.tipo = TIPOS_POR_CATEGORIA[next.categoria]?.[0] || ''
       }
       return next
     })
@@ -97,6 +74,7 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
     setErro('')
     try {
       const dados = {
+        grupo: form.grupo,
         nome: form.nome.trim(),
         codigo: form.codigo.trim().toUpperCase(),
         categoria: categoriaFinal,
@@ -136,6 +114,23 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
         </div>
 
         <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">Grupo</label>
+            <div className="grid grid-cols-2 gap-1.5 bg-gray-100 rounded-xl p-1">
+              {GRUPOS.map(g => (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() => set('grupo', g.value)}
+                  className={`px-2 py-2 rounded-lg text-xs font-semibold transition-colors
+                    ${form.grupo === g.value ? 'bg-brand-red text-white' : 'text-gray-600 hover:text-brand-red'}`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Categoria</label>
             <select value={form.categoria} onChange={e => set('categoria', e.target.value)} className="input">

@@ -116,6 +116,20 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 - O relatório espera as imagens decodificarem (`img.decode()`) antes do `print()` — senão as
   fotos JPEG saem em branco no PDF. Não voltar ao `win.print()` imediato.
 
+### Estoque (`src/components/estoque/`)
+- **Dois grupos de estoque** (campo `grupo` no doc de `materiais`): `eventos` (padrão —
+  doc SEM o campo conta como eventos, sem migração) e `uso_interno` (ferramental, fitas,
+  parafusos, EPI, consumíveis). Seletor segmentado no topo da tela; estatísticas, abas de
+  categoria, pills de status e grid todos escopados ao grupo selecionado.
+- Constantes compartilhadas em `src/components/estoque/categorias.js`
+  (GRUPOS, CATEGORIAS_POR_GRUPO, TIPOS_POR_CATEGORIA, categoriasDoGrupo, grupoDoMaterial) —
+  usadas por Estoque, NovoMaterialModal e ModalEditarMaterial. Não recriar constantes locais.
+- Cards de estatística CLICÁVEIS (filtram por status; Estoque Baixo alterna o checkbox;
+  Total limpa filtros). No grupo uso_interno o 3º card vira "Emprestados".
+- Categorias extras criadas pelo usuário são derivadas dos materiais DO MESMO grupo.
+- NovoMaterialModal e ModalEditarMaterial têm o seletor de grupo (mover material de grupo
+  na edição é permitido); "+ Nova categoria…" continua nos dois grupos.
+
 ### Outros
 - Devolução (Evento), transferência, estoque com filtro de status em pills coloridas
 - Compras: fila de solicitações, nova solicitação manual

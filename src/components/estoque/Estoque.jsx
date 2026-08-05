@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react'
 import { useCollection } from '../../hooks/useFirestore'
 import MaterialCard from './MaterialCard'
 import NovoMaterialModal from './NovoMaterialModal'
-
-const CATEGORIAS = ['Todos', 'Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
+import { GRUPOS, grupoDoMaterial, categoriasDoGrupo } from './categorias'
 
 const STATUS_OPCOES = [
   { label: 'Todos', value: null, ativo: 'bg-brand-black text-white', inativo: 'bg-white border-gray-200 text-gray-600' },
@@ -19,23 +18,36 @@ export default function Estoque() {
   const { dados: materiais, carregando } = useCollection('materiais')
   const { dados: eventos } = useCollection('eventos')
   const eventosMap = useMemo(() => new Map(eventos.map(e => [e.id, e])), [eventos])
+  const [grupo, setGrupo] = useState('eventos')
   const [categoria, setCategoria] = useState('Todos')
   const [statusFiltro, setStatusFiltro] = useState(null)
   const [busca, setBusca] = useState('')
   const [apenasEstoqueBaixo, setApenasEstoqueBaixo] = useState(false)
   const [novoMaterialAberto, setNovoMaterialAberto] = useState(false)
 
-  // Abas de categoria: padroes + categorias extras criadas pelo usuario
-  // (derivadas dos materiais ja cadastrados).
-  const categoriasTabs = useMemo(() => {
-    const extras = [...new Set(materiais.map(m => m.categoria).filter(Boolean))]
-      .filter(c => !CATEGORIAS.includes(c))
-      .sort((a, b) => a.localeCompare(b))
-    return [...CATEGORIAS, ...extras]
-  }, [materiais])
+  // Materiais do grupo selecionado (doc sem `grupo` = eventos).
+  const materiaisDoGrupo = useMemo(
+    () => materiais.filter(m => grupoDoMaterial(m) === grupo),
+    [materiais, grupo]
+  )
+
+  function trocarGrupo(g) {
+    if (g === grupo) return
+    setGrupo(g)
+    setCategoria('Todos')
+    setStatusFiltro(null)
+    setApenasEstoqueBaixo(false)
+  }
+
+  // Abas de categoria: padroes do grupo + categorias extras criadas pelo usuario
+  // (derivadas dos materiais ja cadastrados nesse grupo).
+  const categoriasTabs = useMemo(
+    () => ['Todos', ...categoriasDoGrupo(grupo, materiais)],
+    [grupo, materiais]
+  )
 
   const filtrados = useMemo(() => {
-    return materiais.filter(m => {
+    return materiaisDoGrupo.filter(m => {
       if (categoria !== 'Todos' && m.categoria !== categoria) return false
       if (statusFiltro && m.status !== statusFiltro) return false
       if (apenasEstoqueBaixo && !(m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0)) return false
@@ -45,18 +57,18 @@ export default function Estoque() {
       }
       return true
     })
-  }, [materiais, categoria, statusFiltro, busca, apenasEstoqueBaixo])
+  }, [materiaisDoGrupo, categoria, statusFiltro, busca, apenasEstoqueBaixo])
 
   const stats = useMemo(() => ({
-    total: materiais.length,
-    disponiveis: materiais.filter(m => m.status === 'disponivel').length,
-    emCampo: materiais.filter(m => m.status === 'em_evento').length,
-    manutencao: materiais.filter(m => m.status === 'manutencao').length,
-    perdido: materiais.filter(m => m.status === 'perdido').length,
-    emprestado: materiais.filter(m => m.status === 'emprestado').length,
-    consumido: materiais.filter(m => m.status === 'consumido').length,
-    estoqueBaixo: materiais.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length,
-  }), [materiais])
+    total: materiaisDoGrupo.length,
+    disponiveis: materiaisDoGrupo.filter(m => m.status === 'disponivel').length,
+    emCampo: materiaisDoGrupo.filter(m => m.status === 'em_evento').length,
+    manutencao: materiaisDoGrupo.filter(m => m.status === 'manutencao').length,
+    perdido: materiaisDoGrupo.filter(m => m.status === 'perdido').length,
+    emprestado: materiaisDoGrupo.filter(m => m.status === 'emprestado').length,
+    consumido: materiaisDoGrupo.filter(m => m.status === 'consumido').length,
+    estoqueBaixo: materiaisDoGrupo.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length,
+  }), [materiaisDoGrupo])
 
   const contagemPorStatus = {
     null: stats.total,
@@ -90,17 +102,57 @@ export default function Estoque() {
         />
       )}
 
+      <div className="grid grid-cols-2 gap-1.5 bg-gray-100 rounded-2xl p-1.5">
+        {GRUPOS.map(g => (
+          <button
+            key={g.value}
+            onClick={() => trocarGrupo(g.value)}
+            className={`px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors
+              ${grupo === g.value ? 'bg-brand-red text-white shadow-sm' : 'text-gray-600 hover:text-brand-red'}`}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total de Itens', valor: stats.total, cor: 'bg-blue-50 text-blue-700' },
-          { label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700' },
-          { label: 'Em Campo', valor: stats.emCampo, cor: 'bg-yellow-50 text-yellow-700' },
-          { label: 'Estoque Baixo', valor: stats.estoqueBaixo, cor: stats.estoqueBaixo > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700' },
+          {
+            label: 'Total de Itens', valor: stats.total, cor: 'bg-blue-50 text-blue-700',
+            ativo: false,
+            onClick: () => { setStatusFiltro(null); setApenasEstoqueBaixo(false) },
+          },
+          {
+            label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700',
+            ativo: statusFiltro === 'disponivel',
+            onClick: () => { setStatusFiltro('disponivel'); setApenasEstoqueBaixo(false) },
+          },
+          grupo === 'uso_interno'
+            ? {
+                label: 'Emprestados', valor: stats.emprestado, cor: 'bg-indigo-50 text-indigo-700',
+                ativo: statusFiltro === 'emprestado',
+                onClick: () => { setStatusFiltro('emprestado'); setApenasEstoqueBaixo(false) },
+              }
+            : {
+                label: 'Em Campo', valor: stats.emCampo, cor: 'bg-yellow-50 text-yellow-700',
+                ativo: statusFiltro === 'em_evento',
+                onClick: () => { setStatusFiltro('em_evento'); setApenasEstoqueBaixo(false) },
+              },
+          {
+            label: 'Estoque Baixo', valor: stats.estoqueBaixo, cor: stats.estoqueBaixo > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700',
+            ativo: apenasEstoqueBaixo,
+            onClick: () => { setApenasEstoqueBaixo(v => !v); setStatusFiltro(null) },
+          },
         ].map(s => (
-          <div key={s.label} className={`card ${s.cor} border-0`}>
+          <button
+            key={s.label}
+            onClick={s.onClick}
+            className={`card ${s.cor} border-0 text-left transition-all cursor-pointer hover:opacity-90
+              ${s.ativo ? 'ring-2 ring-current' : ''}`}
+          >
             <p className="text-2xl font-bold">{s.valor}</p>
             <p className="text-sm font-medium">{s.label}</p>
-          </div>
+          </button>
         ))}
       </div>
 
