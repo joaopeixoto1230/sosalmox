@@ -75,9 +75,34 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 - Status "Em Locação"; edição de horímetro e opção "sem horímetro"
 - Edição de gerador liberada para almoxarife e mecânico
 
+### Saída de Material (`src/components/saida/`)
+- Passo inicial **Tipo de Saída**: **Evento** (fluxo antigo de 5 passos — evento, multi-gerador,
+  romaneio, confirmação com assinaturas) ou **Uso Interno** (ver abaixo). Não remover o seletor.
+- **Escanear do papel** (`ScanPapelModal` + `utils/scanRomaneio.js`): lê romaneio manuscrito por
+  foto via Claude Sonnet (visão), aceita **múltiplas fotos**, casa com o estoque, cadastra item na
+  hora e cai na conferência. Fotos comprimidas antes de enviar; input SEM `capture` (galeria+câmera).
+- `StepConfirmacao`: grava `ordens_saida` via transaction, fotos base64 em `fotos_saida`,
+  assinaturas com link público (`/assinar/:token`, coleção `assinaturas_saida`). O estado de erro
+  mostra a mensagem (NÃO voltar ao `return null` que dava tela preta).
+
+### Uso Interno (`src/components/saida/usointerno/` + `src/components/usointerno/`)
+Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'uso_interno'`
+(histórico unificado com Evento — ordens sem `tipo` = Evento). Dois subtipos:
+- **Empréstimo** (ferramenta que volta): responsável, itens, `dataPrevistaDevolucao`,
+  `destinoMotivo`, `statusEmprestimo` (`pendente`→`devolvido`/`parcial`). Item cadastrado vira
+  status **`emprestado`**. A devolução é gravada no bloco `devolucao` do PRÓPRIO doc (status
+  `ok`/`problema`/`nao_devolvido` + transições: ok→disponível, problema→manutenção, não devolvido→
+  perdido). NÃO cria doc em `devolucoes`.
+- **Consumo** (não volta): responsável, itens+qtd, `motivo`. Item cadastrado → baixa definitiva
+  status **`consumido`**.
+- **Item avulso** (`avulso:true`): nome livre + quantidade + unidade, NÃO mexe em estoque.
+- View **`/uso-interno`** (módulo `USO_INTERNO`): aba "Ferramentas em Campo" (pendentes, mais
+  atrasado primeiro, devolver, fotos saída/devolução) e "Itens Avulsos" (agrupa por nome/frequência).
+- Fotos são por ORDEM (base64 em `fotos_saida`, campo `momento:'saida'|'devolucao'`), não por item.
+- Status de material novos: `emprestado`, `consumido` (em `utils/formatters` e nas pills do Estoque).
+
 ### Outros
-- Saída de material em 5 passos com eventos, multi-gerador, romaneio e relatório com assinaturas
-- Devolução, transferência, estoque com filtro de status em pills coloridas
+- Devolução (Evento), transferência, estoque com filtro de status em pills coloridas
 - Compras: fila de solicitações, nova solicitação manual
 - Agente IA (Claude Haiku via `VITE_ANTHROPIC_API_KEY`), botão flutuante em todas as telas
 - Dark mode com toggle no header
