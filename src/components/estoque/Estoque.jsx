@@ -97,6 +97,7 @@ export default function Estoque() {
 
       {novoMaterialAberto && (
         <NovoMaterialModal
+          grupoFixo={grupo}
           onFechar={() => setNovoMaterialAberto(false)}
           onSalvo={() => setNovoMaterialAberto(false)}
         />

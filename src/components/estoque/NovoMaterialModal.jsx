@@ -7,15 +7,21 @@ import { GRUPOS, CATEGORIAS_POR_GRUPO, TIPOS_POR_CATEGORIA, categoriasDoGrupo } 
 // Valor sentinela da opcao "criar categoria nova" no select de categoria.
 const NOVA_CATEGORIA = '__nova__'
 
-export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
+export default function NovoMaterialModal({ onFechar, onSalvo, inicial, grupoFixo }) {
   // `inicial` pre-preenche o formulario (ex: vindo do escaneamento do romaneio).
+  // `grupoFixo` trava o grupo (ex: aberto da aba Uso Interno do Estoque) e
+  // esconde o seletor — o modal mostra so as categorias daquele grupo.
   const [form, setForm] = useState(() => {
+    const grupoInicial = grupoFixo || 'eventos'
+    const categoriaInicial = grupoInicial === 'uso_interno'
+      ? CATEGORIAS_POR_GRUPO.uso_interno[0]
+      : 'Outros Materiais'
     const base = {
-      grupo: 'eventos',
+      grupo: grupoInicial,
       nome: '',
       codigo: '',
-      categoria: 'Outros Materiais',
-      tipo: 'Caixa de Passagem',
+      categoria: categoriaInicial,
+      tipo: TIPOS_POR_CATEGORIA[categoriaInicial]?.[0] || '',
       bitola: '',
       metragem: '',
       status: 'disponivel',
@@ -105,7 +111,14 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
-          <h2 className="font-bold text-brand-black">Novo Material</h2>
+          <div>
+            <h2 className="font-bold text-brand-black">Novo Material</h2>
+            {grupoFixo && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                {GRUPOS.find(g => g.value === grupoFixo)?.label}
+              </p>
+            )}
+          </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -114,22 +127,24 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial }) {
         </div>
 
         <div className="p-5 space-y-4">
-          <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">Grupo</label>
-            <div className="grid grid-cols-2 gap-1.5 bg-gray-100 rounded-xl p-1">
-              {GRUPOS.map(g => (
-                <button
-                  key={g.value}
-                  type="button"
-                  onClick={() => set('grupo', g.value)}
-                  className={`px-2 py-2 rounded-lg text-xs font-semibold transition-colors
-                    ${form.grupo === g.value ? 'bg-brand-red text-white' : 'text-gray-600 hover:text-brand-red'}`}
-                >
-                  {g.label}
-                </button>
-              ))}
+          {!grupoFixo && (
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">Grupo</label>
+              <div className="grid grid-cols-2 gap-1.5 bg-gray-100 rounded-xl p-1">
+                {GRUPOS.map(g => (
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => set('grupo', g.value)}
+                    className={`px-2 py-2 rounded-lg text-xs font-semibold transition-colors
+                      ${form.grupo === g.value ? 'bg-brand-red text-white' : 'text-gray-600 hover:text-brand-red'}`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Categoria</label>
