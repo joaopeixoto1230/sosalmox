@@ -3,6 +3,8 @@ import { statusOsLabel, statusOsCor, formatarData } from '../../utils/formatters
 
 export default function OSCard({ os }) {
   const navigate = useNavigate()
+  // serviço externo = veículo em oficina/prestador (o "locação" do veículo).
+  const ehExterno = os.equipamentoTipo === 'caminhao' && os.localTipo === 'locacao'
   const atrasada = os.status !== 'concluida' && os.dataAbertura && (() => {
     const abertura = os.dataAbertura?.toDate ? os.dataAbertura.toDate() : new Date(os.dataAbertura)
     return (Date.now() - abertura.getTime()) > 2 * 86400000
@@ -23,7 +25,9 @@ export default function OSCard({ os }) {
             {atrasada && (
               <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">ATRASADA</span>
             )}
-            {os.localTipo === 'locacao' ? (
+            {ehExterno ? (
+              <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">OFICINA</span>
+            ) : os.localTipo === 'locacao' ? (
               <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">LOCAÇÃO</span>
             ) : (
               <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-medium">PÁTIO</span>
@@ -31,7 +35,7 @@ export default function OSCard({ os }) {
           </div>
           <p className="font-semibold text-brand-black text-sm mt-0.5">{os.equipamentoLabel}</p>
           {os.localTipo === 'locacao' && os.clienteNome && (
-            <p className="text-xs text-amber-700 font-medium">🏢 {os.clienteNome}</p>
+            <p className={`text-xs font-medium ${ehExterno ? 'text-orange-700' : 'text-amber-700'}`}>{ehExterno ? '🔧' : '🏢'} {os.clienteNome}</p>
           )}
           <p className="text-xs text-gray-500">{os.descricao}</p>
         </div>

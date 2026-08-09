@@ -88,6 +88,11 @@ export default function DetalheOS() {
     setTecnicoNome(os.mecanicoNome || '')
   }, [os?.id])
 
+  // serviço externo = veículo levado a uma oficina/prestador (o "locação" do veículo).
+  // Só nesse caso o técnico é campo livre e não há assinatura de cliente.
+  // Gerador/empilhadeira em locação seguem normais: cliente assina.
+  const ehExternoConc = os?.equipamentoTipo === 'caminhao' && localTipoConc === 'locacao'
+
   // libera as URLs de preview da memória quando o componente desmonta
   useEffect(() => {
     return () => fotos.forEach(f => URL.revokeObjectURL(f.preview))
@@ -124,7 +129,7 @@ export default function DetalheOS() {
     if (!relatorio.trim()) { setErro('Descreva o serviço executado.'); return }
     if (!tecnicoNome.trim()) { setErro('Informe o técnico responsável.'); return }
     if (!assinaturaTecnico) { setErro('Colete a assinatura do técnico responsável.'); return }
-    if (localTipoConc === 'locacao' && !clienteNomeConc.trim()) { setErro('Informe o nome do cliente.'); return }
+    if (localTipoConc === 'locacao' && !clienteNomeConc.trim()) { setErro(ehExternoConc ? 'Informe a oficina / prestador.' : 'Informe o nome do cliente.'); return }
     setSalvando(true); setErro('')
     try {
       const viaFiltros = os.origem === 'saida_filtros'
@@ -154,6 +159,9 @@ export default function DetalheOS() {
         const osRef = doc(db, 'ordens_servico', id)
 
         const ehLocacao = localTipoConc === 'locacao'
+        // só o cliente de verdade assina (gerador/empilhadeira em locação).
+        // veículo em oficina externa não tem assinatura de cliente.
+        const clienteAssina = ehLocacao && !ehExternoConc
         const baseUpdate = {
           status: 'concluida',
           horimetroConсlusao: parseInt(horimetroConc),
@@ -165,8 +173,8 @@ export default function DetalheOS() {
           clienteNome: ehLocacao ? (clienteNomeConc.trim() || null) : (os.clienteNome || null),
           assinaturaTecnico: assinaturaTecnico || null,
           assinaturaTecnicoNome: tecnicoNome.trim() || null,
-          assinaturaCliente: ehLocacao ? (assinaturaCliente || null) : null,
-          assinaturaClienteNome: ehLocacao ? (clienteNomeConc.trim() || null) : null,
+          assinaturaCliente: clienteAssina ? (assinaturaCliente || null) : null,
+          assinaturaClienteNome: clienteAssina ? (clienteNomeConc.trim() || null) : null,
           dataConclusao: serverTimestamp(),
           concluidoPor: uid,
           concluidoPorNome: nome,
@@ -359,6 +367,8 @@ export default function DetalheOS() {
 
   function gerarPDF() {
     const usaKm = os.equipamentoTipo === 'caminhao'
+    // serviço externo (veículo em oficina/prestador): sem bloco de assinatura do cliente
+    const ehExternoOS = os.equipamentoTipo === 'caminhao' && os.localTipo === 'locacao'
     // caminhão: a coluna do meio mostra o veículo (placa) em vez da potência GG
     const colMeioLabel = usaKm ? 'Veículo' : 'Potência GG'
     const colMeioValor = f => usaKm ? (os.equipamentoLabel || '—') : (f.potenciaGG || '—')
@@ -411,8 +421,8 @@ export default function DetalheOS() {
   <div class="grid">
     <div class="field"><label>Tipo</label><p>${os.tipo === 'preventiva' ? 'Preventiva' : 'Corretiva'}</p></div>
     <div class="field"><label>Mecânico</label><p>${os.mecanicoNome || '—'}</p></div>
-    <div class="field"><label>Local</label><p>${os.localTipo === 'locacao' ? 'Em locação (cliente)' : 'No pátio (SOS)'}</p></div>
-    ${os.localTipo === 'locacao' ? `<div class="field"><label>Cliente</label><p>${os.clienteNome || '—'}</p></div>${os.localObra ? `<div class="field"><label>Local / Obra</label><p>${os.localObra}</p></div>` : ''}` : ''}
+    <div class="field"><label>Local</label><p>${os.localTipo === 'locacao' ? (ehExternoOS ? 'Oficina / serviço externo' : 'Em locação (cliente)') : 'No pátio (SOS)'}</p></div>
+    ${os.localTipo === 'locacao' ? `<div class="field"><label>${ehExternoOS ? 'Oficina / prestador' : 'Cliente'}</label><p>${os.clienteNome || '—'}</p></div>${os.localObra ? `<div class="field"><label>${ehExternoOS ? 'Endereço / cidade' : 'Local / Obra'}</label><p>${os.localObra}</p></div>` : ''}` : ''}
     <div class="field"><label>Data de abertura</label><p>${os.dataAbertura?.toDate ? os.dataAbertura.toDate().toLocaleString('pt-BR') : '—'}</p></div>
     ${os.status === 'concluida' ? `
     <div class="field"><label>Data de conclusão</label><p>${os.dataConclusao?.toDate ? os.dataConclusao.toDate().toLocaleString('pt-BR') : '—'}</p></div>
@@ -439,12 +449,12 @@ export default function DetalheOS() {
   <div class="fotos">${fotosOS.map(f => `<img src="${f.dataUrl}" />`).join('')}</div>
   ` : ''}
 
-  <div class="assinatura ${os.localTipo === 'locacao' ? '' : 'solo'}">
+  <div class="assinatura ${(os.localTipo === 'locacao' && !ehExternoOS) ? '' : 'solo'}">
     <div class="bloco">
       ${os.assinaturaTecnico ? `<img src="${os.assinaturaTecnico}" />` : ''}
       <div class="traco">Técnico: ${os.assinaturaTecnicoNome || os.mecanicoNome || '_______________'}</div>
     </div>
-    ${os.localTipo === 'locacao' ? `
+    ${(os.localTipo === 'locacao' && !ehExternoOS) ? `
     <div class="bloco">
       ${os.assinaturaCliente ? `<img src="${os.assinaturaCliente}" />` : ''}
       <div class="traco">Cliente: ${os.assinaturaClienteNome || os.clienteNome || '_______________'}</div>
@@ -484,6 +494,8 @@ export default function DetalheOS() {
   if (!os) return <div className="text-center py-12 text-gray-400"><p>OS não encontrada.</p></div>
 
   const concluida = os.status === 'concluida'
+  // serviço externo = veículo em oficina/prestador (só o técnico assina).
+  const ehExternoOS = os.equipamentoTipo === 'caminhao' && os.localTipo === 'locacao'
   const usaKm = os.equipamentoTipo === 'caminhao'
   const medidaLabel = usaKm ? 'KM' : 'Horímetro'
   const medidaUnidade = usaKm ? ' km' : 'h'
@@ -602,7 +614,7 @@ export default function DetalheOS() {
         )}
         {os.localTipo === 'locacao' && (os.clienteNome || os.localObra) && (
           <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-            <p className="text-amber-700 text-xs font-semibold">🏢 Locação — {os.clienteNome || '—'}</p>
+            <p className="text-amber-700 text-xs font-semibold">{ehExternoOS ? '🔧 Serviço externo' : '🏢 Locação'} — {os.clienteNome || '—'}</p>
             {os.localObra && <p className="text-amber-600 text-xs">{os.localObra}</p>}
           </div>
         )}
@@ -747,7 +759,7 @@ export default function DetalheOS() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Local da manutenção</label>
                 <div className="flex gap-2">
-                  {[['patio', 'No pátio (SOS)'], ['locacao', 'Em locação (cliente)']].map(([val, label]) => (
+                  {[['patio', 'No pátio (SOS)'], ['locacao', os.equipamentoTipo === 'caminhao' ? 'Oficina / serviço externo' : 'Em locação (cliente)']].map(([val, label]) => (
                     <button key={val} type="button" onClick={() => setLocalTipoConc(val)}
                       className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${localTipoConc === val ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600'}`}>
                       {label}
@@ -758,24 +770,26 @@ export default function DetalheOS() {
 
               {localTipoConc === 'locacao' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{ehExternoConc ? 'Oficina / prestador *' : 'Cliente *'}</label>
                   <input value={clienteNomeConc} onChange={e => setClienteNomeConc(e.target.value)}
-                    className="input" placeholder="Ex: CM Hospitalar S.A." />
+                    className="input" placeholder={ehExternoConc ? 'Ex: Auto Center Silva' : 'Ex: CM Hospitalar S.A.'} />
                 </div>
               )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Técnico responsável *</label>
-                <div className="flex gap-2 mb-2">
-                  {['FRANÇA', 'FABIO'].map(t => (
-                    <button key={t} type="button" onClick={() => setTecnicoNome(t)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${tecnicoNome === t ? 'bg-brand-black text-white border-brand-black' : 'bg-white border-gray-200 text-gray-600'}`}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
+                {!ehExternoConc && (
+                  <div className="flex gap-2 mb-2">
+                    {['FRANÇA', 'FABIO'].map(t => (
+                      <button key={t} type="button" onClick={() => setTecnicoNome(t)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${tecnicoNome === t ? 'bg-brand-black text-white border-brand-black' : 'bg-white border-gray-200 text-gray-600'}`}>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input value={tecnicoNome} onChange={e => setTecnicoNome(e.target.value)}
-                  className="input" placeholder="Nome do técnico que fez a manutenção" />
+                  className="input" placeholder={ehExternoConc ? 'Nome do técnico que levou o equipamento' : 'Nome do técnico que fez a manutenção'} />
               </div>
 
               <AssinaturaPad
@@ -784,7 +798,7 @@ export default function DetalheOS() {
                 onChange={setAssinaturaTecnico}
               />
 
-              {localTipoConc === 'locacao' && (
+              {localTipoConc === 'locacao' && !ehExternoConc && (
                 <AssinaturaPad
                   titulo="Assinatura do cliente (ciente do serviço)"
                   valor={assinaturaCliente}
