@@ -7,6 +7,8 @@ import { PERFIS, MODULOS, temPermissao } from '../../utils/permissions'
 import { GRUPOS, grupoDoMaterial } from '../estoque/categorias'
 import { calcularEspecies, contarEstoqueBaixo } from '../estoque/estoqueEspecie'
 import { calcularPendencias, previsaoDoEvento, diasDeAtraso, hojeISO } from './pendencias'
+import Rosca from './Rosca'
+import { CORES } from './cores'
 import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
 
 function CardResumo({ titulo, valor, cor, icone, to, detalhe }) {
@@ -81,6 +83,9 @@ function FaixaPendencias({ itens }) {
 
 export default function Dashboard() {
   const { nome, tipoPerfil } = useAuth()
+  // Congela o "agora" na abertura da tela: ler o relógio durante o render torna
+  // o componente impuro e o resultado instável entre re-renders.
+  const [abertoEm] = useState(() => Date.now())
   const [importando, setImportando] = useState(null)
   const [importForced, setImportForced] = useState({ filtros: false, materiais: false, fix: false, geradores: false, fixGeradores: false })
 
@@ -184,6 +189,38 @@ export default function Dashboard() {
     return { total: ativos.length, contagem }
   }, [geradores])
 
+  // Composição dos últimos 90 dias, para as roscas.
+  const composicao = useMemo(() => {
+    const corte = abertoEm - 90 * 86400000
+    const dentro = doc => {
+      const d = doc.criadoEm?.toDate ? doc.criadoEm.toDate()
+        : doc.dataAbertura?.toDate ? doc.dataAbertura.toDate() : null
+      return d ? d.getTime() >= corte : false
+    }
+
+    const saidas = ordensSaida.filter(dentro)
+    const porTipo = [
+      { rotulo: 'Evento', valor: saidas.filter(o => !o.tipo).length, cor: CORES.evento },
+      { rotulo: 'Locação mensal', valor: saidas.filter(o => o.tipo === TIPO_LOCACAO).length, cor: CORES.locacao },
+      { rotulo: 'Sublocação', valor: saidas.filter(o => o.tipo === TIPO_SUBLOCACAO).length, cor: CORES.sublocacao },
+      { rotulo: 'Uso interno', valor: saidas.filter(o => o.tipo === 'uso_interno').length, cor: CORES.usoInterno },
+    ]
+
+    const os = ordensServico.filter(dentro)
+    const porManutencao = [
+      { rotulo: 'Preventiva', valor: os.filter(o => o.tipo === 'preventiva').length, cor: CORES.emUso },
+      { rotulo: 'Corretiva', valor: os.filter(o => o.tipo === 'corretiva').length, cor: CORES.indisponivel },
+    ]
+
+    const frotaRosca = [
+      { rotulo: 'Prontos para sair', chave: 'prontos', cor: CORES.prontos },
+      { rotulo: 'Em uso com cliente', chave: 'emuso', cor: CORES.emUso },
+      { rotulo: 'Indisponíveis', chave: 'indisp', cor: CORES.indisponivel },
+    ].map(r => ({ ...r, valor: frota.contagem.find(g => g.chave === r.chave)?.n || 0 }))
+
+    return { porTipo, porManutencao, frotaRosca }
+  }, [ordensSaida, ordensServico, frota, abertoEm])
+
   const pendencias = useMemo(() => calcularPendencias(
     { eventos, ordensSaida, ordensServico, solicitacoes },
     { podeVer: modulo => temPermissao(tipoPerfil, modulo) },
@@ -271,6 +308,34 @@ export default function Dashboard() {
         />
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Rosca
+          titulo="Saídas por tipo"
+          subtitulo="últimos 90 dias"
+          unidade="saídas"
+          dados={composicao.porTipo}
+          recado="Mostra o peso de cada modalidade na operação."
+        />
+        {temPermissao(tipoPerfil, MODULOS.GERADORES) && (
+          <Rosca
+            titulo="Frota"
+            subtitulo="situação agora"
+            unidade="geradores"
+            dados={composicao.frotaRosca}
+            recado="Prontos para sair é quanto dá para fechar de negócio hoje."
+          />
+        )}
+        {temPermissao(tipoPerfil, MODULOS.MANUTENCAO) && (
+          <Rosca
+            titulo="Manutenção"
+            subtitulo="OS dos últimos 90 dias"
+            unidade="OS"
+            dados={composicao.porManutencao}
+            recado="Corretiva crescendo é sinal de preventiva deixando passar — e corretiva custa mais."
+          />
+        )}
+      </div>
+
       {temPermissao(tipoPerfil, MODULOS.GERADORES) && frota.total > 0 && (
         <div className="card">
           <div className="flex items-baseline justify-between gap-3 mb-3">
@@ -319,7 +384,11 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {stats.agenda.map(({ evento: evt, atraso }) => (
-                  <tr key={evt.id} className={`border-b border-gray-50 transition-colors ${atraso > 0 ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50'}`}>
+                  <tr key={evt.id} className={`border-b border-gray-50 transition-colors ${
+                    atraso > 0
+                      ? 'bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-950/60'
+                      : 'hover:bg-gray-50'
+                  }`}>
                     <td className="py-2.5 font-medium text-brand-black">
                       <span className="inline-flex items-center gap-1.5 flex-wrap">
                         {evt.nome}
