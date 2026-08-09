@@ -186,6 +186,16 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 
 ## 🚀 Deploy (sempre na máquina do usuário)
 
+> ⛔ **NUNCA rodar `npm run build` + deploy do servidor remoto.** Em 09/08/2026 isso
+> derrubou o sistema em produção. O `.env` com as chaves do Firebase existe SÓ na máquina
+> do João — o repositório tem apenas o `.env.example`. Sem ele, o Vite troca
+> `VITE_FIREBASE_API_KEY` por `undefined` **sem erro nenhum**, o build "passa", e o app
+> publicado quebra ao inicializar o Firebase: tela branca para a equipe inteira.
+> O build tem que ser gerado na máquina que tem o `.env`.
+> Para conferir um `dist/` antes de publicar: `grep -o "AIzaSy[A-Za-z0-9_-]*" dist/assets/*.js`
+> — se não achar nada, o pacote está sem credencial e NÃO pode ir para o ar.
+> (Um token `firebase login:ci` dá permissão de publicar, mas não resolve o `.env`.)
+
 O servidor remoto NÃO consegue fazer deploy (rede bloqueia OAuth do Firebase).
 Hoje o João usa principalmente o **MacBook**; a máquina Windows ainda existe.
 
@@ -220,6 +230,9 @@ Regras ao instruir o usuário:
 - Se algo "não mudou" depois do deploy, suspeitar de cache — conferir se o asset tem nome novo
 - Se o download de um arquivo (patch etc.) sumir no Mac, lembrar que o navegador costuma
   TIRAR OS HÍFENS do nome — conferir com `ls ~/Downloads/`
+- `firebase logout --token <t>` derruba TAMBÉM o login local da máquina do João. Se der
+  "Failed to authenticate, have you run firebase login?", é só `npx firebase-tools login`
+  (conta `bigpeixoto12@gmail.com`) — não precisa refazer o build.
 
 ## 🧭 REGRA DE SESSÕES — uma de cada vez
 
