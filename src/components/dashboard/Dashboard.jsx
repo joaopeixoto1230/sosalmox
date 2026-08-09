@@ -8,19 +8,31 @@ import { GRUPOS, grupoDoMaterial } from '../estoque/categorias'
 import { calcularEspecies, contarEstoqueBaixo } from '../estoque/estoqueEspecie'
 import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
 
-function CardResumo({ titulo, valor, cor, icone, to }) {
+function CardResumo({ titulo, valor, cor, icone, to, detalhe }) {
   const conteudo = (
     <div className={`card flex items-center gap-4 ${to ? 'hover:shadow-md transition-shadow cursor-pointer' : ''}`}>
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${cor}`}>
         {icone}
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-2xl font-bold text-brand-black">{valor}</p>
         <p className="text-sm text-gray-500">{titulo}</p>
+        {detalhe && <p className="text-xs text-gray-400 mt-0.5 truncate">{detalhe}</p>}
       </div>
     </div>
   )
   return to ? <Link to={to}>{conteudo}</Link> : conteudo
+}
+
+// Documento de `eventos` sem o campo `tipo` conta como evento (mesma convenção
+// da aba Eventos e da Saída de Material) — sem migração de dados.
+const TIPO_LOCACAO = 'locacao_mensal'
+const TIPO_SUBLOCACAO = 'sublocacao'
+const ehEventoPuro = e => !e.tipo
+
+const SELO_TIPO = {
+  [TIPO_LOCACAO]: { label: 'Locação', cor: 'bg-purple-100 text-purple-700' },
+  [TIPO_SUBLOCACAO]: { label: 'Sublocação', cor: 'bg-teal-100 text-teal-700' },
 }
 
 export default function Dashboard() {
@@ -70,8 +82,19 @@ export default function Dashboard() {
   }
 
   const stats = useMemo(() => {
-    const eventosAtivos = eventos.filter(e => e.status === 'ativo').length
-    const itensEmCampo = materiais.filter(m => m.status === 'em_evento').length
+    const ativos = eventos.filter(e => e.status === 'ativo')
+    const eventosAtivos = ativos.filter(ehEventoPuro).length
+    const locacoesAtivas = ativos.filter(e => e.tipo === TIPO_LOCACAO).length
+    const sublocacoesAtivas = ativos.filter(e => e.tipo === TIPO_SUBLOCACAO).length
+
+    // Material em campo sai como 'em_evento' nas TRÊS modalidades (a devolução
+    // depende desse status). A separação aqui é pelo tipo do evento-pai.
+    const tipoPorEvento = new Map(eventos.map(e => [e.id, e.tipo || null]))
+    const emCampo = materiais.filter(m => m.status === 'em_evento')
+    const itensEmCampo = emCampo.length
+    const itensEmLocacao = emCampo.filter(m => tipoPorEvento.get(m.eventoAtual) === TIPO_LOCACAO).length
+    const itensSublocados = emCampo.filter(m => tipoPorEvento.get(m.eventoAtual) === TIPO_SUBLOCACAO).length
+    const itensEmEvento = itensEmCampo - itensEmLocacao - itensSublocados
 
     // Estoque baixo usa a MESMA regra da aba Estoque (por espécie/bitola, em
     // estoque/estoqueEspecie.js). A regra antiga estoqueAtual <= estoqueMin
@@ -88,7 +111,11 @@ export default function Dashboard() {
       .sort((a, b) => new Date(a.data) - new Date(b.data))
       .slice(0, 6)
 
-    return { eventosAtivos, itensEmCampo, estoquesBaixo, eventosRecentes }
+    return {
+      eventosAtivos, locacoesAtivas, sublocacoesAtivas,
+      itensEmCampo, itensEmEvento, itensEmLocacao, itensSublocados,
+      estoquesBaixo, eventosRecentes,
+    }
   }, [eventos, materiais])
 
   const hora = new Date().getHours()
@@ -119,7 +146,7 @@ export default function Dashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <CardResumo
           titulo="Eventos Ativos"
           valor={stats.eventosAtivos}
@@ -132,8 +159,21 @@ export default function Dashboard() {
           }
         />
         <CardResumo
+          titulo="Locações Ativas"
+          valor={stats.locacoesAtivas + stats.sublocacoesAtivas}
+          detalhe={`${stats.locacoesAtivas} mensais · ${stats.sublocacoesAtivas} ${stats.sublocacoesAtivas === 1 ? 'sublocação' : 'sublocações'}`}
+          cor="bg-purple-100 text-purple-600"
+          to="/eventos"
+          icone={
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          }
+        />
+        <CardResumo
           titulo="Itens em Campo"
           valor={stats.itensEmCampo}
+          detalhe={`${stats.itensEmEvento} em evento · ${stats.itensEmLocacao + stats.itensSublocados} em locação`}
           cor="bg-yellow-100 text-yellow-600"
           to="/estoque"
           icone={
@@ -157,7 +197,7 @@ export default function Dashboard() {
 
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-brand-black">Próximos Eventos</h2>
+          <h2 className="font-semibold text-brand-black">Próximos Eventos e Locações</h2>
           <Link to="/eventos" className="text-brand-red text-sm font-medium hover:underline">
             Ver todos →
           </Link>
@@ -179,7 +219,14 @@ export default function Dashboard() {
               <tbody>
                 {stats.eventosRecentes.map(evt => (
                   <tr key={evt.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                    <td className="py-2.5 font-medium text-brand-black">{evt.nome}</td>
+                    <td className="py-2.5 font-medium text-brand-black">
+                      <span className="inline-flex items-center gap-1.5 flex-wrap">
+                        {evt.nome}
+                        {SELO_TIPO[evt.tipo] && (
+                          <span className={`badge ${SELO_TIPO[evt.tipo].cor}`}>{SELO_TIPO[evt.tipo].label}</span>
+                        )}
+                      </span>
+                    </td>
                     <td className="py-2.5 text-gray-500 hidden sm:table-cell">{evt.local}</td>
                     <td className="py-2.5 text-gray-600">{evt.data ? new Date(evt.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
                     <td className="py-2.5">
