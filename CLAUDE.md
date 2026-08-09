@@ -40,6 +40,12 @@ e apagou um dia inteiro de trabalho (~3.000 linhas). Foi recuperado buscando o c
 7. Branch de trabalho: `claude/laughing-carson-FcEmu`. Nunca empurrar para outro branch.
 8. Push direto via terminal funciona com PAT na URL:
    `git push https://<PAT>@github.com/joaopeixoto1230/sosalmox.git HEAD:claude/laughing-carson-FcEmu`
+9. **Se `git push` devolver `403 Resource not accessible by integration`**: o app do Claude
+   não está INSTALADO no repositório (autorizado ≠ instalado). Conferir em
+   https://github.com/settings/installations — se o Claude não aparecer lá, instalar por
+   https://github.com/apps/claude e marcar o `sosalmox`. A credencial da sessão passa a
+   funcionar na hora, sem reabrir a sessão. Enquanto isso, alternativa: `git format-patch`
+   e o usuário aplica com `git am` na máquina dele.
 
 ## 🛡️ REGRAS DE PRESERVAÇÃO DE FUNCIONALIDADES
 
@@ -72,12 +78,32 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 
 ### Patrimônio (`src/components/patrimonio/`)
 - GG-001 a GG-107 + caminhões + empilhadeiras; status automático por evento/OS/devolução
-- Status "Em Locação"; edição de horímetro e opção "sem horímetro"
+- Status "Em Locação" e "Sublocado"; edição de horímetro e opção "sem horímetro"
 - Edição de gerador liberada para almoxarife e mecânico
 
 ### Saída de Material (`src/components/saida/`)
-- Passo inicial **Tipo de Saída**: **Evento** (fluxo antigo de 5 passos — evento, multi-gerador,
-  romaneio, confirmação com assinaturas) ou **Uso Interno** (ver abaixo). Não remover o seletor.
+- Passo inicial **Tipo de Saída** com QUATRO cards (grade 2×2). Não remover o seletor:
+  **Evento** (fluxo de 5 passos — evento, multi-gerador, romaneio, confirmação com assinaturas),
+  **Locação Mensal**, **Sublocação** (ver abaixo) e **Uso Interno**.
+- **Locação Mensal** e **Sublocação** usam o MESMO fluxo de 5 passos do Evento. O que muda é o
+  vocabulário do passo 1, quem preenche o campo de quem recebe e o status do gerador.
+  - Ambas gravam em `eventos` com o campo `tipo` (`locacao_mensal` / `sublocacao`). Documento
+    SEM o campo `tipo` continua contando como Evento — mesma convenção do `tipo` em
+    `ordens_saida` (uso interno). **Não migrar dados.**
+  - Gerador: Evento → `em_evento`; Locação Mensal → `locacao` (roxo); Sublocação → `sublocado`
+    (verde-azulado). `ESTADOS_ACOMPANHA` em formatters inclui os três, para o caminhão com
+    gerador montado acompanhar.
+  - **Sublocação** = aluguel para OUTRA empresa. Quem retira é de fora, então o campo "Quem está
+    retirando" é **texto livre** (nunca a lista de OPERADORES), mais documento e telefone
+    opcionais. Esse nome já alimenta a assinatura de quem recebeu, o link `/assinar/:token` e o
+    relatório — não redigitar em lugar nenhum.
+  - ⚠️ O MATERIAL continua com status `em_evento` nas três modalidades. A devolução tem
+    `if (statusAtualMat[item.id] !== 'em_evento') continue` — um status novo faria os itens
+    serem pulados em silêncio e nunca voltarem ao estoque. A separação é no gerador, na aba
+    Eventos e no card do Estoque.
+  - Aba Eventos: filtro **Tudo / Eventos / Locações / Sublocações** (`daCategoria`, onde
+    'evento' = documento sem `tipo`), selos coloridos e "Encerrar locação/sublocação" no menu ⋯.
+    Patrimônio tem card e filtro "Sublocados"; GGCard permite a troca manual pedindo o destino.
 - **Escanear do papel** (`ScanPapelModal` + `utils/scanRomaneio.js`): lê romaneio manuscrito por
   foto via Claude Sonnet (visão), aceita **múltiplas fotos**, casa com o estoque, cadastra item na
   hora e cai na conferência. Fotos comprimidas antes de enviar; input SEM `capture` (galeria+câmera).
@@ -158,22 +184,42 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   renomear para `-v3` etc. e atualizar Sidebar.jsx, LoginPage.jsx e index.html** —
   senão o usuário continua vendo a versão antiga em cache.
 
-## 🚀 Deploy (sempre na máquina do usuário, Windows)
+## 🚀 Deploy (sempre na máquina do usuário)
 
 O servidor remoto NÃO consegue fazer deploy (rede bloqueia OAuth do Firebase).
-O deploy é feito pelo usuário no PowerShell, pasta `C:\Users\amanda\Desktop\sosalmox`:
+Hoje o João usa principalmente o **MacBook**; a máquina Windows ainda existe.
+
+**Mac (uso atual)** — Terminal, na pasta do projeto. O `./deploy.sh` faz tudo de uma vez;
+sem ele, um comando por linha:
+
+```bash
+git fetch origin claude/laughing-carson-FcEmu
+git reset --hard origin/claude/laughing-carson-FcEmu
+npm run build
+npx firebase-tools deploy --only hosting --project sos-almox
+```
+
+Primeira vez no Mac: `npx firebase-tools login` (abre o navegador — usar a MESMA conta Google
+do projeto `sos-almox`). Depois do deploy, orientar **Cmd+Shift+R**.
+
+**Windows** — PowerShell, pasta do projeto:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File deploy.ps1
 ```
 
-O `deploy.ps1` faz: fetch + reset --hard para o branch remoto + `npm run build` +
+Os dois scripts fazem: fetch + reset --hard no branch remoto + `npm run build` +
 `firebase deploy --only hosting --project sos-almox`.
 
 Regras ao instruir o usuário:
-- **PowerShell NÃO aceita `&&`** — sempre dar os comandos um por linha
-- Após deploy, orientar **Ctrl+Shift+R** no navegador
+- **PowerShell NÃO aceita `&&`** — sempre dar os comandos um por linha (no zsh do Mac aceita,
+  mas separar ajuda a ver onde falhou)
+- ⚠️ `git reset --hard` APAGA alteração local não commitada na máquina dele. O `deploy.sh`
+  pergunta antes; nos comandos soltos, avisar.
+- Após deploy, orientar **Ctrl+Shift+R** (Windows) ou **Cmd+Shift+R** (Mac)
 - Se algo "não mudou" depois do deploy, suspeitar de cache — conferir se o asset tem nome novo
+- Se o download de um arquivo (patch etc.) sumir no Mac, lembrar que o navegador costuma
+  TIRAR OS HÍFENS do nome — conferir com `ls ~/Downloads/`
 
 ## 🧭 REGRA DE SESSÕES — uma de cada vez
 
