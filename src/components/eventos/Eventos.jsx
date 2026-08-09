@@ -15,12 +15,23 @@ const STATUS_FILTROS = [
   { value: 'concluido', label: 'Concluídos' },
 ]
 
+// Documento de `eventos` sem o campo `tipo` conta como evento — mesma convencao
+// do `tipo` em ordens_saida (uso interno), sem migracao de dados.
+const ehLocacao = e => e.tipo === 'locacao_mensal'
+
+const TIPO_FILTROS = [
+  { value: 'todos', label: 'Tudo' },
+  { value: 'evento', label: 'Eventos' },
+  { value: 'locacao_mensal', label: 'Locações' },
+]
+
 export default function Eventos() {
   const { tipoPerfil } = useAuth()
   const navigate = useNavigate()
   const { dados: eventos, carregando } = useCollection('eventos')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [filtroTipo, setFiltroTipo] = useState('todos')
   const [detalheEvento, setDetalheEvento] = useState(null)
   const [editando, setEditando] = useState(null)
   const [excluindo, setExcluindo] = useState(null)
@@ -29,17 +40,25 @@ export default function Eventos() {
 
   const filtrados = eventos
     .filter(e => filtroStatus === 'todos' || e.status === filtroStatus)
+    .filter(e => filtroTipo === 'todos' ||
+      (filtroTipo === 'locacao_mensal' ? ehLocacao(e) : !ehLocacao(e)))
     .filter(e =>
       e.nome.toLowerCase().includes(busca.toLowerCase()) ||
       (e.local || '').toLowerCase().includes(busca.toLowerCase())
     )
     .sort((a, b) => new Date(b.data) - new Date(a.data))
 
+  // As estatisticas seguem o filtro de tipo, para "Locações" mostrar o numero
+  // de locacoes e nao o total geral.
+  const doTipo = filtroTipo === 'todos'
+    ? eventos
+    : eventos.filter(e => filtroTipo === 'locacao_mensal' ? ehLocacao(e) : !ehLocacao(e))
+
   const stats = {
-    total: eventos.length,
-    ativos: eventos.filter(e => e.status === 'ativo').length,
-    agendados: eventos.filter(e => e.status === 'agendado').length,
-    concluidos: eventos.filter(e => e.status === 'concluido').length,
+    total: doTipo.length,
+    ativos: doTipo.filter(e => e.status === 'ativo').length,
+    agendados: doTipo.filter(e => e.status === 'agendado').length,
+    concluidos: doTipo.filter(e => e.status === 'concluido').length,
   }
 
   async function excluirEvento() {
@@ -95,7 +114,7 @@ export default function Eventos() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Eventos</h1>
-          <p className="text-gray-500 text-sm mt-1">Histórico completo de todos os eventos.</p>
+          <p className="text-gray-500 text-sm mt-1">Histórico completo de eventos e locações mensais.</p>
         </div>
         {podeGerenciar && (
           <button onClick={() => navigate('/saida', { state: { abrirCriarEvento: true } })} className="btn-primary flex-shrink-0">
@@ -118,6 +137,21 @@ export default function Eventos() {
             <p className={`text-2xl font-bold ${s.cor}`}>{s.value}</p>
             <p className="text-xs text-gray-400 mt-0.5">{s.label}</p>
           </div>
+        ))}
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {TIPO_FILTROS.map(f => (
+          <button
+            key={f.value}
+            onClick={() => setFiltroTipo(f.value)}
+            className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-colors
+              ${filtroTipo === f.value
+                ? (f.value === 'locacao_mensal' ? 'bg-purple-600 text-white' : 'bg-brand-black text-white')
+                : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400'}`}
+          >
+            {f.label}
+          </button>
         ))}
       </div>
 
@@ -227,7 +261,12 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
     >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-brand-black truncate mb-1">{evento.nome}</p>
+          <div className="flex items-center gap-2 mb-1 min-w-0">
+            <p className="font-semibold text-brand-black truncate">{evento.nome}</p>
+            {ehLocacao(evento) && (
+              <span className="badge bg-purple-100 text-purple-700 flex-shrink-0">Locação</span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 flex items-center gap-1 min-w-0">
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -297,7 +336,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      Marcar concluído
+                      {ehLocacao(evento) ? 'Encerrar locação' : 'Marcar concluído'}
                     </button>
                   )}
                   <button
@@ -1058,7 +1097,7 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
       <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="font-bold text-brand-black">Concluir evento</h2>
+            <h2 className="font-bold text-brand-black">{ehLocacao(evento) ? 'Encerrar locação' : 'Concluir evento'}</h2>
             <p className="text-xs text-gray-500 mt-0.5">Confirme o retorno de cada material</p>
           </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
@@ -1075,8 +1114,8 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
             </div>
           ) : materiaisDoEvento.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              <p className="text-sm">Nenhum material vinculado a este evento.</p>
-              <p className="text-xs mt-1">O evento será marcado como concluído.</p>
+              <p className="text-sm">Nenhum material vinculado a {ehLocacao(evento) ? 'esta locação' : 'este evento'}.</p>
+              <p className="text-xs mt-1">{ehLocacao(evento) ? 'A locação será encerrada.' : 'O evento será marcado como concluído.'}</p>
             </div>
           ) : (
             materiaisDoEvento.map(m => (

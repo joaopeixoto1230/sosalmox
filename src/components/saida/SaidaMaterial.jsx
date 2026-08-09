@@ -7,10 +7,12 @@ import StepRomaneio from './steps/StepRomaneio'
 import StepConfirmacao from './steps/StepConfirmacao'
 import UsoInternoFlow from './usointerno/UsoInternoFlow'
 
-const PASSOS = ['Evento', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
+const PASSOS_EVENTO = ['Evento', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
+const PASSOS_LOCACAO = ['Locação', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
 
-// Primeiro passo do modulo: escolher se a saida e para Evento (fluxo atual) ou
-// Uso Interno (emprestimo/consumo, sem vinculo a evento).
+// Primeiro passo do modulo: escolher se a saida e para Evento (fluxo atual),
+// Locacao Mensal (mesmo fluxo, gerador fica com status 'locacao') ou Uso Interno
+// (emprestimo/consumo, sem vinculo a evento).
 function EscolhaTipo({ onEscolher }) {
   return (
     <div className="space-y-4">
@@ -18,7 +20,7 @@ function EscolhaTipo({ onEscolher }) {
         <h2 className="text-lg font-bold text-brand-black">Tipo de Saída</h2>
         <p className="text-sm text-gray-500">O material está saindo para quê?</p>
       </div>
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <button onClick={() => onEscolher('evento')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
           <div className="w-10 h-10 rounded-lg bg-brand-red/10 text-brand-red flex items-center justify-center mb-2">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -28,6 +30,15 @@ function EscolhaTipo({ onEscolher }) {
           </div>
           <p className="font-bold text-brand-black">Evento</p>
           <p className="text-sm text-gray-500 mt-0.5">Aluguel/saída vinculada a um evento de cliente (fluxo com gerador e romaneio).</p>
+        </button>
+        <button onClick={() => onEscolher('locacao')} className="card text-left hover:border-purple-400 hover:shadow-md transition-all">
+          <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center mb-2">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="font-bold text-brand-black">Locação Mensal</p>
+          <p className="text-sm text-gray-500 mt-0.5">Contrato mensal com cliente. O gerador fica com status <strong>Em Locação</strong> até a devolução.</p>
         </button>
         <button onClick={() => onEscolher('uso_interno')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
           <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2">
@@ -43,11 +54,11 @@ function EscolhaTipo({ onEscolher }) {
   )
 }
 
-function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
+function Stepper({ passos, passoAtual, podeProsseguir, onVoltar, onAvancar }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-0 flex-1">
-        {PASSOS.map((p, i) => (
+        {passos.map((p, i) => (
           <div key={p} className="flex items-center flex-1 last:flex-none">
             <div className="flex flex-col items-center">
               <div className={`
@@ -64,7 +75,7 @@ function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
                 {p}
               </span>
             </div>
-            {i < PASSOS.length - 1 && (
+            {i < passos.length - 1 && (
               <div className={`flex-1 h-0.5 mx-1 mb-4 transition-colors ${i < passoAtual ? 'bg-green-500' : 'bg-gray-200'}`} />
             )}
           </div>
@@ -83,7 +94,7 @@ function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
         </button>
         <button
           onClick={onAvancar}
-          disabled={!podeProsseguir || passoAtual === PASSOS.length - 1}
+          disabled={!podeProsseguir || passoAtual === passos.length - 1}
           className="w-8 h-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:border-brand-red hover:text-brand-red transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,7 +107,7 @@ function Stepper({ passoAtual, podeProsseguir, onVoltar, onAvancar }) {
 }
 
 export default function SaidaMaterial() {
-  const [tipoSaida, setTipoSaida] = useState(null) // null | 'evento' | 'uso_interno'
+  const [tipoSaida, setTipoSaida] = useState(null) // null | 'evento' | 'locacao' | 'uso_interno'
   const [passo, setPasso] = useState(0)
   const [evento, setEvento] = useState(null)
   const [geradores, setGeradores] = useState([])
@@ -133,6 +144,11 @@ export default function SaidaMaterial() {
     setResponsavel('')
   }
 
+  // Locacao mensal usa exatamente o mesmo fluxo de 5 passos do evento; o que muda
+  // e o vocabulario da tela e o status que o gerador assume na confirmacao.
+  const ehLocacao = tipoSaida === 'locacao'
+  const passos = ehLocacao ? PASSOS_LOCACAO : PASSOS_EVENTO
+
   const podeProsseguir = [
     evento !== null,
     geradorConfirmado,
@@ -142,7 +158,7 @@ export default function SaidaMaterial() {
   ][passo]
 
   function avancarPasso() {
-    if (passo < PASSOS.length - 1 && podeProsseguir) setPasso(p => p + 1)
+    if (passo < passos.length - 1 && podeProsseguir) setPasso(p => p + 1)
   }
 
   function voltarPasso() {
@@ -162,7 +178,7 @@ export default function SaidaMaterial() {
         <UsoInternoFlow onTrocarTipo={() => setTipoSaida(null)} />
       )}
 
-      {tipoSaida === 'evento' && (
+      {(tipoSaida === 'evento' || tipoSaida === 'locacao') && (
       <>
       {passo === 0 && (
         <button
@@ -176,12 +192,20 @@ export default function SaidaMaterial() {
         </button>
       )}
 
+      {ehLocacao && (
+        <div className="mb-4 flex items-center gap-2 bg-purple-50 border border-purple-200 text-purple-800 rounded-xl px-3 py-2 text-sm">
+          <span className="badge bg-purple-100 text-purple-700 flex-shrink-0">Locação Mensal</span>
+          <span>Os geradores desta saída ficarão com o status <strong>Em Locação</strong>.</span>
+        </div>
+      )}
+
       <div className="card mb-6">
-        <Stepper passoAtual={passo} podeProsseguir={podeProsseguir} onVoltar={voltarPasso} onAvancar={avancarPasso} />
+        <Stepper passos={passos} passoAtual={passo} podeProsseguir={podeProsseguir} onVoltar={voltarPasso} onAvancar={avancarPasso} />
       </div>
 
       {passo === 0 && (
         <StepEvento
+          locacao={ehLocacao}
           onSelecionar={(evt) => { setEvento(evt); setPasso(1) }}
           onResponsavel={setResponsavel}
         />

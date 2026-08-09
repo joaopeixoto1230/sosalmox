@@ -50,6 +50,11 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     ? geradores.map(g => g.codigo).join(', ')
     : null
 
+  // Locacao mensal: mesmo fluxo do evento, mas o gerador assume o status
+  // 'locacao' (selo roxo) em vez de 'em_evento', para separar os dois na frota.
+  const ehLocacao = evento?.tipo === 'locacao_mensal'
+  const rotuloTipo = ehLocacao ? 'a locação' : 'o evento'
+
   async function confirmarSaida() {
     setStatus('carregando')
     setErro('')
@@ -108,6 +113,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             local: evento.local || null,
             data: evento.data || null,
             status: evento.status || 'ativo',
+            ...(ehLocacao ? { tipo: 'locacao_mensal' } : {}),
             criadoEm: serverTimestamp(),
           })
         }
@@ -117,6 +123,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           numeroFormatado: formatarNumeroOrdem(novoNumero),
           eventoId: eventoIdFinal,
           eventoNome: evento?.nome || null,
+          ...(ehLocacao ? { tipo: 'locacao_mensal' } : {}),
           qtdFotos: fotos.length,
           tokenAssinatura: tokenAssinatura,
           assinaturaStatus: assinaturaRecebeu ? 'assinada' : 'pendente',
@@ -153,11 +160,11 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
 
         const localEvento = evento
           ? `${evento.nome}${evento.local ? ' · ' + evento.local : ''}`
-          : 'Em evento'
+          : (ehLocacao ? 'Em locação' : 'Em evento')
         for (const gg of (geradores || [])) {
           const ggRef = doc(db, 'geradores', gg.id)
           tx.update(ggRef, {
-            status: 'em_evento',
+            status: ehLocacao ? 'locacao' : 'em_evento',
             eventoAtual: eventoIdFinal,
             eventoNome: evento?.nome || null,
             localizacao: localEvento,
@@ -172,6 +179,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         ordemId: ordemRef.id,
         numeroFormatado: formatarNumeroOrdem(novoNumero),
         eventoNome: evento?.nome || null,
+        ...(ehLocacao ? { tipo: 'locacao_mensal' } : {}),
         local: evento?.local || null,
         dataEvento: evento?.data || null,
         itens: itens.map(i => ({
@@ -222,9 +230,10 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
               <p className="text-sm font-semibold text-amber-800">Atenção</p>
               <p className="text-sm text-amber-700 mt-0.5">
                 Você está saindo com <strong>{itens.length} {itens.length === 1 ? 'item' : 'itens'}</strong>
-                {evento ? ` para o evento ${evento.nome}` : ''}
+                {evento ? ` para ${rotuloTipo} ${evento.nome}` : ''}
                 {codigosGeradores ? ` — geradores: ${codigosGeradores}` : ''}.
                 Esta ação atualizará o estoque em tempo real.
+                {ehLocacao && codigosGeradores && ' Os geradores ficarão com status Em Locação.'}
               </p>
             </div>
           </div>

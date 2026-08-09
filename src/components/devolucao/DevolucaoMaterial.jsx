@@ -297,11 +297,16 @@ export default function DevolucaoMaterial() {
                       className="w-full text-left p-3 rounded-xl border border-gray-200 hover:border-brand-red hover:bg-red-50/30 transition-all group"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-brand-black group-hover:text-brand-red transition-colors">{evt.nome}</p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="font-semibold text-brand-black group-hover:text-brand-red transition-colors truncate">{evt.nome}</p>
+                            {evt.tipo === 'locacao_mensal' && (
+                              <span className="badge bg-purple-100 text-purple-700 flex-shrink-0">Locação</span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500">{evt.local} • {formatarData(evt.data)}</p>
                         </div>
-                        <span className={`badge ${statusEventoCor(evt.status)}`}>
+                        <span className={`badge ${statusEventoCor(evt.status)} flex-shrink-0`}>
                           {statusEventoLabel(evt.status)}
                         </span>
                       </div>
