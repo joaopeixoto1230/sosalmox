@@ -53,8 +53,13 @@ export default function App() {
             <Route path="saida" element={
               <ProtectedRoute modulo={MODULOS.SAIDA}><SaidaMaterial /></ProtectedRoute>
             } />
+            {/* Mesma tela em duas portas. O `key` força remontar ao trocar de
+                rota, senão o filtro da tela anterior ficaria preso. */}
             <Route path="eventos" element={
-              <ProtectedRoute modulo={MODULOS.EVENTOS}><Eventos /></ProtectedRoute>
+              <ProtectedRoute modulo={MODULOS.EVENTOS}><Eventos key="eventos" filtroInicial="evento" /></ProtectedRoute>
+            } />
+            <Route path="locacoes" element={
+              <ProtectedRoute modulo={MODULOS.LOCACOES}><Eventos key="locacoes" filtroInicial="locacoes" /></ProtectedRoute>
             } />
             <Route path="devolucao" element={
               <ProtectedRoute modulo={MODULOS.DEVOLUCAO}><DevolucaoMaterial /></ProtectedRoute>

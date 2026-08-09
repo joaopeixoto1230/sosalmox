@@ -22,6 +22,7 @@ export const MODULOS = {
   FILA_SOLICITACOES: 'fila_solicitacoes',
   GESTAO_USUARIOS: 'gestao_usuarios',
   EVENTOS: 'eventos',
+  LOCACOES: 'locacoes',
   USO_INTERNO: 'uso_interno',
 }
 
@@ -42,6 +43,7 @@ const permissoes = {
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
     MODULOS.EVENTOS,
+    MODULOS.LOCACOES,
     MODULOS.USO_INTERNO,
   ],
   [PERFIS.ALMOXARIFE]: [
@@ -57,6 +59,7 @@ const permissoes = {
     MODULOS.AGENTE_IA,
     MODULOS.RELATORIOS,
     MODULOS.EVENTOS,
+    MODULOS.LOCACOES,
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
     MODULOS.USO_INTERNO,
@@ -85,6 +88,7 @@ export function getMenuItems(perfil) {
     { label: 'Dashboard', path: '/dashboard', modulo: MODULOS.DASHBOARD, icon: 'grid' },
     { label: 'Saída de Material', path: '/saida', modulo: MODULOS.SAIDA, icon: 'arrow-up-right' },
     { label: 'Eventos', path: '/eventos', modulo: MODULOS.EVENTOS, icon: 'calendar' },
+    { label: 'Locações', path: '/locacoes', modulo: MODULOS.LOCACOES, icon: 'calendar-check' },
     { label: 'Devolução', path: '/devolucao', modulo: MODULOS.DEVOLUCAO, icon: 'arrow-down-left' },
     { label: 'Uso Interno', path: '/uso-interno', modulo: MODULOS.USO_INTERNO, icon: 'briefcase' },
     { label: 'Transferência', path: '/transferencia', modulo: MODULOS.TRANSFERENCIA, icon: 'repeat' },

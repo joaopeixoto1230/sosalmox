@@ -20,27 +20,56 @@ const STATUS_FILTROS = [
 const ehLocacao = e => e.tipo === 'locacao_mensal'
 const ehSublocacao = e => e.tipo === 'sublocacao'
 
-const TIPO_FILTROS = [
-  { value: 'todos', label: 'Tudo' },
-  { value: 'evento', label: 'Eventos' },
-  { value: 'locacao_mensal', label: 'Locações' },
-  { value: 'sublocacao', label: 'Sublocações' },
-]
+// Os botões mudam conforme a porta de entrada: em /eventos você separa evento
+// de locação; em /locacoes, mensal de sublocação.
+const FILTROS_PORTA = {
+  evento: [
+    { value: 'todos', label: 'Tudo' },
+    { value: 'evento', label: 'Eventos' },
+    { value: 'locacoes', label: 'Locações' },
+  ],
+  locacoes: [
+    { value: 'locacoes', label: 'Todas' },
+    { value: 'locacao_mensal', label: 'Mensais' },
+    { value: 'sublocacao', label: 'Sublocações' },
+  ],
+}
 
-// 'evento' = qualquer documento sem tipo; os demais casam pelo proprio tipo.
+// 'evento' = qualquer documento sem tipo; 'locacoes' = mensal + sublocação.
 function daCategoria(e, filtro) {
   if (filtro === 'todos') return true
   if (filtro === 'evento') return !e.tipo
+  if (filtro === 'locacoes') return e.tipo === 'locacao_mensal' || e.tipo === 'sublocacao'
   return e.tipo === filtro
 }
 
-export default function Eventos() {
+// A tela atende duas portas do menu: /eventos e /locacoes. É o MESMO componente
+// com o filtro pré-aplicado — nada é duplicado, então detalhe, relatório,
+// conclusão e exclusão continuam existindo em um só lugar.
+const TITULOS = {
+  evento: {
+    titulo: 'Eventos',
+    sub: 'Histórico completo de todos os eventos.',
+    vazio: 'Nenhum evento encontrado',
+    botao: 'Novo evento',
+  },
+  locacoes: {
+    titulo: 'Locações',
+    sub: 'Locações mensais e sublocações em andamento.',
+    vazio: 'Nenhuma locação encontrada',
+    botao: 'Nova locação',
+  },
+}
+
+export default function Eventos({ filtroInicial = 'evento' }) {
   const { tipoPerfil } = useAuth()
   const navigate = useNavigate()
   const { dados: eventos, carregando } = useCollection('eventos')
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('todos')
-  const [filtroTipo, setFiltroTipo] = useState('todos')
+  const [filtroTipo, setFiltroTipo] = useState(filtroInicial)
+  const txt = TITULOS[filtroInicial] || TITULOS.evento
+  const filtros = FILTROS_PORTA[filtroInicial] || FILTROS_PORTA.evento
   const [detalheEvento, setDetalheEvento] = useState(null)
   const [editando, setEditando] = useState(null)
   const [excluindo, setExcluindo] = useState(null)
@@ -119,15 +148,15 @@ export default function Eventos() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-brand-black">Eventos</h1>
-          <p className="text-gray-500 text-sm mt-1">Histórico completo de eventos e locações mensais.</p>
+          <h1 className="text-2xl font-bold text-brand-black">{txt.titulo}</h1>
+          <p className="text-gray-500 text-sm mt-1">{txt.sub}</p>
         </div>
         {podeGerenciar && (
           <button onClick={() => navigate('/saida', { state: { abrirCriarEvento: true } })} className="btn-primary flex-shrink-0">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Novo evento
+            {txt.botao}
           </button>
         )}
       </div>
@@ -147,13 +176,13 @@ export default function Eventos() {
       </div>
 
       <div className="flex gap-1.5 overflow-x-auto pb-0.5">
-        {TIPO_FILTROS.map(f => (
+        {filtros.map(f => (
           <button
             key={f.value}
             onClick={() => setFiltroTipo(f.value)}
             className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-colors
               ${filtroTipo === f.value
-                ? (f.value === 'locacao_mensal' ? 'bg-purple-600 text-white'
+                ? (f.value === 'locacao_mensal' || f.value === 'locacoes' ? 'bg-purple-600 text-white'
                   : f.value === 'sublocacao' ? 'bg-teal-600 text-white'
                   : 'bg-brand-black text-white')
                 : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400'}`}
@@ -190,8 +219,8 @@ export default function Eventos() {
           <svg className="w-14 h-14 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <p className="font-medium">Nenhum evento encontrado</p>
-          <p className="text-sm mt-1">Tente outro filtro ou crie um novo evento.</p>
+          <p className="font-medium">{txt.vazio}</p>
+          <p className="text-sm mt-1">Tente outro filtro ou lance uma nova saída.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
