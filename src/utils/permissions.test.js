@@ -10,9 +10,13 @@ describe('menu por perfil', () => {
     expect(rotulos(grupo.filhos)).toEqual(['Eventos', 'Locações mensais', 'Sublocações'])
   })
 
-  it('admin vê o grupo de estoque com materiais e filtros', () => {
+  it('admin vê o grupo de estoque com materiais, filtros e uso interno', () => {
     const grupo = acha(getMenuItems(PERFIS.ADMIN), 'Estoque')
-    expect(rotulos(grupo.filhos)).toEqual(['Materiais', 'Filtros'])
+    expect(rotulos(grupo.filhos)).toEqual(['Materiais', 'Filtros', 'Uso Interno'])
+  })
+
+  it('Uso Interno não sobrou solto fora do grupo', () => {
+    expect(rotulos(getMenuItems(PERFIS.ADMIN))).not.toContain('Uso Interno')
   })
 
   // O mecânico tem FILTROS mas não ESTOQUE. Se o grupo herdasse a permissão de

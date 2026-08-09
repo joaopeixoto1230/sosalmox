@@ -100,7 +100,6 @@ export function getMenuItems(perfil) {
       ],
     },
     { label: 'Devolução', path: '/devolucao', modulo: MODULOS.DEVOLUCAO, icon: 'arrow-down-left' },
-    { label: 'Uso Interno', path: '/uso-interno', modulo: MODULOS.USO_INTERNO, icon: 'briefcase' },
     { label: 'Transferência', path: '/transferencia', modulo: MODULOS.TRANSFERENCIA, icon: 'repeat' },
     {
       label: 'Estoque',
@@ -108,6 +107,7 @@ export function getMenuItems(perfil) {
       filhos: [
         { label: 'Materiais', path: '/estoque', modulo: MODULOS.ESTOQUE },
         { label: 'Filtros', path: '/filtros', modulo: MODULOS.FILTROS },
+        { label: 'Uso Interno', path: '/uso-interno', modulo: MODULOS.USO_INTERNO },
       ],
     },
     { label: 'Geradores', path: '/geradores', modulo: MODULOS.GERADORES, icon: 'zap' },
