@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import DatePicker from '../../ui/DatePicker'
 import { OPERADORES } from '../../../utils/operadores'
-// Mesma função usada pelo painel para calcular a previsão de devolução, para
-// não existirem duas versões da mesma regra.
-import { diaSeguinte } from '../../dashboard/pendencias'
+// Mesma função usada pelo painel, para não existirem duas versões da regra.
+import { proximaSegunda, hojeISO } from '../../dashboard/pendencias'
 
 const TEXTOS = {
   evento: {
@@ -45,8 +44,10 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
   const [form, setForm] = useState({ nome: '', local: '', data: '' })
   // Só o Evento tem previsão de devolução: locação e sublocação ficam com o
   // cliente por tempo indeterminado, até o encerramento do contrato.
-  const [previsao, setPrevisao] = useState('')
-  const [previsaoEditada, setPrevisaoEditada] = useState(false)
+  // Sugere a próxima segunda — o evento é no fim de semana e o material volta
+  // na segunda. O campo `data` NÃO serve de base: ele guarda o dia do
+  // lançamento da saída, não o dia do evento.
+  const [previsao, setPrevisao] = useState(() => proximaSegunda(hojeISO()))
   const [operador, setOperador] = useState('')
   const [outroNome, setOutroNome] = useState('')
   const [mostrarOutro, setMostrarOutro] = useState(false)
@@ -59,13 +60,6 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
   const ehSublocacao = modo === 'sublocacao'
   const ehEvento = modo === 'evento'
   const txt = TEXTOS[modo] || TEXTOS.evento
-
-  // Ao escolher a data do evento, sugere a devolução para o dia seguinte —
-  // a menos que o usuário já tenha ajustado o campo na mão.
-  function definirData(v) {
-    setForm(p => ({ ...p, data: v }))
-    if (ehEvento && !previsaoEditada) setPrevisao(diaSeguinte(v))
-  }
 
   const responsavelFinal = ehSublocacao
     ? retirante.nome.trim()
@@ -85,7 +79,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
     if (!form.data) { setErro(txt.erroData); return }
     if (ehEvento && !previsao) { setErro('Informe a previsão de devolução do material'); return }
     if (ehEvento && previsao < form.data) {
-      setErro('A previsão de devolução não pode ser anterior à data do evento')
+      setErro('A previsão de devolução não pode ser anterior à data da saída')
       return
     }
     if (!responsavelFinal) {
@@ -141,7 +135,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
           <label className="block text-sm font-medium text-gray-700 mb-1">{txt.labelData}</label>
           <DatePicker
             value={form.data}
-            onChange={definirData}
+            onChange={v => setForm(p => ({ ...p, data: v }))}
           />
         </div>
 
@@ -150,10 +144,10 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
             <label className="block text-sm font-medium text-gray-700 mb-1">Previsão de devolução *</label>
             <DatePicker
               value={previsao}
-              onChange={v => { setPrevisao(v); setPrevisaoEditada(true) }}
+              onChange={setPrevisao}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Preenchida com o dia seguinte ao evento. Passando dessa data sem devolução, o material
+              Sugerida para a próxima segunda-feira. Passando dessa data sem devolução, o material
               aparece no painel para ser cobrado de quem levou.
             </p>
           </div>

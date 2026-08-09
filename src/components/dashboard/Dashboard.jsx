@@ -405,7 +405,7 @@ export default function Dashboard() {
                           ? 'em aberto'
                           : (previsaoDoEvento(evt)
                             ? new Date(previsaoDoEvento(evt) + 'T00:00:00').toLocaleDateString('pt-BR')
-                            : '—')}
+                            : <span className="text-gray-400">não informada</span>)}
                     </td>
                     <td className="py-2.5">
                       <span className={`badge ${statusEventoCor(evt.status)}`}>

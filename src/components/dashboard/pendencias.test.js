@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  diaSeguinte, previsaoDoEvento, diasDeAtraso, eventosACobrar, calcularPendencias,
+  diaSeguinte, proximaSegunda, previsaoDoEvento, diasDeAtraso, eventosACobrar, calcularPendencias,
 } from './pendencias'
 import { MODULOS } from '../../utils/permissions'
 
-const HOJE = '2026-08-09'
+const HOJE = '2026-08-09' // domingo
 const AGORA = new Date(2026, 7, 9, 12, 0, 0)
 
 describe('previsão de devolução', () => {
@@ -13,12 +13,20 @@ describe('previsão de devolução', () => {
     expect(diaSeguinte('2026-02-28')).toBe('2026-03-01')
   })
 
+  it('sugere a próxima segunda, nunca o próprio dia', () => {
+    expect(proximaSegunda('2026-08-09')).toBe('2026-08-10') // domingo → segunda
+    expect(proximaSegunda('2026-08-10')).toBe('2026-08-17') // segunda → segunda seguinte
+    expect(proximaSegunda('2026-08-11')).toBe('2026-08-17') // terça → segunda seguinte
+  })
+
   it('usa o campo gravado quando existe', () => {
     expect(previsaoDoEvento({ data: '2026-08-01', previsaoDevolucao: '2026-08-05' })).toBe('2026-08-05')
   })
 
-  it('cai no dia seguinte ao evento quando o campo não existe (evento antigo)', () => {
-    expect(previsaoDoEvento({ data: '2026-08-01' })).toBe('2026-08-02')
+  // `data` guarda o dia do LANÇAMENTO da saída, não o do evento: estimar a
+  // devolução a partir dela acusava atraso em todo evento antigo.
+  it('não estima a partir da data da saída', () => {
+    expect(previsaoDoEvento({ data: '2026-08-01' })).toBeNull()
   })
 
   it('conta o atraso em dias inteiros', () => {
@@ -29,35 +37,40 @@ describe('previsão de devolução', () => {
 })
 
 describe('eventos a cobrar', () => {
-  const base = { status: 'ativo', nome: 'X' }
+  const base = { status: 'ativo', nome: 'X', data: '2026-07-01' }
 
   it('pega evento ativo cuja previsão já passou', () => {
-    const r = eventosACobrar([{ ...base, id: '1', data: '2026-07-14' }], HOJE)
+    const r = eventosACobrar([{ ...base, id: '1', previsaoDevolucao: '2026-07-15' }], HOJE)
     expect(r).toHaveLength(1)
-    expect(r[0].atraso).toBe(25) // devolução prevista para 15/07
+    expect(r[0].atraso).toBe(25)
+  })
+
+  it('não acusa evento antigo sem o campo, mesmo com data velha', () => {
+    const r = eventosACobrar([{ ...base, id: '1', data: '2026-07-14' }], HOJE)
+    expect(r).toHaveLength(0)
   })
 
   it('ignora evento ainda no prazo e o que vence hoje', () => {
     const r = eventosACobrar([
-      { ...base, id: '1', data: '2026-08-20' },
-      { ...base, id: '2', data: '2026-08-08' }, // previsão 09/08 = hoje
+      { ...base, id: '1', previsaoDevolucao: '2026-08-20' },
+      { ...base, id: '2', previsaoDevolucao: HOJE },
     ], HOJE)
     expect(r).toHaveLength(0)
   })
 
   it('ignora concluído e não conta locação nem sublocação', () => {
     const r = eventosACobrar([
-      { ...base, id: '1', data: '2026-07-01', status: 'concluido' },
-      { ...base, id: '2', data: '2026-07-01', tipo: 'locacao_mensal' },
-      { ...base, id: '3', data: '2026-07-01', tipo: 'sublocacao' },
+      { ...base, id: '1', previsaoDevolucao: '2026-07-01', status: 'concluido' },
+      { ...base, id: '2', previsaoDevolucao: '2026-07-01', tipo: 'locacao_mensal' },
+      { ...base, id: '3', previsaoDevolucao: '2026-07-01', tipo: 'sublocacao' },
     ], HOJE)
     expect(r).toHaveLength(0)
   })
 
   it('ordena do mais atrasado para o menos', () => {
     const r = eventosACobrar([
-      { ...base, id: '1', data: '2026-08-05', nome: 'novo' },
-      { ...base, id: '2', data: '2026-07-01', nome: 'velho' },
+      { ...base, id: '1', previsaoDevolucao: '2026-08-05', nome: 'novo' },
+      { ...base, id: '2', previsaoDevolucao: '2026-07-01', nome: 'velho' },
     ], HOJE)
     expect(r.map(x => x.evento.nome)).toEqual(['velho', 'novo'])
   })
@@ -65,7 +78,7 @@ describe('eventos a cobrar', () => {
 
 describe('lista de pendências', () => {
   const dados = {
-    eventos: [{ id: '1', nome: 'Dunia', status: 'ativo', data: '2026-07-14' }],
+    eventos: [{ id: '1', nome: 'Dunia', status: 'ativo', data: '2026-07-14', previsaoDevolucao: '2026-07-15' }],
     ordensSaida: [
       { id: 'a', status: 'ativo', tokenAssinatura: 't', assinaturaStatus: 'pendente', numeroFormatado: 'OM-001' },
       { id: 'b', tipo: 'uso_interno', subtipo: 'emprestimo', statusEmprestimo: 'pendente',

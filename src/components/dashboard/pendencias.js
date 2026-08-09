@@ -22,10 +22,24 @@ export function diaSeguinte(iso) {
 }
 
 // Data em que o material do evento passa a ser cobrado de quem levou.
-// Eventos criados antes do campo caem no dia seguinte à data do evento —
-// que é exatamente a regra combinada, então não há migração a fazer.
+// ⚠️ NÃO estimar a partir de `data`: esse campo guarda o dia em que a SAÍDA foi
+// lançada, não o dia do evento — o evento acontece depois. Estimar dali gerava
+// alarme falso em todo evento antigo. Sem o campo preenchido, não há cobrança.
 export function previsaoDoEvento(evento) {
-  return evento?.previsaoDevolucao || diaSeguinte(evento?.data)
+  return evento?.previsaoDevolucao || null
+}
+
+// Material de evento volta na segunda-feira seguinte (o evento é no fim de
+// semana). É só a sugestão inicial do campo — sempre editável na tela.
+export function proximaSegunda(iso) {
+  if (!iso) return ''
+  const [a, m, d] = String(iso).split('-').map(Number)
+  if (!a || !m || !d) return ''
+  const dt = new Date(a, m - 1, d)
+  // 1 = segunda; avança até cair na próxima segunda, nunca no mesmo dia
+  do { dt.setDate(dt.getDate() + 1) } while (dt.getDay() !== 1)
+  const p = n => String(n).padStart(2, '0')
+  return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`
 }
 
 export function diasDeAtraso(iso, hoje) {
@@ -44,7 +58,7 @@ const ehEvento = e => !e.tipo
 // vinculado e precisa ser cobrado de quem levou.
 export function eventosACobrar(eventos, hoje) {
   return eventos
-    .filter(e => ehEvento(e) && e.status === 'ativo')
+    .filter(e => ehEvento(e) && e.status === 'ativo' && previsaoDoEvento(e))
     .map(e => ({ evento: e, atraso: diasDeAtraso(previsaoDoEvento(e), hoje) }))
     .filter(x => x.atraso !== null && x.atraso > 0)
     .sort((a, b) => b.atraso - a.atraso)
