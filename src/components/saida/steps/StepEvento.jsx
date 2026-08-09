@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import DatePicker from '../../ui/DatePicker'
 import { OPERADORES } from '../../../utils/operadores'
+// Mesma função usada pelo painel para calcular a previsão de devolução, para
+// não existirem duas versões da mesma regra.
+import { diaSeguinte } from '../../dashboard/pendencias'
 
 const TEXTOS = {
   evento: {
@@ -40,6 +43,10 @@ const TEXTOS = {
 
 export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento' }) {
   const [form, setForm] = useState({ nome: '', local: '', data: '' })
+  // Só o Evento tem previsão de devolução: locação e sublocação ficam com o
+  // cliente por tempo indeterminado, até o encerramento do contrato.
+  const [previsao, setPrevisao] = useState('')
+  const [previsaoEditada, setPrevisaoEditada] = useState(false)
   const [operador, setOperador] = useState('')
   const [outroNome, setOutroNome] = useState('')
   const [mostrarOutro, setMostrarOutro] = useState(false)
@@ -50,7 +57,15 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
   const [erro, setErro] = useState('')
 
   const ehSublocacao = modo === 'sublocacao'
+  const ehEvento = modo === 'evento'
   const txt = TEXTOS[modo] || TEXTOS.evento
+
+  // Ao escolher a data do evento, sugere a devolução para o dia seguinte —
+  // a menos que o usuário já tenha ajustado o campo na mão.
+  function definirData(v) {
+    setForm(p => ({ ...p, data: v }))
+    if (ehEvento && !previsaoEditada) setPrevisao(diaSeguinte(v))
+  }
 
   const responsavelFinal = ehSublocacao
     ? retirante.nome.trim()
@@ -68,6 +83,11 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
     if (!form.nome.trim()) { setErro(txt.erroNome); return }
     if (!form.local.trim()) { setErro('Local é obrigatório'); return }
     if (!form.data) { setErro(txt.erroData); return }
+    if (ehEvento && !previsao) { setErro('Informe a previsão de devolução do material'); return }
+    if (ehEvento && previsao < form.data) {
+      setErro('A previsão de devolução não pode ser anterior à data do evento')
+      return
+    }
     if (!responsavelFinal) {
       setErro(ehSublocacao ? 'Informe quem está retirando o material' : 'Selecione o responsável pelo material')
       return
@@ -81,6 +101,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
       data: form.data,
       status: 'ativo',
       ...(TIPO_POR_MODO[modo] ? { tipo: TIPO_POR_MODO[modo] } : {}),
+      ...(ehEvento ? { previsaoDevolucao: previsao } : {}),
       ...(ehSublocacao ? {
         retiradoPor: retirante.nome.trim(),
         retiradoDocumento: retirante.documento.trim() || null,
@@ -120,9 +141,23 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
           <label className="block text-sm font-medium text-gray-700 mb-1">{txt.labelData}</label>
           <DatePicker
             value={form.data}
-            onChange={v => setForm(p => ({ ...p, data: v }))}
+            onChange={definirData}
           />
         </div>
+
+        {ehEvento && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Previsão de devolução *</label>
+            <DatePicker
+              value={previsao}
+              onChange={v => { setPrevisao(v); setPrevisaoEditada(true) }}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Preenchida com o dia seguinte ao evento. Passando dessa data sem devolução, o material
+              aparece no painel para ser cobrado de quem levou.
+            </p>
+          </div>
+        )}
 
         {ehSublocacao ? (
           <div className="space-y-4">

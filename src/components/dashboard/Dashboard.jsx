@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
-import { PERFIS } from '../../utils/permissions'
+import { PERFIS, MODULOS, temPermissao } from '../../utils/permissions'
 import { GRUPOS, grupoDoMaterial } from '../estoque/categorias'
 import { calcularEspecies, contarEstoqueBaixo } from '../estoque/estoqueEspecie'
+import { calcularPendencias, previsaoDoEvento, diasDeAtraso, hojeISO } from './pendencias'
 import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
 
 function CardResumo({ titulo, valor, cor, icone, to, detalhe }) {
@@ -35,6 +36,49 @@ const SELO_TIPO = {
   [TIPO_SUBLOCACAO]: { label: 'Sublocação', cor: 'bg-teal-100 text-teal-700' },
 }
 
+// Situação da frota agrupada pela pergunta que interessa: dá para fechar
+// negócio hoje? O detalhe por status continua na legenda.
+const GRUPOS_FROTA = [
+  { chave: 'prontos', label: 'Prontos para sair', cor: 'bg-green-500', texto: 'text-green-600', estados: ['disponivel'] },
+  { chave: 'emuso', label: 'Em uso com cliente', cor: 'bg-blue-500', texto: 'text-blue-600', estados: ['em_evento', 'locacao', 'sublocado'] },
+  { chave: 'indisp', label: 'Indisponíveis', cor: 'bg-orange-500', texto: 'text-orange-600', estados: ['manutencao', 'defeito'] },
+]
+
+function FaixaPendencias({ itens }) {
+  if (!itens.length) return null
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden dark:border-amber-900/50 dark:bg-amber-950/30">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200 dark:border-amber-900/50">
+        <svg className="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        </svg>
+        <p className="text-xs font-bold uppercase tracking-wide text-amber-700 dark:text-amber-500">Precisa de atenção</p>
+        <span className="ml-auto text-xs text-amber-700/80 dark:text-amber-500/80">
+          {itens.length} {itens.length === 1 ? 'pendência' : 'pendências'}
+        </span>
+      </div>
+      {itens.map(p => (
+        <Link
+          key={p.chave}
+          to={p.para}
+          className="flex items-center gap-3 px-4 py-2.5 border-b last:border-b-0 border-amber-100 dark:border-amber-900/30 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition-colors"
+        >
+          <span className={`min-w-[30px] h-6 px-1.5 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+            p.nivel === 'critico' ? 'bg-red-100 text-brand-red' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {p.n}
+          </span>
+          <span className="text-sm text-brand-black flex-1 min-w-0">
+            {p.texto}
+            {p.detalhe && <span className="text-gray-500"> — {p.detalhe}</span>}
+          </span>
+          <span className="text-xs font-medium text-brand-red flex-shrink-0 hidden sm:inline">{p.acao} →</span>
+        </Link>
+      ))}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { nome, tipoPerfil } = useAuth()
   const [importando, setImportando] = useState(null)
@@ -44,6 +88,9 @@ export default function Dashboard() {
   const { dados: materiais, carregando: carregandoMat } = useCollection('materiais')
   const { dados: filtros } = useCollection('filtros')
   const { dados: geradores } = useCollection('geradores')
+  const { dados: ordensSaida } = useCollection('ordens_saida')
+  const { dados: ordensServico } = useCollection('ordens_servico')
+  const { dados: solicitacoes } = useCollection('solicitacoes_compra')
 
   const importOk = {
     filtros: importForced.filtros || filtros.length >= 100,
@@ -106,17 +153,41 @@ export default function Dashboard() {
       return soma + contarEstoqueBaixo(doGrupo, calcularEspecies(doGrupo))
     }, 0)
 
-    const eventosRecentes = eventos
-      .filter(e => ['ativo', 'agendado'].includes(e.status))
-      .sort((a, b) => new Date(a.data) - new Date(b.data))
-      .slice(0, 6)
+    // Agenda separada: o que passou da devolução (e prende material) vem antes
+    // do que ainda vai acontecer.
+    const hoje = hojeISO()
+    const emAberto = eventos.filter(e => ['ativo', 'agendado'].includes(e.status))
+    const comAtraso = emAberto.map(e => ({
+      evento: e,
+      // locação e sublocação não têm devolução prevista: nunca entram como vencidas
+      atraso: ehEventoPuro(e) ? diasDeAtraso(previsaoDoEvento(e), hoje) : null,
+    }))
+    const vencidos = comAtraso.filter(x => x.atraso > 0).sort((a, b) => b.atraso - a.atraso)
+    const proximos = comAtraso.filter(x => !(x.atraso > 0))
+      .sort((a, b) => new Date(a.evento.data) - new Date(b.evento.data))
+    const agenda = [...vencidos.slice(0, 4), ...proximos.slice(0, 4)]
+
+    const eventosVencidos = vencidos.length
 
     return {
-      eventosAtivos, locacoesAtivas, sublocacoesAtivas,
+      eventosAtivos, locacoesAtivas, sublocacoesAtivas, eventosVencidos,
       itensEmCampo, itensEmEvento, itensEmLocacao, itensSublocados,
-      estoquesBaixo, eventosRecentes,
+      estoquesBaixo, agenda, temVencido: vencidos.length > 0, hoje,
     }
   }, [eventos, materiais])
+
+  const frota = useMemo(() => {
+    const ativos = geradores.filter(g => g.ativo !== false && g.status !== 'inativo')
+    const contagem = GRUPOS_FROTA.map(g => ({
+      ...g, n: ativos.filter(x => g.estados.includes(x.status)).length,
+    }))
+    return { total: ativos.length, contagem }
+  }, [geradores])
+
+  const pendencias = useMemo(() => calcularPendencias(
+    { eventos, ordensSaida, ordensServico, solicitacoes },
+    { podeVer: modulo => temPermissao(tipoPerfil, modulo) },
+  ), [eventos, ordensSaida, ordensServico, solicitacoes, tipoPerfil])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'
@@ -146,10 +217,15 @@ export default function Dashboard() {
         </p>
       </div>
 
+      <FaixaPendencias itens={pendencias} />
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <CardResumo
           titulo="Eventos Ativos"
           valor={stats.eventosAtivos}
+          detalhe={stats.eventosVencidos > 0
+            ? `${stats.eventosVencidos} com devolução vencida`
+            : 'nenhum com devolução vencida'}
           cor="bg-blue-100 text-blue-600"
           to="/eventos"
           icone={
@@ -195,15 +271,40 @@ export default function Dashboard() {
         />
       </div>
 
+      {temPermissao(tipoPerfil, MODULOS.GERADORES) && frota.total > 0 && (
+        <div className="card">
+          <div className="flex items-baseline justify-between gap-3 mb-3">
+            <h2 className="font-semibold text-brand-black">Frota de geradores</h2>
+            <Link to="/geradores" className="text-brand-red text-sm font-medium hover:underline">
+              {frota.total} ativos →
+            </Link>
+          </div>
+          <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100 gap-0.5">
+            {frota.contagem.filter(g => g.n > 0).map(g => (
+              <div key={g.chave} className={g.cor} style={{ width: `${(g.n / frota.total) * 100}%` }} />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
+            {frota.contagem.map(g => (
+              <span key={g.chave} className="flex items-center gap-1.5 text-xs text-gray-600">
+                <span className={`w-2.5 h-2.5 rounded-sm ${g.cor}`} />
+                {g.label}
+                <b className={`font-bold ${g.texto}`}>{g.n}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-brand-black">Próximos Eventos e Locações</h2>
+          <h2 className="font-semibold text-brand-black">Agenda</h2>
           <Link to="/eventos" className="text-brand-red text-sm font-medium hover:underline">
             Ver todos →
           </Link>
         </div>
 
-        {stats.eventosRecentes.length === 0 ? (
+        {stats.agenda.length === 0 ? (
           <p className="text-gray-400 text-sm text-center py-8">Nenhum evento ativo ou agendado.</p>
         ) : (
           <div className="overflow-x-auto">
@@ -212,13 +313,13 @@ export default function Dashboard() {
                 <tr className="border-b border-gray-100">
                   <th className="text-left py-2 text-gray-500 font-medium">Evento</th>
                   <th className="text-left py-2 text-gray-500 font-medium hidden sm:table-cell">Local</th>
-                  <th className="text-left py-2 text-gray-500 font-medium">Data</th>
+                  <th className="text-left py-2 text-gray-500 font-medium">Devolução</th>
                   <th className="text-left py-2 text-gray-500 font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {stats.eventosRecentes.map(evt => (
-                  <tr key={evt.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                {stats.agenda.map(({ evento: evt, atraso }) => (
+                  <tr key={evt.id} className={`border-b border-gray-50 transition-colors ${atraso > 0 ? 'bg-red-50/50 hover:bg-red-50' : 'hover:bg-gray-50'}`}>
                     <td className="py-2.5 font-medium text-brand-black">
                       <span className="inline-flex items-center gap-1.5 flex-wrap">
                         {evt.nome}
@@ -228,7 +329,15 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="py-2.5 text-gray-500 hidden sm:table-cell">{evt.local}</td>
-                    <td className="py-2.5 text-gray-600">{evt.data ? new Date(evt.data + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                    <td className={`py-2.5 ${atraso > 0 ? 'text-brand-red font-semibold' : 'text-gray-600'}`}>
+                      {atraso > 0
+                        ? `venceu há ${atraso} ${atraso === 1 ? 'dia' : 'dias'}`
+                        : SELO_TIPO[evt.tipo]
+                          ? 'em aberto'
+                          : (previsaoDoEvento(evt)
+                            ? new Date(previsaoDoEvento(evt) + 'T00:00:00').toLocaleDateString('pt-BR')
+                            : '—')}
+                    </td>
                     <td className="py-2.5">
                       <span className={`badge ${statusEventoCor(evt.status)}`}>
                         {statusEventoLabel(evt.status)}
