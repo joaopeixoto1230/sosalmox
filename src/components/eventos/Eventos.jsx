@@ -4,7 +4,7 @@ import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, query, whe
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
-import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
+import { statusEventoCor, statusEventoLabel, statusGeradorLabel } from '../../utils/formatters'
 import DatePicker from '../ui/DatePicker'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -974,15 +974,31 @@ function ModalColetarAssinatura({ ass, papel, onFechar, onAssinado }) {
   )
 }
 
+// Status que o gerador assume conforme a modalidade do evento a que está preso.
+const STATUS_GG_POR_TIPO = { evento: 'em_evento', locacao_mensal: 'locacao', sublocacao: 'sublocado' }
+
+const TIPOS_EVENTO = [
+  { valor: 'evento', label: 'Evento' },
+  { valor: 'locacao_mensal', label: 'Locação mensal' },
+  { valor: 'sublocacao', label: 'Sublocação' },
+]
+
 function ModalFormEvento({ evento, onFechar, onSalvar }) {
   const [form, setForm] = useState({
     nome: evento?.nome || '',
     local: evento?.local || '',
     data: evento?.data || '',
     status: evento?.status || 'ativo',
+    // documento sem `tipo` é evento — mesma convenção do resto do sistema
+    tipo: evento?.tipo || 'evento',
+    previsaoDevolucao: evento?.previsaoDevolucao || '',
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  const tipoOriginal = evento?.tipo || 'evento'
+  const mudouTipo = !!evento && form.tipo !== tipoOriginal
+  const ehEvento = form.tipo === 'evento'
 
   async function salvar() {
     if (!form.nome.trim()) { setErro('Nome é obrigatório'); return }
@@ -991,21 +1007,33 @@ function ModalFormEvento({ evento, onFechar, onSalvar }) {
     setSalvando(true)
     setErro('')
     try {
+      const campos = {
+        nome: form.nome.trim(),
+        local: form.local.trim(),
+        data: form.data,
+        status: form.status,
+        // 'evento' é representado pela AUSÊNCIA do campo: gravar null mantém a
+        // convenção e ainda desfaz uma conversão anterior.
+        tipo: ehEvento ? null : form.tipo,
+        // só evento tem previsão de devolução; locação fica com o cliente
+        previsaoDevolucao: ehEvento ? (form.previsaoDevolucao || null) : null,
+      }
+
       if (evento) {
-        await updateDoc(doc(db, 'eventos', evento.id), {
-          nome: form.nome.trim(),
-          local: form.local.trim(),
-          data: form.data,
-          status: form.status,
-        })
+        await updateDoc(doc(db, 'eventos', evento.id), campos)
+
+        // Converter a modalidade tem que mover junto os geradores presos a ela,
+        // senão a frota continua mostrando "Em Evento" para uma locação.
+        if (mudouTipo) {
+          const ggs = await getDocs(query(collection(db, 'geradores'), where('eventoAtual', '==', evento.id)))
+          if (!ggs.empty) {
+            const lote = writeBatch(db)
+            ggs.forEach(d => lote.update(d.ref, { status: STATUS_GG_POR_TIPO[form.tipo] }))
+            await lote.commit()
+          }
+        }
       } else {
-        await addDoc(collection(db, 'eventos'), {
-          nome: form.nome.trim(),
-          local: form.local.trim(),
-          data: form.data,
-          status: form.status,
-          criadoEm: serverTimestamp(),
-        })
+        await addDoc(collection(db, 'eventos'), { ...campos, criadoEm: serverTimestamp() })
       }
       onSalvar()
     } catch (e) {
@@ -1038,6 +1066,35 @@ function ModalFormEvento({ evento, onFechar, onSalvar }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Data *</label>
             <DatePicker value={form.data} onChange={v => setForm(p => ({ ...p, data: v }))} className="w-full" />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Modalidade</label>
+            <select className="input w-full" value={form.tipo} onChange={e => setForm(p => ({ ...p, tipo: e.target.value }))}>
+              {TIPOS_EVENTO.map(t => <option key={t.valor} value={t.valor}>{t.label}</option>)}
+            </select>
+            {mudouTipo && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                Os geradores deste evento passarão para o status{' '}
+                <strong>{statusGeradorLabel(STATUS_GG_POR_TIPO[form.tipo])}</strong>.
+                O material continua vinculado e volta pela Devolução, como sempre.
+              </p>
+            )}
+          </div>
+
+          {ehEvento && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Previsão de devolução</label>
+              <DatePicker
+                value={form.previsaoDevolucao}
+                onChange={v => setForm(p => ({ ...p, previsaoDevolucao: v }))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Passando dessa data sem devolução, o material aparece no painel para ser cobrado.
+                Em branco, não gera cobrança.
+              </p>
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
             <select className="input w-full" value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
