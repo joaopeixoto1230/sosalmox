@@ -47,6 +47,7 @@ const STATUS_OPCOES = [
   { value: 'disponivel', label: 'Disponível' },
   { value: 'em_evento', label: 'Em Evento' },
   { value: 'locacao', label: 'Em Locação' },
+  { value: 'sublocado', label: 'Sublocado' },
   { value: 'manutencao', label: 'Em Manutenção' },
   { value: 'defeito', label: 'Com Defeito' },
 ]
@@ -85,9 +86,10 @@ export default function GGCard({ gg }) {
       setMotivoDefeito('')
       return
     }
-    if (novoStatus === 'locacao') {
-      setSubMenu('locacao')
-      setLocalLocacao(gg.localizacao && gg.status === 'locacao' ? gg.localizacao : '')
+    // Locacao e sublocacao pedem para onde o gerador foi antes de gravar.
+    if (novoStatus === 'locacao' || novoStatus === 'sublocado') {
+      setSubMenu(novoStatus)
+      setLocalLocacao(gg.localizacao && gg.status === novoStatus ? gg.localizacao : '')
       return
     }
     fecharMenu()
@@ -113,11 +115,12 @@ export default function GGCard({ gg }) {
     })
   }
 
-  async function confirmarLocacao() {
+  async function confirmarLocacao(status = 'locacao') {
+    const padrao = status === 'sublocado' ? 'Sublocado' : 'Locação externa'
     fecharMenu()
     await updateDoc(doc(db, 'geradores', gg.id), {
-      status: 'locacao',
-      localizacao: localLocacao.trim() || 'Locação externa',
+      status,
+      localizacao: localLocacao.trim() || padrao,
       temDefeito: false,
       defeito: '',
     })
@@ -302,10 +305,26 @@ export default function GGCard({ gg }) {
                         onChange={e => setLocalLocacao(e.target.value)}
                         placeholder="Ex: Cliente XPTO · Goiânia"
                         autoFocus
-                        onKeyDown={e => e.key === 'Enter' && confirmarLocacao()}
+                        onKeyDown={e => e.key === 'Enter' && confirmarLocacao('locacao')}
                       />
-                      <button onClick={confirmarLocacao} className="btn-primary text-xs w-full py-1.5 bg-purple-600 hover:bg-purple-700">
+                      <button onClick={() => confirmarLocacao('locacao')} className="btn-primary text-xs w-full py-1.5 bg-purple-600 hover:bg-purple-700">
                         Confirmar locação
+                      </button>
+                    </div>
+                  )}
+                  {subMenu === 'sublocado' && (
+                    <div className="bg-teal-50 border-t border-b border-teal-100 px-3 py-2 space-y-2">
+                      <p className="text-xs font-medium text-teal-700">Para qual empresa foi sublocado?</p>
+                      <input
+                        className="input text-sm w-full"
+                        value={localLocacao}
+                        onChange={e => setLocalLocacao(e.target.value)}
+                        placeholder="Ex: Rental Norte · Fortaleza"
+                        autoFocus
+                        onKeyDown={e => e.key === 'Enter' && confirmarLocacao('sublocado')}
+                      />
+                      <button onClick={() => confirmarLocacao('sublocado')} className="btn-primary text-xs w-full py-1.5 bg-teal-600 hover:bg-teal-700">
+                        Confirmar sublocação
                       </button>
                     </div>
                   )}

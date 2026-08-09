@@ -18,12 +18,21 @@ const STATUS_FILTROS = [
 // Documento de `eventos` sem o campo `tipo` conta como evento — mesma convencao
 // do `tipo` em ordens_saida (uso interno), sem migracao de dados.
 const ehLocacao = e => e.tipo === 'locacao_mensal'
+const ehSublocacao = e => e.tipo === 'sublocacao'
 
 const TIPO_FILTROS = [
   { value: 'todos', label: 'Tudo' },
   { value: 'evento', label: 'Eventos' },
   { value: 'locacao_mensal', label: 'Locações' },
+  { value: 'sublocacao', label: 'Sublocações' },
 ]
+
+// 'evento' = qualquer documento sem tipo; os demais casam pelo proprio tipo.
+function daCategoria(e, filtro) {
+  if (filtro === 'todos') return true
+  if (filtro === 'evento') return !e.tipo
+  return e.tipo === filtro
+}
 
 export default function Eventos() {
   const { tipoPerfil } = useAuth()
@@ -40,8 +49,7 @@ export default function Eventos() {
 
   const filtrados = eventos
     .filter(e => filtroStatus === 'todos' || e.status === filtroStatus)
-    .filter(e => filtroTipo === 'todos' ||
-      (filtroTipo === 'locacao_mensal' ? ehLocacao(e) : !ehLocacao(e)))
+    .filter(e => daCategoria(e, filtroTipo))
     .filter(e =>
       e.nome.toLowerCase().includes(busca.toLowerCase()) ||
       (e.local || '').toLowerCase().includes(busca.toLowerCase())
@@ -50,9 +58,7 @@ export default function Eventos() {
 
   // As estatisticas seguem o filtro de tipo, para "Locações" mostrar o numero
   // de locacoes e nao o total geral.
-  const doTipo = filtroTipo === 'todos'
-    ? eventos
-    : eventos.filter(e => filtroTipo === 'locacao_mensal' ? ehLocacao(e) : !ehLocacao(e))
+  const doTipo = eventos.filter(e => daCategoria(e, filtroTipo))
 
   const stats = {
     total: doTipo.length,
@@ -147,7 +153,9 @@ export default function Eventos() {
             onClick={() => setFiltroTipo(f.value)}
             className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-colors
               ${filtroTipo === f.value
-                ? (f.value === 'locacao_mensal' ? 'bg-purple-600 text-white' : 'bg-brand-black text-white')
+                ? (f.value === 'locacao_mensal' ? 'bg-purple-600 text-white'
+                  : f.value === 'sublocacao' ? 'bg-teal-600 text-white'
+                  : 'bg-brand-black text-white')
                 : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400'}`}
           >
             {f.label}
@@ -266,7 +274,13 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
             {ehLocacao(evento) && (
               <span className="badge bg-purple-100 text-purple-700 flex-shrink-0">Locação</span>
             )}
+            {ehSublocacao(evento) && (
+              <span className="badge bg-teal-100 text-teal-700 flex-shrink-0">Sublocação</span>
+            )}
           </div>
+          {ehSublocacao(evento) && evento.retiradoPor && (
+            <p className="text-xs text-teal-700 mb-1 truncate">Retirado por {evento.retiradoPor}</p>
+          )}
           <p className="text-sm text-gray-500 flex items-center gap-1 min-w-0">
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -336,7 +350,7 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
-                      {ehLocacao(evento) ? 'Encerrar locação' : 'Marcar concluído'}
+                      {ehSublocacao(evento) ? 'Encerrar sublocação' : ehLocacao(evento) ? 'Encerrar locação' : 'Marcar concluído'}
                     </button>
                   )}
                   <button
@@ -610,6 +624,8 @@ function ModalDetalheEvento({ evento, onFechar }) {
     <div class="header-right">
       <div class="evento-nome">${evento.nome}</div>
       <div class="evento-info">${evento.local} &nbsp;·&nbsp; ${dataEvento}</div>
+      ${ehSublocacao(evento) ? `<div class="evento-info"><strong>Sublocação</strong>${evento.retiradoPor ? ` &nbsp;·&nbsp; retirado por ${evento.retiradoPor}` : ''}${evento.retiradoDocumento ? ` &nbsp;·&nbsp; doc. ${evento.retiradoDocumento}` : ''}${evento.retiradoTelefone ? ` &nbsp;·&nbsp; ${evento.retiradoTelefone}` : ''}</div>` : ''}
+      ${ehLocacao(evento) ? '<div class="evento-info"><strong>Locação mensal</strong></div>' : ''}
     </div>
   </div>
 
@@ -1097,7 +1113,7 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
       <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="font-bold text-brand-black">{ehLocacao(evento) ? 'Encerrar locação' : 'Concluir evento'}</h2>
+            <h2 className="font-bold text-brand-black">{ehSublocacao(evento) ? 'Encerrar sublocação' : ehLocacao(evento) ? 'Encerrar locação' : 'Concluir evento'}</h2>
             <p className="text-xs text-gray-500 mt-0.5">Confirme o retorno de cada material</p>
           </div>
           <button onClick={onFechar} className="text-gray-400 hover:text-gray-600">
@@ -1114,8 +1130,8 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
             </div>
           ) : materiaisDoEvento.length === 0 ? (
             <div className="text-center py-8 text-gray-400">
-              <p className="text-sm">Nenhum material vinculado a {ehLocacao(evento) ? 'esta locação' : 'este evento'}.</p>
-              <p className="text-xs mt-1">{ehLocacao(evento) ? 'A locação será encerrada.' : 'O evento será marcado como concluído.'}</p>
+              <p className="text-sm">Nenhum material vinculado a {ehSublocacao(evento) ? 'esta sublocação' : ehLocacao(evento) ? 'esta locação' : 'este evento'}.</p>
+              <p className="text-xs mt-1">{ehSublocacao(evento) ? 'A sublocação será encerrada.' : ehLocacao(evento) ? 'A locação será encerrada.' : 'O evento será marcado como concluído.'}</p>
             </div>
           ) : (
             materiaisDoEvento.map(m => (

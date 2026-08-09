@@ -106,6 +106,7 @@ export function statusGeradorLabel(status) {
     disponivel: 'Disponível',
     em_evento: 'Em Evento',
     locacao: 'Em Locação',
+    sublocado: 'Sublocado',
     manutencao: 'Em Manutenção',
     defeito: 'Com Defeito',
     inativo: 'Inativo',
@@ -118,6 +119,7 @@ export function statusGeradorCor(status) {
     disponivel: 'bg-green-100 text-green-700',
     em_evento: 'bg-blue-100 text-blue-700',
     locacao: 'bg-purple-100 text-purple-700',
+    sublocado: 'bg-teal-100 text-teal-700',
     manutencao: 'bg-orange-100 text-orange-700',
     defeito: 'bg-red-100 text-red-700',
     inativo: 'bg-gray-100 text-gray-600',
@@ -156,7 +158,7 @@ export function caminhaoKm(c) {
 // fisicamente em cima do caminhao, entao o caminhao acompanha esse status. Defeito
 // e manutencao do gerador NAO afetam o caminhao (sao da maquina, nao do veiculo).
 // Condicoes do proprio caminhao (defeito/manutencao) sempre prevalecem.
-const ESTADOS_ACOMPANHA = ['em_evento', 'locacao']
+const ESTADOS_ACOMPANHA = ['em_evento', 'locacao', 'sublocado']
 
 export function caminhaoAcompanhaGerador(caminhao, gerador) {
   if (!gerador) return false

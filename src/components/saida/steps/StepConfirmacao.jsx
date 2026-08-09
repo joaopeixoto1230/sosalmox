@@ -50,10 +50,14 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     ? geradores.map(g => g.codigo).join(', ')
     : null
 
-  // Locacao mensal: mesmo fluxo do evento, mas o gerador assume o status
-  // 'locacao' (selo roxo) em vez de 'em_evento', para separar os dois na frota.
+  // Locacao mensal e sublocacao: mesmo fluxo do evento, mas o gerador assume um
+  // status proprio ('locacao' roxo / 'sublocado' verde-azulado) em vez de
+  // 'em_evento', para separar as tres modalidades na frota.
   const ehLocacao = evento?.tipo === 'locacao_mensal'
-  const rotuloTipo = ehLocacao ? 'a locação' : 'o evento'
+  const ehSublocacao = evento?.tipo === 'sublocacao'
+  const rotuloTipo = ehSublocacao ? 'a sublocação' : ehLocacao ? 'a locação' : 'o evento'
+  const statusGerador = ehSublocacao ? 'sublocado' : ehLocacao ? 'locacao' : 'em_evento'
+  const rotuloStatusGerador = ehSublocacao ? 'Sublocado' : 'Em Locação'
 
   async function confirmarSaida() {
     setStatus('carregando')
@@ -113,7 +117,12 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             local: evento.local || null,
             data: evento.data || null,
             status: evento.status || 'ativo',
-            ...(ehLocacao ? { tipo: 'locacao_mensal' } : {}),
+            ...(evento.tipo ? { tipo: evento.tipo } : {}),
+            ...(ehSublocacao ? {
+              retiradoPor: evento.retiradoPor || null,
+              retiradoDocumento: evento.retiradoDocumento || null,
+              retiradoTelefone: evento.retiradoTelefone || null,
+            } : {}),
             criadoEm: serverTimestamp(),
           })
         }
@@ -123,7 +132,12 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           numeroFormatado: formatarNumeroOrdem(novoNumero),
           eventoId: eventoIdFinal,
           eventoNome: evento?.nome || null,
-          ...(ehLocacao ? { tipo: 'locacao_mensal' } : {}),
+          ...(evento?.tipo ? { tipo: evento.tipo } : {}),
+          ...(ehSublocacao ? {
+            retiradoPor: evento.retiradoPor || null,
+            retiradoDocumento: evento.retiradoDocumento || null,
+            retiradoTelefone: evento.retiradoTelefone || null,
+          } : {}),
           qtdFotos: fotos.length,
           tokenAssinatura: tokenAssinatura,
           assinaturaStatus: assinaturaRecebeu ? 'assinada' : 'pendente',
@@ -160,11 +174,11 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
 
         const localEvento = evento
           ? `${evento.nome}${evento.local ? ' · ' + evento.local : ''}`
-          : (ehLocacao ? 'Em locação' : 'Em evento')
+          : (ehSublocacao ? 'Sublocado' : ehLocacao ? 'Em locação' : 'Em evento')
         for (const gg of (geradores || [])) {
           const ggRef = doc(db, 'geradores', gg.id)
           tx.update(ggRef, {
-            status: ehLocacao ? 'locacao' : 'em_evento',
+            status: statusGerador,
             eventoAtual: eventoIdFinal,
             eventoNome: evento?.nome || null,
             localizacao: localEvento,
@@ -179,7 +193,11 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         ordemId: ordemRef.id,
         numeroFormatado: formatarNumeroOrdem(novoNumero),
         eventoNome: evento?.nome || null,
-        ...(ehLocacao ? { tipo: 'locacao_mensal' } : {}),
+        ...(evento?.tipo ? { tipo: evento.tipo } : {}),
+        ...(ehSublocacao ? {
+          retiradoDocumento: evento.retiradoDocumento || null,
+          retiradoTelefone: evento.retiradoTelefone || null,
+        } : {}),
         local: evento?.local || null,
         dataEvento: evento?.data || null,
         itens: itens.map(i => ({
@@ -233,7 +251,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
                 {evento ? ` para ${rotuloTipo} ${evento.nome}` : ''}
                 {codigosGeradores ? ` — geradores: ${codigosGeradores}` : ''}.
                 Esta ação atualizará o estoque em tempo real.
-                {ehLocacao && codigosGeradores && ' Os geradores ficarão com status Em Locação.'}
+                {(ehLocacao || ehSublocacao) && codigosGeradores && ` Os geradores ficarão com status ${rotuloStatusGerador}.`}
               </p>
             </div>
           </div>

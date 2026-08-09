@@ -7,8 +7,8 @@ import { statusGeradorLabel, statusGeradorCor } from '../../utils/formatters'
 import GGCard from './GGCard'
 import NovoGeradorModal from './NovoGeradorModal'
 
-const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Manutenção', 'Defeito']
-const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
+const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Sublocado', 'Manutenção', 'Defeito']
+const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Sublocado': 'sublocado', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
 
 export default function Patrimonio() {
   const navigate = useNavigate()
@@ -43,6 +43,7 @@ export default function Patrimonio() {
     disponiveis: ativos.filter(g => g.status === 'disponivel').length,
     emEvento: ativos.filter(g => g.status === 'em_evento').length,
     emLocacao: ativos.filter(g => g.status === 'locacao').length,
+    sublocados: ativos.filter(g => g.status === 'sublocado').length,
     emManutencao: ativos.filter(g => g.status === 'manutencao').length,
     comDefeito: ativos.filter(g => g.temDefeito).length,
   }), [ativos])
@@ -72,6 +73,7 @@ export default function Patrimonio() {
           { label: 'Disponíveis', valor: stats.disponiveis, cor: 'bg-green-50 text-green-700', filtro: 'Disponível' },
           { label: 'Em evento', valor: stats.emEvento, cor: 'bg-yellow-50 text-yellow-700', filtro: 'Em Evento' },
           { label: 'Em locação', valor: stats.emLocacao, cor: 'bg-purple-50 text-purple-700', filtro: 'Em Locação' },
+          { label: 'Sublocados', valor: stats.sublocados, cor: 'bg-teal-50 text-teal-700', filtro: 'Sublocado' },
           { label: 'Em manutenção', valor: stats.emManutencao, cor: 'bg-orange-50 text-orange-700', filtro: 'Manutenção' },
           { label: 'Com defeito', valor: stats.comDefeito, cor: stats.comDefeito > 0 ? 'bg-red-50 text-brand-red' : 'bg-green-50 text-green-700', filtro: 'Defeito' },
         ].map(s => (

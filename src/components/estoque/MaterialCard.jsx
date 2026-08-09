@@ -104,10 +104,14 @@ export default function MaterialCard({ material, evento, especie }) {
         {material.bitola && <p>Bitola: <span className="font-medium text-gray-700">{material.bitola}</span></p>}
         {material.metragem && <p>Comprimento: <span className="font-medium text-gray-700">{material.metragem}</span></p>}
         {material.status === 'em_evento' && material.eventoAtual && (
-          <p className={`font-medium truncate ${evento?.tipo === 'locacao_mensal' ? 'text-purple-600' : 'text-yellow-600'}`}>
+          <p className={`font-medium truncate ${
+            evento?.tipo === 'locacao_mensal' ? 'text-purple-600'
+            : evento?.tipo === 'sublocacao' ? 'text-teal-600'
+            : 'text-yellow-600'}`}>
             📍 {evento ? evento.nome : material.eventoAtual}
             {evento?.local ? ` · ${evento.local}` : ''}
             {evento?.tipo === 'locacao_mensal' ? ' (locação)' : ''}
+            {evento?.tipo === 'sublocacao' ? ' (sublocação)' : ''}
           </p>
         )}
         {material.observacao && (

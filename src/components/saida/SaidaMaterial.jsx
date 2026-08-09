@@ -9,6 +9,7 @@ import UsoInternoFlow from './usointerno/UsoInternoFlow'
 
 const PASSOS_EVENTO = ['Evento', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
 const PASSOS_LOCACAO = ['Locação', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
+const PASSOS_SUBLOCACAO = ['Sublocação', 'Gerador', 'Materiais', 'Romaneio', 'Confirmar']
 
 // Primeiro passo do modulo: escolher se a saida e para Evento (fluxo atual),
 // Locacao Mensal (mesmo fluxo, gerador fica com status 'locacao') ou Uso Interno
@@ -20,7 +21,7 @@ function EscolhaTipo({ onEscolher }) {
         <h2 className="text-lg font-bold text-brand-black">Tipo de Saída</h2>
         <p className="text-sm text-gray-500">O material está saindo para quê?</p>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid sm:grid-cols-2 gap-3">
         <button onClick={() => onEscolher('evento')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
           <div className="w-10 h-10 rounded-lg bg-brand-red/10 text-brand-red flex items-center justify-center mb-2">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,6 +40,16 @@ function EscolhaTipo({ onEscolher }) {
           </div>
           <p className="font-bold text-brand-black">Locação Mensal</p>
           <p className="text-sm text-gray-500 mt-0.5">Contrato mensal com cliente. O gerador fica com status <strong>Em Locação</strong> até a devolução.</p>
+        </button>
+        <button onClick={() => onEscolher('sublocacao')} className="card text-left hover:border-teal-400 hover:shadow-md transition-all">
+          <div className="w-10 h-10 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center mb-2">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M8 7V3m8 4V3M3 11h18M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 16l2 2 4-4" />
+            </svg>
+          </div>
+          <p className="font-bold text-brand-black">Sublocação</p>
+          <p className="text-sm text-gray-500 mt-0.5">Equipamento alugado para outra empresa. Quem retira é de fora — o nome é digitado na hora.</p>
         </button>
         <button onClick={() => onEscolher('uso_interno')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
           <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2">
@@ -144,10 +155,12 @@ export default function SaidaMaterial() {
     setResponsavel('')
   }
 
-  // Locacao mensal usa exatamente o mesmo fluxo de 5 passos do evento; o que muda
-  // e o vocabulario da tela e o status que o gerador assume na confirmacao.
+  // Locacao mensal e sublocacao usam exatamente o mesmo fluxo de 5 passos do
+  // evento; o que muda e o vocabulario da tela, quem preenche o campo de quem
+  // recebe e o status que o gerador assume na confirmacao.
   const ehLocacao = tipoSaida === 'locacao'
-  const passos = ehLocacao ? PASSOS_LOCACAO : PASSOS_EVENTO
+  const ehSublocacao = tipoSaida === 'sublocacao'
+  const passos = ehSublocacao ? PASSOS_SUBLOCACAO : ehLocacao ? PASSOS_LOCACAO : PASSOS_EVENTO
 
   const podeProsseguir = [
     evento !== null,
@@ -178,7 +191,7 @@ export default function SaidaMaterial() {
         <UsoInternoFlow onTrocarTipo={() => setTipoSaida(null)} />
       )}
 
-      {(tipoSaida === 'evento' || tipoSaida === 'locacao') && (
+      {(tipoSaida === 'evento' || tipoSaida === 'locacao' || tipoSaida === 'sublocacao') && (
       <>
       {passo === 0 && (
         <button
@@ -199,13 +212,20 @@ export default function SaidaMaterial() {
         </div>
       )}
 
+      {ehSublocacao && (
+        <div className="mb-4 flex items-center gap-2 bg-teal-50 border border-teal-200 text-teal-800 rounded-xl px-3 py-2 text-sm">
+          <span className="badge bg-teal-100 text-teal-700 flex-shrink-0">Sublocação</span>
+          <span>Os geradores desta saída ficarão com o status <strong>Sublocado</strong>.</span>
+        </div>
+      )}
+
       <div className="card mb-6">
         <Stepper passos={passos} passoAtual={passo} podeProsseguir={podeProsseguir} onVoltar={voltarPasso} onAvancar={avancarPasso} />
       </div>
 
       {passo === 0 && (
         <StepEvento
-          locacao={ehLocacao}
+          modo={ehSublocacao ? 'sublocacao' : ehLocacao ? 'locacao' : 'evento'}
           onSelecionar={(evt) => { setEvento(evt); setPasso(1) }}
           onResponsavel={setResponsavel}
         />

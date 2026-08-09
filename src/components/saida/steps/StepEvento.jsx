@@ -2,37 +2,64 @@ import { useState } from 'react'
 import DatePicker from '../../ui/DatePicker'
 import { OPERADORES } from '../../../utils/operadores'
 
-export default function StepEvento({ onSelecionar, onResponsavel, locacao = false }) {
+const TEXTOS = {
+  evento: {
+    titulo: 'Novo Evento',
+    subtitulo: 'Preencha os dados do evento para iniciar a saída.',
+    labelNome: 'Nome do evento *',
+    placeholderNome: 'Ex: Evento FIOTEC',
+    labelLocal: 'Local *',
+    placeholderLocal: 'Ex: Brasília - DF',
+    labelData: 'Data *',
+    erroNome: 'Nome do evento é obrigatório',
+    erroData: 'Data é obrigatória',
+  },
+  locacao: {
+    titulo: 'Nova Locação Mensal',
+    subtitulo: 'Preencha os dados do contrato para iniciar a saída.',
+    labelNome: 'Cliente / contrato *',
+    placeholderNome: 'Ex: Construtora Alfa — Loja Centro',
+    labelLocal: 'Local *',
+    placeholderLocal: 'Ex: Brasília - DF',
+    labelData: 'Início da locação *',
+    erroNome: 'Nome do cliente / contrato é obrigatório',
+    erroData: 'Data de início é obrigatória',
+  },
+  sublocacao: {
+    titulo: 'Nova Sublocação',
+    subtitulo: 'Preencha os dados da empresa e de quem vem retirar.',
+    labelNome: 'Empresa que está alugando *',
+    placeholderNome: 'Ex: Rental Norte Locações Ltda',
+    labelLocal: 'Local / destino *',
+    placeholderLocal: 'Ex: Obra Porto Norte — Fortaleza/CE',
+    labelData: 'Início da sublocação *',
+    erroNome: 'Nome da empresa é obrigatório',
+    erroData: 'Data de início é obrigatória',
+  },
+}
+
+export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento' }) {
   const [form, setForm] = useState({ nome: '', local: '', data: '' })
   const [operador, setOperador] = useState('')
   const [outroNome, setOutroNome] = useState('')
   const [mostrarOutro, setMostrarOutro] = useState(false)
+  // Sublocacao: quem retira e de FORA da SOS, entao o nome e digitado (nunca a
+  // lista de operadores). Documento e telefone sao opcionais, para dar respaldo
+  // caso o material nao volte.
+  const [retirante, setRetirante] = useState({ nome: '', documento: '', telefone: '' })
   const [erro, setErro] = useState('')
 
-  const responsavelFinal = mostrarOutro ? outroNome.trim() : operador
+  const ehSublocacao = modo === 'sublocacao'
+  const txt = TEXTOS[modo] || TEXTOS.evento
 
-  // Locacao mensal e o mesmo documento de `eventos`, com tipo 'locacao_mensal'.
-  // Documento sem o campo `tipo` continua contando como evento — mesma convencao
+  const responsavelFinal = ehSublocacao
+    ? retirante.nome.trim()
+    : (mostrarOutro ? outroNome.trim() : operador)
+
+  // Locacao mensal e sublocacao sao o mesmo documento de `eventos`, com o campo
+  // `tipo`. Documento sem `tipo` continua contando como evento — mesma convencao
   // do `tipo` em ordens_saida (uso interno), sem migracao de dados.
-  const txt = locacao
-    ? {
-        titulo: 'Nova Locação Mensal',
-        subtitulo: 'Preencha os dados do contrato para iniciar a saída.',
-        labelNome: 'Cliente / contrato *',
-        placeholderNome: 'Ex: Construtora Alfa — Loja Centro',
-        labelData: 'Início da locação *',
-        erroNome: 'Nome do cliente / contrato é obrigatório',
-        erroData: 'Data de início é obrigatória',
-      }
-    : {
-        titulo: 'Novo Evento',
-        subtitulo: 'Preencha os dados do evento para iniciar a saída.',
-        labelNome: 'Nome do evento *',
-        placeholderNome: 'Ex: Evento FIOTEC',
-        labelData: 'Data *',
-        erroNome: 'Nome do evento é obrigatório',
-        erroData: 'Data é obrigatória',
-      }
+  const TIPO_POR_MODO = { locacao: 'locacao_mensal', sublocacao: 'sublocacao' }
 
   // Nao grava o evento aqui: so leva os dados adiante. O evento so e criado
   // de fato na confirmacao da saida (StepConfirmacao), para que voltar/abandonar
@@ -41,7 +68,10 @@ export default function StepEvento({ onSelecionar, onResponsavel, locacao = fals
     if (!form.nome.trim()) { setErro(txt.erroNome); return }
     if (!form.local.trim()) { setErro('Local é obrigatório'); return }
     if (!form.data) { setErro(txt.erroData); return }
-    if (!responsavelFinal) { setErro('Selecione o responsável pelo material'); return }
+    if (!responsavelFinal) {
+      setErro(ehSublocacao ? 'Informe quem está retirando o material' : 'Selecione o responsável pelo material')
+      return
+    }
     setErro('')
     onResponsavel(responsavelFinal)
     onSelecionar({
@@ -50,7 +80,12 @@ export default function StepEvento({ onSelecionar, onResponsavel, locacao = fals
       local: form.local.trim(),
       data: form.data,
       status: 'ativo',
-      ...(locacao ? { tipo: 'locacao_mensal' } : {}),
+      ...(TIPO_POR_MODO[modo] ? { tipo: TIPO_POR_MODO[modo] } : {}),
+      ...(ehSublocacao ? {
+        retiradoPor: retirante.nome.trim(),
+        retiradoDocumento: retirante.documento.trim() || null,
+        retiradoTelefone: retirante.telefone.trim() || null,
+      } : {}),
     })
   }
 
@@ -73,11 +108,11 @@ export default function StepEvento({ onSelecionar, onResponsavel, locacao = fals
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Local *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">{txt.labelLocal}</label>
           <input
             value={form.local}
             onChange={e => setForm(p => ({ ...p, local: e.target.value }))}
-            placeholder="Ex: Brasília - DF"
+            placeholder={txt.placeholderLocal}
             className="input"
           />
         </div>
@@ -89,6 +124,44 @@ export default function StepEvento({ onSelecionar, onResponsavel, locacao = fals
           />
         </div>
 
+        {ehSublocacao ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Quem está retirando *</label>
+              <input
+                value={retirante.nome}
+                onChange={e => setRetirante(p => ({ ...p, nome: e.target.value }))}
+                placeholder="Nome de quem veio buscar o material"
+                className="input"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Pessoa da empresa que está alugando. Este nome vai para a assinatura de quem recebeu,
+                para o link de assinatura e para o relatório.
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Documento (opcional)</label>
+                <input
+                  value={retirante.documento}
+                  onChange={e => setRetirante(p => ({ ...p, documento: e.target.value }))}
+                  placeholder="RG ou CPF"
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (opcional)</label>
+                <input
+                  value={retirante.telefone}
+                  onChange={e => setRetirante(p => ({ ...p, telefone: e.target.value }))}
+                  placeholder="(00) 00000-0000"
+                  className="input"
+                  inputMode="tel"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Responsável pelo material *</label>
           <div className="flex flex-wrap gap-2">
@@ -128,6 +201,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, locacao = fals
             />
           )}
         </div>
+        )}
 
         {erro && <p className="text-sm text-brand-red">{erro}</p>}
 

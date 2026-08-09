@@ -303,8 +303,14 @@ export default function DevolucaoMaterial() {
                             {evt.tipo === 'locacao_mensal' && (
                               <span className="badge bg-purple-100 text-purple-700 flex-shrink-0">Locação</span>
                             )}
+                            {evt.tipo === 'sublocacao' && (
+                              <span className="badge bg-teal-100 text-teal-700 flex-shrink-0">Sublocação</span>
+                            )}
                           </div>
-                          <p className="text-xs text-gray-500">{evt.local} • {formatarData(evt.data)}</p>
+                          <p className="text-xs text-gray-500">
+                            {evt.local} • {formatarData(evt.data)}
+                            {evt.retiradoPor ? ` • retirado por ${evt.retiradoPor}` : ''}
+                          </p>
                         </div>
                         <span className={`badge ${statusEventoCor(evt.status)} flex-shrink-0`}>
                           {statusEventoLabel(evt.status)}
