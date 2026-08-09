@@ -59,7 +59,10 @@ export default function App() {
               <ProtectedRoute modulo={MODULOS.EVENTOS}><Eventos key="eventos" filtroInicial="evento" /></ProtectedRoute>
             } />
             <Route path="locacoes" element={
-              <ProtectedRoute modulo={MODULOS.LOCACOES}><Eventos key="locacoes" filtroInicial="locacoes" /></ProtectedRoute>
+              <ProtectedRoute modulo={MODULOS.LOCACOES}><Eventos key="locacoes" filtroInicial="locacao_mensal" /></ProtectedRoute>
+            } />
+            <Route path="sublocacoes" element={
+              <ProtectedRoute modulo={MODULOS.LOCACOES}><Eventos key="sublocacoes" filtroInicial="sublocacao" /></ProtectedRoute>
             } />
             <Route path="devolucao" element={
               <ProtectedRoute modulo={MODULOS.DEVOLUCAO}><DevolucaoMaterial /></ProtectedRoute>

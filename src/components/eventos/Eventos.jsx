@@ -22,17 +22,21 @@ const ehSublocacao = e => e.tipo === 'sublocacao'
 
 // Os botões mudam conforme a porta de entrada: em /eventos você separa evento
 // de locação; em /locacoes, mensal de sublocação.
+const FILTROS_EVENTO = [
+  { value: 'todos', label: 'Tudo' },
+  { value: 'evento', label: 'Eventos' },
+  { value: 'locacoes', label: 'Locações' },
+]
+const FILTROS_LOCACAO = [
+  { value: 'locacoes', label: 'Todas' },
+  { value: 'locacao_mensal', label: 'Mensais' },
+  { value: 'sublocacao', label: 'Sublocações' },
+]
 const FILTROS_PORTA = {
-  evento: [
-    { value: 'todos', label: 'Tudo' },
-    { value: 'evento', label: 'Eventos' },
-    { value: 'locacoes', label: 'Locações' },
-  ],
-  locacoes: [
-    { value: 'locacoes', label: 'Todas' },
-    { value: 'locacao_mensal', label: 'Mensais' },
-    { value: 'sublocacao', label: 'Sublocações' },
-  ],
+  evento: FILTROS_EVENTO,
+  locacoes: FILTROS_LOCACAO,
+  locacao_mensal: FILTROS_LOCACAO,
+  sublocacao: FILTROS_LOCACAO,
 }
 
 // 'evento' = qualquer documento sem tipo; 'locacoes' = mensal + sublocação.
@@ -58,6 +62,18 @@ const TITULOS = {
     sub: 'Locações mensais e sublocações em andamento.',
     vazio: 'Nenhuma locação encontrada',
     botao: 'Nova locação',
+  },
+  locacao_mensal: {
+    titulo: 'Locações mensais',
+    sub: 'Contratos mensais com cliente final.',
+    vazio: 'Nenhuma locação mensal encontrada',
+    botao: 'Nova locação',
+  },
+  sublocacao: {
+    titulo: 'Sublocações',
+    sub: 'Equipamento alugado para outras empresas.',
+    vazio: 'Nenhuma sublocação encontrada',
+    botao: 'Nova sublocação',
   },
 }
 

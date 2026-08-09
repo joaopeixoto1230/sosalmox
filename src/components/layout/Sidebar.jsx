@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { getMenuItems } from '../../utils/permissions'
 
@@ -93,6 +94,65 @@ const ICONS = {
   ),
 }
 
+// Item de menu que expande. Já nasce aberto quando a rota atual é de um filho,
+// para você ver onde está sem precisar clicar.
+function Grupo({ item, onFechar }) {
+  const { pathname } = useLocation()
+  const temFilhoAtivo = item.filhos.some(f => pathname === f.path)
+  const [aberto, setAberto] = useState(temFilhoAtivo)
+  const [ativoAnterior, setAtivoAnterior] = useState(temFilhoAtivo)
+
+  // Ao navegar para um filho por fora (atalho do painel, por exemplo), abre.
+  // Ajuste durante o render em vez de efeito: evita o piscar de abrir depois
+  // que a tela já foi pintada.
+  if (temFilhoAtivo !== ativoAnterior) {
+    setAtivoAnterior(temFilhoAtivo)
+    if (temFilhoAtivo) setAberto(true)
+  }
+
+  return (
+    <li>
+      <button
+        onClick={() => setAberto(v => !v)}
+        aria-expanded={aberto}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+          ${temFilhoAtivo && !aberto
+            ? 'bg-brand-red text-white'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
+      >
+        {ICONS[item.icon]}
+        <span className="flex-1 text-left">{item.label}</span>
+        <svg className={`w-4 h-4 flex-shrink-0 transition-transform ${aberto ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {aberto && (
+        <ul className="mt-1 ml-4 pl-3 border-l border-gray-800 space-y-1">
+          {item.filhos.map(filho => (
+            <li key={filho.path}>
+              <NavLink
+                to={filho.path}
+                onClick={onFechar}
+                end
+                className={({ isActive }) =>
+                  `block px-3 py-2 rounded-lg text-sm transition-colors
+                  ${isActive
+                    ? 'bg-brand-red text-white font-medium'
+                    : 'text-gray-500 hover:text-white hover:bg-gray-800'}`
+                }
+              >
+                {filho.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  )
+}
+
 export default function Sidebar({ aberto, onFechar }) {
   const { tipoPerfil } = useAuth()
   const itens = getMenuItems(tipoPerfil)
@@ -133,22 +193,26 @@ export default function Sidebar({ aberto, onFechar }) {
         <nav className="flex-1 overflow-y-auto py-4 px-3">
           <ul className="space-y-1">
             {itens.map((item) => (
-              <li key={item.path}>
-                <NavLink
-                  to={item.path}
-                  onClick={onFechar}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
-                    ${isActive
-                      ? 'bg-brand-red text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                    }`
-                  }
-                >
-                  {ICONS[item.icon]}
-                  {item.label}
-                </NavLink>
-              </li>
+              item.filhos
+                ? <Grupo key={item.label} item={item} onFechar={onFechar} />
+                : (
+                  <li key={item.path}>
+                    <NavLink
+                      to={item.path}
+                      onClick={onFechar}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                        ${isActive
+                          ? 'bg-brand-red text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        }`
+                      }
+                    >
+                      {ICONS[item.icon]}
+                      {item.label}
+                    </NavLink>
+                  </li>
+                )
             ))}
           </ul>
         </nav>

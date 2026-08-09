@@ -87,8 +87,20 @@ export function getMenuItems(perfil) {
   const todos = [
     { label: 'Dashboard', path: '/dashboard', modulo: MODULOS.DASHBOARD, icon: 'grid' },
     { label: 'Saída de Material', path: '/saida', modulo: MODULOS.SAIDA, icon: 'arrow-up-right' },
-    { label: 'Eventos', path: '/eventos', modulo: MODULOS.EVENTOS, icon: 'calendar' },
-    { label: 'Locações', path: '/locacoes', modulo: MODULOS.LOCACOES, icon: 'calendar-check' },
+    // Grupo: um item pai que expande. `path` é para onde o pai leva ao ser
+    // clicado; os filhos aparecem abaixo, cada um abrindo a mesma tela com
+    // outro filtro. Filho sem permissão é removido; grupo vazio some inteiro.
+    {
+      label: 'Eventos e Locações',
+      path: '/eventos',
+      modulo: MODULOS.EVENTOS,
+      icon: 'calendar',
+      filhos: [
+        { label: 'Eventos', path: '/eventos', modulo: MODULOS.EVENTOS },
+        { label: 'Locações mensais', path: '/locacoes', modulo: MODULOS.LOCACOES },
+        { label: 'Sublocações', path: '/sublocacoes', modulo: MODULOS.LOCACOES },
+      ],
+    },
     { label: 'Devolução', path: '/devolucao', modulo: MODULOS.DEVOLUCAO, icon: 'arrow-down-left' },
     { label: 'Uso Interno', path: '/uso-interno', modulo: MODULOS.USO_INTERNO, icon: 'briefcase' },
     { label: 'Transferência', path: '/transferencia', modulo: MODULOS.TRANSFERENCIA, icon: 'repeat' },
@@ -103,7 +115,12 @@ export function getMenuItems(perfil) {
     { label: 'Solicitações', path: '/solicitacoes', modulo: MODULOS.FILA_SOLICITACOES, icon: 'clipboard' },
     { label: 'Usuários', path: '/usuarios', modulo: MODULOS.GESTAO_USUARIOS, icon: 'users' },
   ]
-  return todos.filter(item => temPermissao(perfil, item.modulo))
+  return todos
+    .filter(item => temPermissao(perfil, item.modulo))
+    .map(item => item.filhos
+      ? { ...item, filhos: item.filhos.filter(f => temPermissao(perfil, f.modulo)) }
+      : item)
+    .filter(item => !item.filhos || item.filhos.length > 0)
 }
 
 export const PERFIL_LABELS = {
