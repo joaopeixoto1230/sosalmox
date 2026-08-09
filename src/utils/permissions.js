@@ -87,13 +87,11 @@ export function getMenuItems(perfil) {
   const todos = [
     { label: 'Dashboard', path: '/dashboard', modulo: MODULOS.DASHBOARD, icon: 'grid' },
     { label: 'Saída de Material', path: '/saida', modulo: MODULOS.SAIDA, icon: 'arrow-up-right' },
-    // Grupo: um item pai que expande. `path` é para onde o pai leva ao ser
-    // clicado; os filhos aparecem abaixo, cada um abrindo a mesma tela com
-    // outro filtro. Filho sem permissão é removido; grupo vazio some inteiro.
+    // Grupo: um item pai que expande. A visibilidade vem dos FILHOS, nunca de
+    // um módulo próprio — o mecânico tem Filtros mas não Estoque, e herdar a
+    // permissão do pai o deixaria sem Filtros no menu.
     {
       label: 'Eventos e Locações',
-      path: '/eventos',
-      modulo: MODULOS.EVENTOS,
       icon: 'calendar',
       filhos: [
         { label: 'Eventos', path: '/eventos', modulo: MODULOS.EVENTOS },
@@ -104,8 +102,14 @@ export function getMenuItems(perfil) {
     { label: 'Devolução', path: '/devolucao', modulo: MODULOS.DEVOLUCAO, icon: 'arrow-down-left' },
     { label: 'Uso Interno', path: '/uso-interno', modulo: MODULOS.USO_INTERNO, icon: 'briefcase' },
     { label: 'Transferência', path: '/transferencia', modulo: MODULOS.TRANSFERENCIA, icon: 'repeat' },
-    { label: 'Estoque', path: '/estoque', modulo: MODULOS.ESTOQUE, icon: 'package' },
-    { label: 'Filtros', path: '/filtros', modulo: MODULOS.FILTROS, icon: 'filter' },
+    {
+      label: 'Estoque',
+      icon: 'package',
+      filhos: [
+        { label: 'Materiais', path: '/estoque', modulo: MODULOS.ESTOQUE },
+        { label: 'Filtros', path: '/filtros', modulo: MODULOS.FILTROS },
+      ],
+    },
     { label: 'Geradores', path: '/geradores', modulo: MODULOS.GERADORES, icon: 'zap' },
     { label: 'Veículos', path: '/caminhoes', modulo: MODULOS.CAMINHOES, icon: 'truck' },
     { label: 'Manutenção', path: '/manutencao', modulo: MODULOS.MANUTENCAO, icon: 'tool' },
@@ -116,11 +120,15 @@ export function getMenuItems(perfil) {
     { label: 'Usuários', path: '/usuarios', modulo: MODULOS.GESTAO_USUARIOS, icon: 'users' },
   ]
   return todos
-    .filter(item => temPermissao(perfil, item.modulo))
     .map(item => item.filhos
       ? { ...item, filhos: item.filhos.filter(f => temPermissao(perfil, f.modulo)) }
       : item)
-    .filter(item => !item.filhos || item.filhos.length > 0)
+    // grupo aparece se sobrou algum filho; item solto, pela própria permissão
+    .filter(item => item.filhos ? item.filhos.length > 0 : temPermissao(perfil, item.modulo))
+    // grupo com um filho só vira item comum: expander para uma opção é ruído
+    .map(item => item.filhos?.length === 1
+      ? { label: item.filhos[0].label, path: item.filhos[0].path, modulo: item.filhos[0].modulo, icon: item.icon }
+      : item)
 }
 
 export const PERFIL_LABELS = {

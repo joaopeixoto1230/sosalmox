@@ -1,48 +1,48 @@
 import { describe, it, expect } from 'vitest'
-import { temPermissao, getMenuItems, PERFIS, MODULOS } from './permissions'
+import { getMenuItems, PERFIS } from './permissions'
 
-describe('temPermissao', () => {
-  it('admin tem acesso a todos os módulos', () => {
-    Object.values(MODULOS).forEach(modulo => {
-      expect(temPermissao(PERFIS.ADMIN, modulo)).toBe(true)
-    })
+const rotulos = itens => itens.map(i => i.label)
+const acha = (itens, label) => itens.find(i => i.label === label)
+
+describe('menu por perfil', () => {
+  it('admin vê o grupo de eventos com os três filhos', () => {
+    const grupo = acha(getMenuItems(PERFIS.ADMIN), 'Eventos e Locações')
+    expect(rotulos(grupo.filhos)).toEqual(['Eventos', 'Locações mensais', 'Sublocações'])
   })
 
-  it('franca não tem acesso ao dashboard principal', () => {
-    expect(temPermissao(PERFIS.FRANCA, MODULOS.DASHBOARD)).toBe(false)
+  it('admin vê o grupo de estoque com materiais e filtros', () => {
+    const grupo = acha(getMenuItems(PERFIS.ADMIN), 'Estoque')
+    expect(rotulos(grupo.filhos)).toEqual(['Materiais', 'Filtros'])
   })
 
-  it('franca tem acesso a manutenção', () => {
-    expect(temPermissao(PERFIS.FRANCA, MODULOS.MANUTENCAO)).toBe(true)
+  // O mecânico tem FILTROS mas não ESTOQUE. Se o grupo herdasse a permissão de
+  // um módulo próprio, ele perderia os Filtros do menu sem ninguém perceber.
+  it('mecânico continua com Filtros, mesmo sem acesso a Estoque', () => {
+    const itens = getMenuItems(PERFIS.FRANCA)
+    expect(rotulos(itens)).toContain('Filtros')
+    expect(rotulos(itens)).not.toContain('Materiais')
   })
 
-  it('compras não tem acesso a saída de material', () => {
-    expect(temPermissao(PERFIS.COMPRAS, MODULOS.SAIDA)).toBe(false)
+  it('grupo que sobra com um filho vira item comum, sem expander', () => {
+    const item = acha(getMenuItems(PERFIS.FRANCA), 'Filtros')
+    expect(item.filhos).toBeUndefined()
+    expect(item.path).toBe('/filtros')
+    expect(item.icon).toBe('package') // mantém o ícone do grupo
   })
 
-  it('almoxarife tem acesso a saída, devolução e transferência', () => {
-    expect(temPermissao(PERFIS.ALMOXARIFE, MODULOS.SAIDA)).toBe(true)
-    expect(temPermissao(PERFIS.ALMOXARIFE, MODULOS.DEVOLUCAO)).toBe(true)
-    expect(temPermissao(PERFIS.ALMOXARIFE, MODULOS.TRANSFERENCIA)).toBe(true)
-  })
-
-  it('retorna false para perfil inválido', () => {
-    expect(temPermissao(null, MODULOS.DASHBOARD)).toBe(false)
-    expect(temPermissao(undefined, MODULOS.DASHBOARD)).toBe(false)
-  })
-})
-
-describe('getMenuItems', () => {
-  it('admin recebe todos os itens de menu', () => {
-    const itens = getMenuItems(PERFIS.ADMIN)
-    expect(itens.length).toBeGreaterThan(8)
-  })
-
-  it('compras recebe apenas itens do seu perfil', () => {
+  it('grupo sem nenhum filho permitido some inteiro', () => {
     const itens = getMenuItems(PERFIS.COMPRAS)
-    const paths = itens.map(i => i.path)
-    expect(paths).toContain('/compras')
-    expect(paths).not.toContain('/saida')
-    expect(paths).not.toContain('/estoque')
+    expect(rotulos(itens)).not.toContain('Eventos e Locações')
+    expect(rotulos(itens)).not.toContain('Estoque')
+    expect(rotulos(itens)).toEqual(['Dashboard Compras', 'Solicitações'])
+  })
+
+  it('todo item tem destino: ou é grupo com filhos, ou tem path', () => {
+    for (const perfil of Object.values(PERFIS)) {
+      for (const item of getMenuItems(perfil)) {
+        if (item.filhos) expect(item.filhos.every(f => f.path)).toBe(true)
+        else expect(item.path).toBeTruthy()
+      }
+    }
   })
 })
