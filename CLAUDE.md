@@ -101,9 +101,15 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
     `if (statusAtualMat[item.id] !== 'em_evento') continue` — um status novo faria os itens
     serem pulados em silêncio e nunca voltarem ao estoque. A separação é no gerador, na aba
     Eventos e no card do Estoque.
-  - Aba Eventos: filtro **Tudo / Eventos / Locações / Sublocações** (`daCategoria`, onde
-    'evento' = documento sem `tipo`), selos coloridos e "Encerrar locação/sublocação" no menu ⋯.
-    Patrimônio tem card e filtro "Sublocados"; GGCard permite a troca manual pedindo o destino.
+  - Patrimônio tem card e filtro "Sublocados"; GGCard permite a troca manual pedindo o destino.
+- **Previsão de devolução** — SÓ no fluxo de Evento (locação e sublocação ficam com o cliente
+  por prazo indeterminado). Campo obrigatório no passo 1, gravado em `previsaoDevolucao` no
+  doc de `eventos` e na `ordens_saida`. Sugere a **próxima segunda-feira** (`proximaSegunda`),
+  porque o evento é no fim de semana e o material volta na segunda. Sempre editável.
+  - ⚠️ **NUNCA estimar a previsão a partir do campo `data`.** `data` guarda o dia em que a SAÍDA
+    foi lançada, não o dia do evento — o evento acontece depois. A primeira versão estimava
+    `data + 1 dia` e acusou atraso em 11 de 11 eventos que estavam no prazo.
+    Sem `previsaoDevolucao` preenchida, **não há cobrança** (`previsaoDoEvento` devolve null).
 - **Escanear do papel** (`ScanPapelModal` + `utils/scanRomaneio.js`): lê romaneio manuscrito por
   foto via Claude Sonnet (visão), aceita **múltiplas fotos**, casa com o estoque, cadastra item na
   hora e cai na conferência. Fotos comprimidas antes de enviar; input SEM `capture` (galeria+câmera).
@@ -168,6 +174,44 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 - Categorias extras criadas pelo usuário são derivadas dos materiais DO MESMO grupo.
 - NovoMaterialModal e ModalEditarMaterial têm o seletor de grupo (mover material de grupo
   na edição é permitido); "+ Nova categoria…" continua nos dois grupos.
+
+### Eventos e Locações (`src/components/eventos/Eventos.jsx`)
+- ⚠️ **UM componente, DUAS portas do menu.** `/eventos` e `/locacoes` renderizam o MESMO
+  `Eventos`, com `filtroInicial` diferente. Nunca duplicar essa tela: ela tem detalhe com
+  histórico, fotos, assinaturas (link e coleta presencial), relatório impresso, concluir e
+  excluir em cascata. Duas cópias = correção que só entra numa delas.
+  - As rotas usam `key` (`key="eventos"` / `key="locacoes"`). SEM isso o React reaproveita a
+    instância ao trocar de porta e o filtro da tela anterior fica preso.
+  - Botões de filtro mudam por porta (`FILTROS_PORTA`): Tudo/Eventos/Locações em `/eventos`;
+    Todas/Mensais/Sublocações em `/locacoes`. Título, subtítulo, vazio e botão vêm de `TITULOS`.
+  - `daCategoria`: 'evento' = documento SEM `tipo`; 'locacoes' = mensal + sublocação.
+- **Converter modalidade** na edição do evento (seletor Modalidade). A conversão move junto,
+  por batch, os geradores presos àquele evento para o status correspondente
+  (`STATUS_GG_POR_TIPO`) — sem isso a frota mostraria "Em Evento" para uma locação.
+  Evento é gravado como `tipo: null` (a ausência do campo é a convenção; null desfaz conversão).
+- A previsão de devolução também é editável aqui, só quando a modalidade é Evento.
+- Menu ⋯: editar, editar material, editar geradores, encerrar/concluir e excluir.
+
+### Painel / Dashboard (`src/components/dashboard/`)
+- Ordem da tela: **pendências → números → roscas → frota → agenda → atalhos**.
+- `pendencias.js` (com testes em `pendencias.test.js` — rodar `npm test` antes de mexer):
+  material a cobrar, OS parada >2 dias, ferramenta emprestada em atraso, saída sem assinatura
+  de quem recebeu e solicitação de compra na fila.
+  - Cada pendência declara o **MÓDULO** a que pertence e o painel filtra por `temPermissao`:
+    ninguém recebe alerta que não consegue resolver. A faixa some por completo quando não há nada.
+- `Rosca.jsx` + `cores.js`: roscas de saídas por tipo, frota e preventiva × corretiva.
+  - ⚠️ A paleta foi verificada para daltonismo. **Roxo e azul ficam indistinguíveis** para
+    daltônicos se aproximados — por isso a frota vai em 3 grupos (prontos / em uso /
+    indisponíveis) e não nos 6 status. Trocar tom exige refazer a verificação.
+  - Sem rótulo dentro da fatia: em fatia estreita o texto estoura o anel; a legenda já traz
+    valor e percentual.
+- Estoque baixo usa a MESMA regra da aba Estoque (`estoqueEspecie`), grupo a grupo e somado.
+- O bloco "Configuração inicial de dados" (importar planilhas) é só admin e só aparece quando
+  faltam dados. **Não remover** — é a rede de segurança para repopular o banco.
+- Cor tem significado: vermelho e âmbar só no que exige ação.
+- ⚠️ Fundo tingido precisa da variante `dark:` (o projeto usa `darkMode: 'class'`).
+  `bg-red-50/50` sem `dark:` vira cinza lavado no tema escuro. Em SVG, usar
+  `fill="currentColor"` + classe `text-*`: os overrides do tema agem sobre `text-`, não `fill-`.
 
 ### Outros
 - Devolução (Evento), transferência, estoque com filtro de status em pills coloridas
