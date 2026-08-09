@@ -4,6 +4,8 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS } from '../../utils/permissions'
+import { GRUPOS, grupoDoMaterial } from '../estoque/categorias'
+import { calcularEspecies, contarEstoqueBaixo } from '../estoque/estoqueEspecie'
 import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
 
 function CardResumo({ titulo, valor, cor, icone, to }) {
@@ -70,7 +72,17 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const eventosAtivos = eventos.filter(e => e.status === 'ativo').length
     const itensEmCampo = materiais.filter(m => m.status === 'em_evento').length
-    const estoquesBaixo = materiais.filter(m => m.estoqueAtual <= m.estoqueMin && m.estoqueMin > 0).length
+
+    // Estoque baixo usa a MESMA regra da aba Estoque (por espécie/bitola, em
+    // estoque/estoqueEspecie.js). A regra antiga estoqueAtual <= estoqueMin
+    // marcava todo cabo parado no pátio como baixo, porque cada cabo é um doc
+    // de uma unidade (1 <= 1). Conta grupo a grupo e soma, para bater com o
+    // total das duas abas do Estoque.
+    const estoquesBaixo = GRUPOS.reduce((soma, g) => {
+      const doGrupo = materiais.filter(m => grupoDoMaterial(m) === g.value)
+      return soma + contarEstoqueBaixo(doGrupo, calcularEspecies(doGrupo))
+    }, 0)
+
     const eventosRecentes = eventos
       .filter(e => ['ativo', 'agendado'].includes(e.status))
       .sort((a, b) => new Date(a.data) - new Date(b.data))
