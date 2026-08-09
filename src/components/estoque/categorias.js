@@ -3,7 +3,9 @@
 // Docs antigos NÃO têm o campo `grupo`: contam como "eventos" (sem migração).
 export const GRUPOS = [
   { value: 'eventos', label: 'Materiais de Evento' },
-  { value: 'uso_interno', label: 'Uso Interno' },
+  // O VALOR gravado continua 'uso_interno' — só o rótulo mudou, para não
+  // confundir com a tela de Uso Interno (empréstimos). Nada a migrar.
+  { value: 'uso_interno', label: 'Material Interno' },
 ]
 
 export function grupoDoMaterial(material) {

@@ -9,7 +9,7 @@ const NOVA_CATEGORIA = '__nova__'
 
 export default function NovoMaterialModal({ onFechar, onSalvo, inicial, grupoFixo }) {
   // `inicial` pre-preenche o formulario (ex: vindo do escaneamento do romaneio).
-  // `grupoFixo` trava o grupo (ex: aberto da aba Uso Interno do Estoque) e
+  // `grupoFixo` trava o grupo (ex: aberto da aba Material Interno do Estoque) e
   // esconde o seletor — o modal mostra so as categorias daquele grupo.
   const [form, setForm] = useState(() => {
     const grupoInicial = grupoFixo || 'eventos'

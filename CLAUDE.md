@@ -153,6 +153,9 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   doc SEM o campo conta como eventos, sem migração) e `uso_interno` (ferramental, fitas,
   parafusos, EPI, consumíveis). Seletor segmentado no topo da tela; estatísticas, abas de
   categoria, pills de status e grid todos escopados ao grupo selecionado.
+  - ⚠️ O grupo `uso_interno` aparece na tela como **"Material Interno"**. Só o RÓTULO mudou;
+    o valor gravado segue `uso_interno`. O nome é diferente de propósito, para não confundir
+    com a tela de **Uso Interno** (empréstimos e consumo), que é outra coisa.
 - Constantes compartilhadas em `src/components/estoque/categorias.js`
   (GRUPOS, CATEGORIAS_POR_GRUPO, TIPOS_POR_CATEGORIA, categoriasDoGrupo, grupoDoMaterial) —
   usadas por Estoque, NovoMaterialModal e ModalEditarMaterial. Não recriar constantes locais.
