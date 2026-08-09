@@ -49,7 +49,7 @@ function EscolhaTipo({ onEscolher }) {
             </svg>
           </div>
           <p className="font-bold text-brand-black">Sublocação</p>
-          <p className="text-sm text-gray-500 mt-0.5">Equipamento alugado para outra empresa. Quem retira é de fora — o nome é digitado na hora.</p>
+          <p className="text-sm text-gray-500 mt-0.5">Equipamento alugado para outra empresa. Quem retira é de fora e o nome é digitado na hora.</p>
         </button>
         <button onClick={() => onEscolher('uso_interno')} className="card text-left hover:border-brand-red hover:shadow-md transition-all">
           <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center mb-2">
