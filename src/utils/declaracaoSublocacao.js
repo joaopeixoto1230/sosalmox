@@ -123,8 +123,8 @@ export function gerarDeclaracaoSublocacao(evento, ordens = [], assinatura = null
     <img src="/logo-sos-v2.png" alt="SOS Energia"/>
     <div class="dir">
       <b>${esc(EMPRESA.razaoSocial)}</b><br/>
-      CNPJ: ${esc(EMPRESA.cnpj)}<br/>
-      ${esc(EMPRESA.endereco)}
+      CNPJ: ${esc(EMPRESA.cnpj)}
+      ${EMPRESA.endereco ? `<br/>${esc(EMPRESA.endereco)}` : ''}
     </div>
   </div>
 
@@ -134,7 +134,7 @@ export function gerarDeclaracaoSublocacao(evento, ordens = [], assinatura = null
 
   <div class="corpo">
     <p>
-      A empresa <strong>${esc(EMPRESA.razaoSocial)}</strong>, com sede na ${esc(EMPRESA.endereco)},
+      A empresa <strong>${esc(EMPRESA.razaoSocial)}</strong>${EMPRESA.nomeFantasia ? ` (${esc(EMPRESA.nomeFantasia)})` : ''}${EMPRESA.endereco ? `, com sede na ${esc(EMPRESA.endereco)}` : ''},
       inscrita no CNPJ sob o nº ${esc(EMPRESA.cnpj)}, entregou a
       <strong>${esc(evento.nome)}</strong>${evento.empresaCnpj ? `, inscrita no CNPJ sob o nº ${esc(evento.empresaCnpj)}` : ''},
       sob a responsabilidade de <strong>${esc(recebeu)}</strong>${evento.retiradoDocumento ? ` (documento ${esc(evento.retiradoDocumento)})` : ''},

@@ -1,10 +1,13 @@
 // Dados da SOS usados nos documentos impressos (declaração de entrega etc.).
-// ⚠️ PREENCHER com os dados reais antes de usar a Declaração de Sublocação em
-// papel: um documento com CNPJ errado não serve de nada. Enquanto estiver em
-// branco, o botão avisa em vez de gerar.
+// A razão social é o nome jurídico, diferente do nome fantasia pelo qual a
+// empresa é conhecida — no documento os dois aparecem, para o cliente
+// reconhecer de quem se trata.
 export const EMPRESA = {
-  razaoSocial: '',
-  cnpj: '',
+  razaoSocial: 'SOS MOVEL TRES R LTDA',
+  nomeFantasia: 'SOS Energia',
+  cnpj: '72.642.655/0001-74',
+  // ⚠️ endereço da sede pendente. Em branco, o documento omite a expressão
+  // "com sede na ..." em vez de imprimir um espaço vazio.
   endereco: '',
   cidade: 'Brasília/DF',
 }
