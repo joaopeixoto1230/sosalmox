@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 // Gráfico de rosca (donut) para composições do painel.
 // A paleta fica em ./cores.js, com a nota sobre a verificação de daltonismo.
 const CX = 100
@@ -19,11 +21,19 @@ function anel(a0, a1) {
 }
 
 /**
- * @param {{rotulo: string, valor: number, cor: string}[]} dados
+ * @param {{rotulo: string, valor: number, cor: string, para?: string}[]} dados
  */
-export default function Rosca({ titulo, subtitulo, unidade, dados, recado, to }) {
+export default function Rosca({ titulo, subtitulo, unidade, dados, recado }) {
+  const navegar = useNavigate()
+  const [ativa, setAtiva] = useState(null) // rótulo da fatia sob o cursor
   const fatias = dados.filter(d => d.valor > 0)
   const total = fatias.reduce((s, d) => s + d.valor, 0)
+  const destaque = fatias.find(d => d.rotulo === ativa) || null
+  const pctDe = d => Math.round(d.valor / total * 100)
+
+  function abrir(d) {
+    if (d?.para) navegar(d.para)
+  }
 
   const corpo = (
     <div className="card h-full flex flex-col gap-3">
@@ -39,7 +49,8 @@ export default function Rosca({ titulo, subtitulo, unidade, dados, recado, to })
       ) : (
         <>
           <svg viewBox="0 0 200 200" className="w-full max-w-[168px] mx-auto block" role="img"
-            aria-label={`${titulo}: ${total} ${unidade}`}>
+            aria-label={`${titulo}: ${total} ${unidade}`}
+            onMouseLeave={() => setAtiva(null)}>
             {(() => {
               let ang = -Math.PI / 2
               return fatias.map(d => {
@@ -51,30 +62,67 @@ export default function Rosca({ titulo, subtitulo, unidade, dados, recado, to })
                 const pct = Math.round(fracao * 100)
                 // Sem rótulo dentro da fatia: em fatia estreita o texto estoura
                 // o anel, e a legenda logo abaixo já traz valor e percentual.
+                const apagada = ativa && ativa !== d.rotulo
                 return (
-                  <path key={d.rotulo} d={anel(a0, a1)} fill={d.cor}>
+                  <path
+                    key={d.rotulo}
+                    d={anel(a0, a1)}
+                    fill={d.cor}
+                    tabIndex={d.para ? 0 : -1}
+                    role={d.para ? 'link' : undefined}
+                    onMouseEnter={() => setAtiva(d.rotulo)}
+                    onFocus={() => setAtiva(d.rotulo)}
+                    onBlur={() => setAtiva(null)}
+                    onClick={() => abrir(d)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(d) } }}
+                    className={`transition-opacity ${apagada ? 'opacity-40' : 'opacity-100'} ${d.para ? 'cursor-pointer' : ''}`}
+                  >
                     <title>{`${d.rotulo}: ${d.valor} (${pct}%)`}</title>
                   </path>
                 )
               })
             })()}
             {/* currentColor para o texto seguir o tema: os overrides do modo
-                escuro agem sobre `text-`, não sobre `fill-`. */}
-            <text x="100" y="95" textAnchor="middle" fontSize="34" fontWeight="800"
-              fill="currentColor" className="text-brand-black">{total}</text>
-            <text x="100" y="115" textAnchor="middle" fontSize="11"
-              fill="currentColor" className="text-gray-400">{unidade}</text>
+                escuro agem sobre `text-`, não sobre `fill-`. O centro troca o
+                total pelo detalhe da fatia sob o cursor. */}
+            {destaque ? (
+              <>
+                <text x="100" y="92" textAnchor="middle" fontSize="30" fontWeight="800"
+                  fill="currentColor" className="text-brand-black">{pctDe(destaque)}%</text>
+                <text x="100" y="110" textAnchor="middle" fontSize="12" fontWeight="700"
+                  fill="currentColor" className="text-brand-black">
+                  {destaque.valor} {unidade}
+                </text>
+                <text x="100" y="126" textAnchor="middle" fontSize="10"
+                  fill="currentColor" className="text-gray-400">
+                  {destaque.rotulo.length > 20 ? destaque.rotulo.slice(0, 19) + '…' : destaque.rotulo}
+                </text>
+              </>
+            ) : (
+              <>
+                <text x="100" y="95" textAnchor="middle" fontSize="34" fontWeight="800"
+                  fill="currentColor" className="text-brand-black">{total}</text>
+                <text x="100" y="115" textAnchor="middle" fontSize="11"
+                  fill="currentColor" className="text-gray-400">{unidade}</text>
+              </>
+            )}
           </svg>
 
           <ul className="flex flex-col gap-1.5">
             {fatias.map(d => (
-              <li key={d.rotulo} className="flex items-center gap-2 text-xs text-gray-600">
+              <li
+                key={d.rotulo}
+                onMouseEnter={() => setAtiva(d.rotulo)}
+                onMouseLeave={() => setAtiva(null)}
+                onClick={() => abrir(d)}
+                className={`flex items-center gap-2 text-xs text-gray-600 rounded-md px-1 -mx-1 py-0.5
+                  transition-colors ${d.para ? 'cursor-pointer' : ''}
+                  ${ativa === d.rotulo ? 'bg-gray-100' : ''}`}
+              >
                 <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: d.cor }} />
                 <span className="flex-1 min-w-0 truncate">{d.rotulo}</span>
                 <b className="text-brand-black tabular-nums">{d.valor}</b>
-                <span className="w-9 text-right text-gray-400 tabular-nums">
-                  {Math.round(d.valor / total * 100)}%
-                </span>
+                <span className="w-9 text-right text-gray-400 tabular-nums">{pctDe(d)}%</span>
               </li>
             ))}
           </ul>
@@ -89,5 +137,5 @@ export default function Rosca({ titulo, subtitulo, unidade, dados, recado, to })
     </div>
   )
 
-  return to ? <a href={to} className="block h-full">{corpo}</a> : corpo
+  return corpo
 }

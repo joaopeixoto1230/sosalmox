@@ -199,23 +199,24 @@ export default function Dashboard() {
     }
 
     const saidas = ordensSaida.filter(dentro)
+    // `para` é para onde a fatia leva ao ser clicada
     const porTipo = [
-      { rotulo: 'Evento', valor: saidas.filter(o => !o.tipo).length, cor: CORES.evento },
-      { rotulo: 'Locação mensal', valor: saidas.filter(o => o.tipo === TIPO_LOCACAO).length, cor: CORES.locacao },
-      { rotulo: 'Sublocação', valor: saidas.filter(o => o.tipo === TIPO_SUBLOCACAO).length, cor: CORES.sublocacao },
-      { rotulo: 'Uso interno', valor: saidas.filter(o => o.tipo === 'uso_interno').length, cor: CORES.usoInterno },
+      { rotulo: 'Evento', valor: saidas.filter(o => !o.tipo).length, cor: CORES.evento, para: '/eventos' },
+      { rotulo: 'Locação mensal', valor: saidas.filter(o => o.tipo === TIPO_LOCACAO).length, cor: CORES.locacao, para: '/locacoes' },
+      { rotulo: 'Sublocação', valor: saidas.filter(o => o.tipo === TIPO_SUBLOCACAO).length, cor: CORES.sublocacao, para: '/sublocacoes' },
+      { rotulo: 'Uso interno', valor: saidas.filter(o => o.tipo === 'uso_interno').length, cor: CORES.usoInterno, para: '/uso-interno' },
     ]
 
     const os = ordensServico.filter(dentro)
     const porManutencao = [
-      { rotulo: 'Preventiva', valor: os.filter(o => o.tipo === 'preventiva').length, cor: CORES.emUso },
-      { rotulo: 'Corretiva', valor: os.filter(o => o.tipo === 'corretiva').length, cor: CORES.indisponivel },
+      { rotulo: 'Preventiva', valor: os.filter(o => o.tipo === 'preventiva').length, cor: CORES.emUso, para: '/manutencao' },
+      { rotulo: 'Corretiva', valor: os.filter(o => o.tipo === 'corretiva').length, cor: CORES.indisponivel, para: '/manutencao' },
     ]
 
     const frotaRosca = [
-      { rotulo: 'Prontos para sair', chave: 'prontos', cor: CORES.prontos },
-      { rotulo: 'Em uso com cliente', chave: 'emuso', cor: CORES.emUso },
-      { rotulo: 'Indisponíveis', chave: 'indisp', cor: CORES.indisponivel },
+      { rotulo: 'Prontos para sair', chave: 'prontos', cor: CORES.prontos, para: '/geradores' },
+      { rotulo: 'Em uso com cliente', chave: 'emuso', cor: CORES.emUso, para: '/geradores' },
+      { rotulo: 'Indisponíveis', chave: 'indisp', cor: CORES.indisponivel, para: '/geradores' },
     ].map(r => ({ ...r, valor: frota.contagem.find(g => g.chave === r.chave)?.n || 0 }))
 
     return { porTipo, porManutencao, frotaRosca }
