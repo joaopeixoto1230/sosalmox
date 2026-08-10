@@ -61,6 +61,14 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
   const rotuloStatusGerador = ehSublocacao ? 'Sublocado' : 'Em Locação'
 
   async function confirmarSaida() {
+    // Sublocação: o material sai com gente de fora, então a assinatura de quem
+    // retira é colhida no balcão, antes de o equipamento deixar a empresa.
+    // O link continua existindo para os outros casos e para correção posterior.
+    if (ehSublocacao && !assinaturaRecebeu) {
+      setErro('Na sublocação, quem retira precisa assinar antes de sair com o material.')
+      setStatus('erro')
+      return
+    }
     setStatus('carregando')
     setErro('')
     try {
@@ -311,12 +319,18 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             altura={120}
           />
           <SignaturePad
-            titulo={`Quem recebeu${responsavel ? ` — ${responsavel}` : ''} (opcional)`}
+            titulo={`Quem recebeu${responsavel ? ` — ${responsavel}` : ''}${ehSublocacao ? ' *' : ' (opcional)'}`}
             valor={assinaturaRecebeu}
             onChange={setAssinaturaRecebeu}
             altura={120}
           />
-          {!assinaturaRecebeu && (
+          {ehSublocacao && !assinaturaRecebeu && (
+            <p className="text-xs text-brand-red bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              Na sublocação a assinatura de quem retira é <strong>obrigatória</strong>: o material
+              não sai da empresa sem ela. Peça para assinar na tela antes de confirmar.
+            </p>
+          )}
+          {!ehSublocacao && !assinaturaRecebeu && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
               Sem a assinatura de quem recebeu, a saída fica <strong>pendente</strong> e um link
               será gerado para o recebedor assinar no evento.
@@ -332,8 +346,8 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
 
         <button
           onClick={confirmarSaida}
-          disabled={status === 'carregando'}
-          className="btn-primary w-full justify-center py-3 text-base"
+          disabled={status === 'carregando' || (ehSublocacao && !assinaturaRecebeu)}
+          className="btn-primary w-full justify-center py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {status === 'carregando' ? (
             <>
