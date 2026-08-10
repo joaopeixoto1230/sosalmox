@@ -1,3 +1,4 @@
+import { MECANICOS, TECNICOS_CONCLUSAO } from '../../utils/operadores'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { doc, runTransaction, serverTimestamp, deleteDoc, updateDoc, collection, query, where, getDocs, addDoc } from 'firebase/firestore'
@@ -780,7 +781,7 @@ export default function DetalheOS() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Técnico responsável *</label>
                 {!ehExternoConc && (
                   <div className="flex gap-2 mb-2">
-                    {['FRANÇA', 'FABIO'].map(t => (
+                    {TECNICOS_CONCLUSAO.map(t => (
                       <button key={t} type="button" onClick={() => setTecnicoNome(t)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${tecnicoNome === t ? 'bg-brand-black text-white border-brand-black' : 'bg-white border-gray-200 text-gray-600'}`}>
                         {t}
@@ -1087,10 +1088,10 @@ function ModalAdicionarFiltros({ os, osId, uid, nome, onFechar }) {
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Quem está retirando? *</label>
-            <div className="flex gap-2">
-              {['NILTON', 'FABIO', 'FRANÇA'].map(m => (
+            <div className="flex flex-wrap gap-2">
+              {MECANICOS.map(m => (
                 <button key={m} onClick={() => setMecanico(m)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors
+                  className={`flex-1 min-w-[9rem] px-3 py-2.5 rounded-xl text-sm font-bold border transition-colors
                     ${mecanico === m ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>
                   {m}
                 </button>

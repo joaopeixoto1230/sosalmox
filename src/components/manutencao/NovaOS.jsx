@@ -1,3 +1,4 @@
+import { MECANICOS } from '../../utils/operadores'
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { doc, runTransaction, collection, serverTimestamp, getDoc } from 'firebase/firestore'
@@ -369,10 +370,10 @@ export default function NovaOS() {
               <input value={form.mecanico} onChange={e => set('mecanico', e.target.value)}
                 className="input" placeholder="Nome do técnico que levou o equipamento" />
             ) : (
-              <div className="flex gap-2">
-                {['NILTON', 'FABIO', 'FRANÇA'].map(m => (
+              <div className="flex flex-wrap gap-2">
+                {MECANICOS.map(m => (
                   <button key={m} onClick={() => set('mecanico', m)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${form.mecanico === m ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>
+                    className={`flex-1 min-w-[9rem] px-3 py-2.5 rounded-xl text-sm font-bold border transition-colors ${form.mecanico === m ? 'bg-brand-red text-white border-brand-red' : 'bg-white border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>
                     {m}
                   </button>
                 ))}
