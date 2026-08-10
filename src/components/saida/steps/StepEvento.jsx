@@ -52,10 +52,10 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
   const [outroNome, setOutroNome] = useState('')
   const [mostrarOutro, setMostrarOutro] = useState(false)
   // Sublocacao: quem retira e de FORA da SOS, entao o nome e digitado (nunca a
-  // lista de operadores). Documento e telefone sao opcionais, para dar respaldo
-  // caso o material nao volte.
+  // lista de operadores). Documento e telefone sao OBRIGATORIOS — o material sai
+  // com estranho e esses dados sao o respaldo se nao voltar.
   const [retirante, setRetirante] = useState({ nome: '', documento: '', telefone: '' })
-  // CNPJ da empresa que está alugando: entra na Declaração de Entrega
+  // CNPJ da empresa que está alugando: obrigatorio, entra na Declaração de Entrega
   const [empresaCnpj, setEmpresaCnpj] = useState('')
   const [erro, setErro] = useState('')
 
@@ -88,6 +88,13 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
       setErro(ehSublocacao ? 'Informe quem está retirando o material' : 'Selecione o responsável pelo material')
       return
     }
+    // Sublocação: os dados da empresa e de quem retira vão para a Declaração de
+    // Entrega, que é a prova documental se o material não voltar.
+    if (ehSublocacao) {
+      if (!empresaCnpj.trim()) { setErro('Informe o CNPJ da empresa que está alugando'); return }
+      if (!retirante.documento.trim()) { setErro('Informe o documento de quem está retirando'); return }
+      if (!retirante.telefone.trim()) { setErro('Informe o telefone de quem está retirando'); return }
+    }
     setErro('')
     onResponsavel(responsavelFinal)
     onSelecionar({
@@ -100,9 +107,9 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
       ...(ehEvento ? { previsaoDevolucao: previsao } : {}),
       ...(ehSublocacao ? {
         retiradoPor: retirante.nome.trim(),
-        retiradoDocumento: retirante.documento.trim() || null,
-        retiradoTelefone: retirante.telefone.trim() || null,
-        empresaCnpj: empresaCnpj.trim() || null,
+        retiradoDocumento: retirante.documento.trim(),
+        retiradoTelefone: retirante.telefone.trim(),
+        empresaCnpj: empresaCnpj.trim(),
       } : {}),
     })
   }
@@ -159,7 +166,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
         {ehSublocacao ? (
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ da empresa (opcional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ da empresa *</label>
               <input
                 value={empresaCnpj}
                 onChange={e => setEmpresaCnpj(e.target.value)}
@@ -186,7 +193,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Documento (opcional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Documento *</label>
                 <input
                   value={retirante.documento}
                   onChange={e => setRetirante(p => ({ ...p, documento: e.target.value }))}
@@ -195,7 +202,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone (opcional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
                 <input
                   value={retirante.telefone}
                   onChange={e => setRetirante(p => ({ ...p, telefone: e.target.value }))}

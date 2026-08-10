@@ -94,9 +94,15 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
     (verde-azulado). `ESTADOS_ACOMPANHA` em formatters inclui os três, para o caminhão com
     gerador montado acompanhar.
   - **Sublocação** = aluguel para OUTRA empresa. Quem retira é de fora, então o campo "Quem está
-    retirando" é **texto livre** (nunca a lista de OPERADORES), mais documento e telefone
-    opcionais. Esse nome já alimenta a assinatura de quem recebeu, o link `/assinar/:token` e o
-    relatório — não redigitar em lugar nenhum.
+    retirando" é **texto livre** (nunca a lista de OPERADORES). Esse nome já alimenta a assinatura
+    de quem recebeu, o link `/assinar/:token` e o relatório — não redigitar em lugar nenhum.
+    - **Obrigatórios na sublocação** (e só nela): CNPJ da empresa, documento e telefone de quem
+      retira, e a **assinatura de quem recebeu** — o botão Confirmar fica travado sem ela.
+      Regra do João: a pessoa assina antes de sair da empresa. Não afrouxar sem falar com ele.
+    - **Declaração de Entrega de Material** (`utils/declaracaoSublocacao.js`): documento que a
+      outra empresa assina, com timbre, itens agrupados, cláusula de conservação e as duas
+      assinaturas. Sai na tela de sucesso da saída e no detalhe da sublocação. Os dados da SOS
+      ficam em `utils/empresa.js`; sem razão social e CNPJ o botão avisa em vez de gerar.
   - ⚠️ O MATERIAL continua com status `em_evento` nas três modalidades. A devolução tem
     `if (statusAtualMat[item.id] !== 'em_evento') continue` — um status novo faria os itens
     serem pulados em silêncio e nunca voltarem ao estoque. A separação é no gerador, na aba
