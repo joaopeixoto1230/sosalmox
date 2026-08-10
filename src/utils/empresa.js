@@ -6,9 +6,9 @@ export const EMPRESA = {
   razaoSocial: 'SOS MOVEL TRES R LTDA',
   nomeFantasia: 'SOS Energia',
   cnpj: '72.642.655/0001-74',
-  // ⚠️ endereço da sede pendente. Em branco, o documento omite a expressão
-  // "com sede na ..." em vez de imprimir um espaço vazio.
-  endereco: '',
+  // Em branco, o documento omite a expressão "com sede na ..." em vez de
+  // imprimir um espaço vazio.
+  endereco: 'SMSE Quadra 17, Lote 01, Samambaia/DF',
   cidade: 'Brasília/DF',
 }
 
