@@ -55,6 +55,8 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
   // lista de operadores). Documento e telefone sao opcionais, para dar respaldo
   // caso o material nao volte.
   const [retirante, setRetirante] = useState({ nome: '', documento: '', telefone: '' })
+  // CNPJ da empresa que está alugando: entra na Declaração de Entrega
+  const [empresaCnpj, setEmpresaCnpj] = useState('')
   const [erro, setErro] = useState('')
 
   const ehSublocacao = modo === 'sublocacao'
@@ -100,6 +102,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
         retiradoPor: retirante.nome.trim(),
         retiradoDocumento: retirante.documento.trim() || null,
         retiradoTelefone: retirante.telefone.trim() || null,
+        empresaCnpj: empresaCnpj.trim() || null,
       } : {}),
     })
   }
@@ -155,6 +158,19 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
 
         {ehSublocacao ? (
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ da empresa (opcional)</label>
+              <input
+                value={empresaCnpj}
+                onChange={e => setEmpresaCnpj(e.target.value)}
+                placeholder="00.000.000/0000-00"
+                className="input"
+                inputMode="numeric"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Usado na Declaração de Entrega de Material, o documento que a outra empresa assina.
+              </p>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Quem está retirando *</label>
               <input

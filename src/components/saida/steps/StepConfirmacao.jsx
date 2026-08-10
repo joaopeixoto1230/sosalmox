@@ -123,6 +123,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
               retiradoPor: evento.retiradoPor || null,
               retiradoDocumento: evento.retiradoDocumento || null,
               retiradoTelefone: evento.retiradoTelefone || null,
+              empresaCnpj: evento.empresaCnpj || null,
             } : {}),
             criadoEm: serverTimestamp(),
           })
