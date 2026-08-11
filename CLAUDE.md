@@ -259,10 +259,21 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 O servidor remoto NÃO consegue fazer deploy (rede bloqueia OAuth do Firebase).
 Hoje o João usa principalmente o **MacBook**; a máquina Windows ainda existe.
 
-**Mac (uso atual)** — Terminal, na pasta do projeto. O `./deploy.sh` faz tudo de uma vez;
-sem ele, um comando por linha:
+⚠️ **SEMPRE dar o comando já com o `cd` na pasta do projeto** (`~/sosalmox`), nunca
+"vá até a pasta do projeto". O João copia e cola direto no Terminal; sem o `cd` o comando
+roda na Home e falha.
+
+**Mac (uso atual)** — Terminal. O `./deploy.sh` faz tudo de uma vez:
 
 ```bash
+cd ~/sosalmox
+./deploy.sh
+```
+
+Sem o script, um comando por linha:
+
+```bash
+cd ~/sosalmox
 git fetch origin claude/laughing-carson-FcEmu
 git reset --hard origin/claude/laughing-carson-FcEmu
 npm run build
@@ -272,9 +283,10 @@ npx firebase-tools deploy --only hosting --project sos-almox
 Primeira vez no Mac: `npx firebase-tools login` (abre o navegador — usar a MESMA conta Google
 do projeto `sos-almox`). Depois do deploy, orientar **Cmd+Shift+R**.
 
-**Windows** — PowerShell, pasta do projeto:
+**Windows** — PowerShell (também com o `cd`, um comando por linha):
 
 ```powershell
+cd $HOME\sosalmox
 powershell -ExecutionPolicy Bypass -File deploy.ps1
 ```
 
