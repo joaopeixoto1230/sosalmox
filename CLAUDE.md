@@ -259,7 +259,7 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 O servidor remoto NÃO consegue fazer deploy (rede bloqueia OAuth do Firebase).
 Hoje o João usa principalmente o **MacBook**; a máquina Windows ainda existe.
 
-⚠️ **SEMPRE dar o comando já com o `cd` na pasta do projeto** (`~/sosalmox`), nunca
+⚠️ **SEMPRE dar o comando já com o `cd` na pasta do projeto** (`~/Projetos/sosalmox`), nunca
 "vá até a pasta do projeto". O João copia e cola direto no Terminal; sem o `cd` o comando
 roda na Home e falha.
 
@@ -267,13 +267,13 @@ roda na Home e falha.
 Ligar com `&&` (no zsh funciona, e assim para no primeiro erro em vez de seguir na pasta errada):
 
 ```bash
-cd ~/sosalmox && ./deploy.sh
+cd ~/Projetos/sosalmox && ./deploy.sh
 ```
 
 Sem o script (também em um bloco só):
 
 ```bash
-cd ~/sosalmox && git fetch origin claude/laughing-carson-FcEmu && git reset --hard origin/claude/laughing-carson-FcEmu && npm run build && npx firebase-tools deploy --only hosting --project sos-almox
+cd ~/Projetos/sosalmox && git fetch origin claude/laughing-carson-FcEmu && git reset --hard origin/claude/laughing-carson-FcEmu && npm run build && npx firebase-tools deploy --only hosting --project sos-almox
 ```
 
 Primeira vez no Mac: `npx firebase-tools login` (abre o navegador — usar a MESMA conta Google
