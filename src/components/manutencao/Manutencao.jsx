@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCollection } from '../../hooks/useFirestore'
 import { statusOsLabel, statusOsCor, formatarData } from '../../utils/formatters'
 import OSCard from './OSCard'
+import { imprimirComNome } from '../../utils/impressao'
 
 const STATUS_OPCOES = ['Todos', 'Pendente', 'Em Andamento', 'Concluída']
 const STATUS_MAP = { 'Pendente': 'pendente', 'Em Andamento': 'em_andamento', 'Concluída': 'concluida' }
@@ -194,7 +195,7 @@ export default function Manutencao() {
     iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
     iframe.onload = () => {
       setTimeout(() => {
-        try { iframe.contentWindow.focus(); iframe.contentWindow.print() } catch { /* ignore */ }
+        imprimirComNome(iframe.contentWindow, `Relatório de Manutenções - ${periodoLabel}`)
         setTimeout(() => iframe.remove(), 60000)
       }, 300)
     }

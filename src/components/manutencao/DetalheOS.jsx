@@ -8,6 +8,7 @@ import { criarSolicitacaoCompra } from '../../utils/notificacoes'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusOsLabel, statusOsCor, formatarDataHora } from '../../utils/formatters'
 import { idsFiltrosIguais } from '../filtros/filtrosUtils'
+import { imprimirComNome } from '../../utils/impressao'
 
 // Carrega uma imagem (File) num elemento <img> — funciona em qualquer celular.
 function carregarImagem(file) {
@@ -479,10 +480,8 @@ export default function DetalheOS() {
     iframe.onload = () => {
       // pequena espera para as imagens (base64) renderizarem antes de imprimir
       setTimeout(() => {
-        try {
-          iframe.contentWindow.focus()
-          iframe.contentWindow.print()
-        } catch { /* ignore */ }
+        // Nome já pronto ao salvar: "Relatório Manutenção - GG-045" / "- JIL-0122 — Volkswagen 24250"
+        imprimirComNome(iframe.contentWindow, `Relatório Manutenção - ${os.equipamentoLabel || os.numero}`)
         // remove o iframe depois da impressão (com folga para o diálogo)
         setTimeout(() => iframe.remove(), 60000)
       }, 400)
