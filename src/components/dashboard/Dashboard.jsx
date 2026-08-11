@@ -6,6 +6,8 @@ import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS, MODULOS, temPermissao } from '../../utils/permissions'
 import { GRUPOS, grupoDoMaterial } from '../estoque/categorias'
 import { calcularEspecies, contarEstoqueBaixo } from '../estoque/estoqueEspecie'
+import { GRUPOS_FROTA, linkDoGrupo } from '../patrimonio/gruposFrota'
+import { linkDoTipo } from '../manutencao/filtrosURL'
 import { calcularPendencias, previsaoDoEvento, diasDeAtraso, hojeISO } from './pendencias'
 import Rosca from './Rosca'
 import { CORES } from './cores'
@@ -38,13 +40,8 @@ const SELO_TIPO = {
   [TIPO_SUBLOCACAO]: { label: 'Sublocação', cor: 'bg-teal-100 text-teal-700' },
 }
 
-// Situação da frota agrupada pela pergunta que interessa: dá para fechar
-// negócio hoje? O detalhe por status continua na legenda.
-const GRUPOS_FROTA = [
-  { chave: 'prontos', label: 'Prontos para sair', cor: 'bg-green-500', texto: 'text-green-600', estados: ['disponivel'] },
-  { chave: 'emuso', label: 'Em uso com cliente', cor: 'bg-blue-500', texto: 'text-blue-600', estados: ['em_evento', 'locacao', 'sublocado'] },
-  { chave: 'indisp', label: 'Indisponíveis', cor: 'bg-orange-500', texto: 'text-orange-600', estados: ['manutencao', 'defeito'] },
-]
+// GRUPOS_FROTA vem de patrimonio/gruposFrota.js — a mesma lista que a tela de
+// Geradores usa ao receber `?grupo=`, para as duas telas não discordarem.
 
 function FaixaPendencias({ itens }) {
   if (!itens.length) return null
@@ -209,15 +206,20 @@ export default function Dashboard() {
 
     const os = ordensServico.filter(dentro)
     const porManutencao = [
-      { rotulo: 'Preventiva', valor: os.filter(o => o.tipo === 'preventiva').length, cor: CORES.emUso, para: '/manutencao' },
-      { rotulo: 'Corretiva', valor: os.filter(o => o.tipo === 'corretiva').length, cor: CORES.indisponivel, para: '/manutencao' },
+      { rotulo: 'Preventiva', valor: os.filter(o => o.tipo === 'preventiva').length, cor: CORES.emUso, para: linkDoTipo('Preventiva') },
+      { rotulo: 'Corretiva', valor: os.filter(o => o.tipo === 'corretiva').length, cor: CORES.indisponivel, para: linkDoTipo('Corretiva') },
     ]
 
-    const frotaRosca = [
-      { rotulo: 'Prontos para sair', chave: 'prontos', cor: CORES.prontos, para: '/geradores' },
-      { rotulo: 'Em uso com cliente', chave: 'emuso', cor: CORES.emUso, para: '/geradores' },
-      { rotulo: 'Indisponíveis', chave: 'indisp', cor: CORES.indisponivel, para: '/geradores' },
-    ].map(r => ({ ...r, valor: frota.contagem.find(g => g.chave === r.chave)?.n || 0 }))
+    // A tela de Geradores filtra um status por vez; estes grupos juntam vários
+    // ("em uso" = evento + locação + sublocação). Por isso o clique leva a
+    // chave do GRUPO, e lá a tela abre o recorte inteiro.
+    const frotaRosca = GRUPOS_FROTA.map(g => ({
+      rotulo: g.label,
+      chave: g.chave,
+      cor: CORES[g.corRosca],
+      para: linkDoGrupo(g.chave),
+      valor: frota.contagem.find(c => c.chave === g.chave)?.n || 0,
+    }))
 
     return { porTipo, porManutencao, frotaRosca }
   }, [ordensSaida, ordensServico, frota, abertoEm])

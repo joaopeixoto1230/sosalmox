@@ -1,23 +1,37 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection } from '../../hooks/useFirestore'
 import { useAuth } from '../../contexts/AuthContext'
 import { temPermissao, MODULOS } from '../../utils/permissions'
 import { statusGeradorLabel, statusGeradorCor } from '../../utils/formatters'
 import GGCard from './GGCard'
 import NovoGeradorModal from './NovoGeradorModal'
+import { grupoPorChave } from './gruposFrota'
 
 const STATUS_OPCOES = ['Todos', 'Disponível', 'Em Evento', 'Em Locação', 'Sublocado', 'Manutenção', 'Defeito']
 const STATUS_MAP = { 'Disponível': 'disponivel', 'Em Evento': 'em_evento', 'Em Locação': 'locacao', 'Sublocado': 'sublocado', 'Manutenção': 'manutencao', 'Defeito': 'defeito' }
 
 export default function Patrimonio() {
   const navigate = useNavigate()
+  const [paramsURL] = useSearchParams()
   const { tipoPerfil } = useAuth()
   const { dados: geradores, carregando } = useCollection('geradores')
   const [busca, setBusca] = useState('')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
+  // `?grupo=emuso` vem do clique na rosca da frota, no painel. É um recorte de
+  // VÁRIOS status ao mesmo tempo, coisa que os botões (um status por vez) não
+  // conseguem expressar — por isso vive à parte, com um aviso na tela.
+  // Só o valor inicial: daí em diante quem manda é o que o usuário clicar.
+  const [grupo, setGrupo] = useState(() => grupoPorChave(paramsURL.get('grupo')))
   const [vista, setVista] = useState('grid')
   const [modalNovo, setModalNovo] = useState(false)
+
+  // Escolher um status é sair do recorte do painel: os dois juntos dariam uma
+  // lista vazia sem explicação (ex.: grupo "Indisponíveis" + status "Disponível").
+  function escolherStatus(s) {
+    setStatusFiltro(s)
+    setGrupo(null)
+  }
 
   const podeAdministrar = temPermissao(tipoPerfil, MODULOS.GERADORES) && tipoPerfil !== 'franca'
 
@@ -25,6 +39,7 @@ export default function Patrimonio() {
 
   const filtrados = useMemo(() => {
     return ativos.filter(g => {
+      if (grupo && !grupo.estados.includes(g.status)) return false
       if (statusFiltro !== 'Todos' && g.status !== STATUS_MAP[statusFiltro]) return false
       if (busca) {
         const q = busca.toLowerCase()
@@ -36,7 +51,7 @@ export default function Patrimonio() {
       const nb = parseInt(b.codigo?.replace(/\D/g, '') || '0')
       return na - nb
     })
-  }, [ativos, busca, statusFiltro])
+  }, [ativos, busca, statusFiltro, grupo])
 
   const stats = useMemo(() => ({
     total: ativos.length,
@@ -79,7 +94,7 @@ export default function Patrimonio() {
         ].map(s => (
           <button
             key={s.label}
-            onClick={() => setStatusFiltro(s.filtro)}
+            onClick={() => escolherStatus(s.filtro)}
             className={`card ${s.cor} border-0 text-left transition-all hover:shadow-md hover:-translate-y-0.5 ${statusFiltro === s.filtro && s.filtro !== 'Todos' ? 'ring-2 ring-brand-red ring-offset-1' : ''}`}
           >
             <p className="text-2xl font-bold">{s.valor}</p>
@@ -99,9 +114,23 @@ export default function Patrimonio() {
             )}
           </button>
         </div>
+        {grupo && (
+          // Fundo tingido precisa da variante dark: (o projeto usa darkMode: 'class').
+          <div className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm border border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200">
+            <span className="flex-1 min-w-0">
+              Recorte vindo do painel: <b>{grupo.label}</b>
+            </span>
+            <button
+              onClick={() => setGrupo(null)}
+              className="flex-shrink-0 font-semibold underline underline-offset-2 hover:no-underline"
+            >
+              Ver a frota toda
+            </button>
+          </div>
+        )}
         <div className="flex gap-2 overflow-x-auto pb-1">
           {STATUS_OPCOES.map(s => (
-            <button key={s} onClick={() => setStatusFiltro(s)}
+            <button key={s} onClick={() => escolherStatus(s)}
               className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-sm font-medium transition-colors ${statusFiltro === s ? 'bg-brand-red text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-brand-red hover:text-brand-red'}`}>
               {s}
             </button>

@@ -216,6 +216,15 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   - Cada pendência declara o **MÓDULO** a que pertence e o painel filtra por `temPermissao`:
     ninguém recebe alerta que não consegue resolver. A faixa some por completo quando não há nada.
 - `Rosca.jsx` + `cores.js`: roscas de saídas por tipo, frota e preventiva × corretiva.
+  - **Clique na fatia leva ao recorte filtrado**, não só à tela. O link é montado pela mesma
+    função que LÊ o parâmetro do outro lado (`linkDoGrupo`/`grupoPorChave` em
+    `patrimonio/gruposFrota.js`; `linkDoTipo`/`tipoDaURL` em `manutencao/filtrosURL.js`),
+    com teste de ida e volta nos dois — link escrito à mão no painel abriria a lista inteira
+    calado se alguém digitasse `emUso` no lugar de `emuso`. Ao criar fatia nova, usar o helper.
+  - `GRUPOS_FROTA` mora em `patrimonio/gruposFrota.js` (não no Dashboard): a tela de Geradores
+    usa a MESMA lista ao receber `?grupo=`. A frota filtra um status por vez e o grupo junta
+    vários, por isso o recorte vive à parte no Patrimônio, com aviso na tela e "Ver a frota
+    toda"; clicar em qualquer status sai do recorte (os dois juntos dariam lista vazia).
   - ⚠️ A paleta foi verificada para daltonismo. **Roxo e azul ficam indistinguíveis** para
     daltônicos se aproximados — por isso a frota vai em 3 grupos (prontos / em uso /
     indisponíveis) e não nos 6 status. Trocar tom exige refazer a verificação.

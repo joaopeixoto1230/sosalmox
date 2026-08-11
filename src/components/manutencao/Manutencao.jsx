@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useCollection } from '../../hooks/useFirestore'
 import { statusOsLabel, statusOsCor, formatarData } from '../../utils/formatters'
 import OSCard from './OSCard'
 import { imprimirComNome } from '../../utils/impressao'
+import { TIPO_OPCOES, tipoDaURL } from './filtrosURL'
 
 const STATUS_OPCOES = ['Todos', 'Pendente', 'Em Andamento', 'Concluída']
 const STATUS_MAP = { 'Pendente': 'pendente', 'Em Andamento': 'em_andamento', 'Concluída': 'concluida' }
@@ -26,9 +27,12 @@ function periodoPreset(chave) {
 
 export default function Manutencao() {
   const navigate = useNavigate()
+  const [paramsURL] = useSearchParams()
   const { dados: ordens, carregando } = useCollection('ordens_servico')
   const [statusFiltro, setStatusFiltro] = useState('Todos')
-  const [tipoFiltro, setTipoFiltro] = useState('Todos')
+  // `?tipo=preventiva` vem do clique na rosca do painel. Só o valor INICIAL:
+  // depois disso quem manda são os botões, senão o filtro voltaria sozinho.
+  const [tipoFiltro, setTipoFiltro] = useState(() => tipoDaURL(paramsURL))
   const [busca, setBusca] = useState('')
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
@@ -270,7 +274,7 @@ export default function Manutencao() {
             </button>
           ))}
           <div className="h-6 w-px bg-gray-200 self-center" />
-          {['Todos', 'Preventiva', 'Corretiva'].map(t => (
+          {TIPO_OPCOES.map(t => (
             <button key={t} onClick={() => setTipoFiltro(t)}
               className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${tipoFiltro === t ? 'bg-brand-black text-white border-brand-black' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'}`}>
               {t}
