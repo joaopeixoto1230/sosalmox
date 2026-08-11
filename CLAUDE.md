@@ -65,6 +65,13 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 ### Manutenção (`src/components/manutencao/`)
 - DetalheOS: **editar OS, excluir OS (devolve filtros ao estoque via transaction e recalcula
   últimaManutencao do GG), imprimir relatório em PDF (`gerarPDF`)**
+- **Nome do arquivo ao salvar em PDF** (`utils/impressao.js`, `imprimirComNome`): o navegador
+  monta o nome sugerido a partir do `document.title` da PÁGINA, **não** do `<title>` que está
+  dentro do iframe — por isso todo relatório saía como "SOS Almoxarifado". O helper troca o
+  title só durante a impressão e devolve no `afterprint` (mais um timer de segurança, senão a
+  aba fica com o nome do relatório). OS → `Relatório Manutenção - <equipamento>`;
+  período → `Relatório de Manutenções - <período>`. Ao criar um relatório novo, usar o helper —
+  `/`, `:` e afins são trocados por `-` porque quebram o nome no Mac e no Windows.
 - Conclusão de OS com: relatório de serviço, problemas encontrados, próxima preventiva
 - Adicionar filtros a OS aberta; baixa automática de filtros na conclusão
 - Numeração OS-YYYY-NNN via `contadores/ordens_servico`
