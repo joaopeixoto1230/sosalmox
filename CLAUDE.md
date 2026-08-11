@@ -263,21 +263,17 @@ Hoje o João usa principalmente o **MacBook**; a máquina Windows ainda existe.
 "vá até a pasta do projeto". O João copia e cola direto no Terminal; sem o `cd` o comando
 roda na Home e falha.
 
-**Mac (uso atual)** — Terminal. O `./deploy.sh` faz tudo de uma vez:
+**Mac (uso atual)** — Terminal. O João pede **tudo em um bloco só**, para colar de uma vez.
+Ligar com `&&` (no zsh funciona, e assim para no primeiro erro em vez de seguir na pasta errada):
 
 ```bash
-cd ~/sosalmox
-./deploy.sh
+cd ~/sosalmox && ./deploy.sh
 ```
 
-Sem o script, um comando por linha:
+Sem o script (também em um bloco só):
 
 ```bash
-cd ~/sosalmox
-git fetch origin claude/laughing-carson-FcEmu
-git reset --hard origin/claude/laughing-carson-FcEmu
-npm run build
-npx firebase-tools deploy --only hosting --project sos-almox
+cd ~/sosalmox && git fetch origin claude/laughing-carson-FcEmu && git reset --hard origin/claude/laughing-carson-FcEmu && npm run build && npx firebase-tools deploy --only hosting --project sos-almox
 ```
 
 Primeira vez no Mac: `npx firebase-tools login` (abre o navegador — usar a MESMA conta Google
