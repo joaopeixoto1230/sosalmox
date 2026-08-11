@@ -289,6 +289,12 @@ powershell -ExecutionPolicy Bypass -File deploy.ps1
 Os dois scripts fazem: fetch + reset --hard no branch remoto + `npm run build` +
 `firebase deploy --only hosting --project sos-almox`.
 
+⚠️ **Sempre com `--only hosting`.** O `firebase.json` declara `functions` (pasta `functions/`,
+o briefing diário por e-mail do João — `onSchedule` às 7h, segredos `GMAIL_USER`,
+`GMAIL_APP_PASSWORD` e `BRIEFING_TEST_TOKEN` no Secret Manager). Um `firebase deploy` **sem**
+o `--only` tentaria republicar a automação junto com o site. Publicar a função é assunto
+separado, e só quando o João pedir: `firebase deploy --only functions`.
+
 Regras ao instruir o usuário:
 - **PowerShell NÃO aceita `&&`** — sempre dar os comandos um por linha (no zsh do Mac aceita,
   mas separar ajuda a ver onde falhou)
