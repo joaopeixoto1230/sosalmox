@@ -18,12 +18,26 @@ cd "$(dirname "$0")"
 echo "==> Pasta: $(pwd)"
 
 # Avisa antes de descartar trabalho local nao commitado.
-if [ -n "$(git status --porcelain)" ]; then
+#
+# So o que ESTA no controle de versao corre risco: o `git reset --hard` la
+# embaixo nao apaga arquivo nao rastreado (isso seria `git clean`). Por isso a
+# pergunta e feita apenas para arquivo modificado — antes o script pedia
+# confirmacao por causa de uma pasta nova qualquer e dava um susto a toa.
+ALTERADOS="$(git status --porcelain --untracked-files=no)"
+NOVOS="$(git ls-files --others --exclude-standard)"
+
+if [ -n "$NOVOS" ]; then
   echo ""
-  echo "!! Existem alteracoes locais nao commitadas:"
-  git status --short
+  echo "-- Arquivos fora do controle de versao (serao MANTIDOS):"
+  echo "$NOVOS" | sed 's/^/   /'
+fi
+
+if [ -n "$ALTERADOS" ]; then
   echo ""
-  read -r -p "Elas serao DESCARTADAS. Continuar? (s/N) " resposta
+  echo "!! Arquivos do projeto alterados nesta maquina:"
+  echo "$ALTERADOS" | sed 's/^/   /'
+  echo ""
+  read -r -p "Estas alteracoes serao DESCARTADAS. Continuar? (s/N) " resposta
   case "$resposta" in
     s|S|sim|Sim) ;;
     *) echo "Cancelado."; exit 1 ;;
