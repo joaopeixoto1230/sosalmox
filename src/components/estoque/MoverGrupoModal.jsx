@@ -18,25 +18,40 @@ import { statusMaterialLabel } from '../../utils/formatters'
 
 const POR_LOTE = 400 // o writeBatch do Firestore aceita até 500 operações
 
-export default function MoverGrupoModal({ materiais, origem, onFechar, onSalvo }) {
+// Pré-marcação só faz sentido indo PARA o Material Interno; no caminho inverso
+// (trazendo de volta) o usuário escolhe do zero.
+function preMarcados(lista, destino) {
+  return new Set(destino === 'uso_interno' ? lista.filter(pareceUsoInterno).map(m => m.id) : [])
+}
+
+function daGrupo(materiais, grupo) {
+  return materiais
+    .filter(m => grupoDoMaterial(m) === grupo)
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+}
+
+export default function MoverGrupoModal({ materiais, origem: origemInicial, onFechar, onSalvo }) {
+  // O sentido começa pela aba em que o usuário estava, mas é trocável aqui
+  // dentro: abrir pela aba errada e ver uma lista vazia, sem saída, confunde.
+  const [origem, setOrigem] = useState(origemInicial)
   const destino = origem === 'uso_interno' ? 'eventos' : 'uso_interno'
   const rotulo = g => GRUPOS.find(x => x.value === g)?.label || g
 
-  const candidatos = useMemo(
-    () => materiais
-      .filter(m => grupoDoMaterial(m) === origem)
-      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '')),
-    [materiais, origem],
-  )
+  const candidatos = useMemo(() => daGrupo(materiais, origem), [materiais, origem])
 
-  // Pré-marcação só faz sentido indo para o Material Interno; no caminho
-  // inverso (trazendo de volta) o usuário escolhe do zero.
-  const [marcados, setMarcados] = useState(() => new Set(
-    destino === 'uso_interno' ? candidatos.filter(pareceUsoInterno).map(m => m.id) : [],
-  ))
+  const [marcados, setMarcados] = useState(() => preMarcados(daGrupo(materiais, origemInicial), destino))
+
   const [busca, setBusca] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  function inverterSentido() {
+    const nova = destino // o destino de agora vira a origem
+    setOrigem(nova)
+    setMarcados(preMarcados(daGrupo(materiais, nova), nova === 'uso_interno' ? 'eventos' : 'uso_interno'))
+    setBusca('')
+    setErro('')
+  }
 
   const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -96,10 +111,21 @@ export default function MoverGrupoModal({ materiais, origem, onFechar, onSalvo }
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-gray-900 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[92vh] flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h2 className="font-bold text-brand-black">Mover para {rotulo(destino)}</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            Saindo de {rotulo(origem)}. Muda só a prateleira: status, quantidade e evento
-            do material continuam como estão, e dá para mover de volta depois.
+          <h2 className="font-bold text-brand-black">Mover material de grupo</h2>
+          <div className="flex items-center gap-2 flex-wrap mt-2 text-sm">
+            <span className="font-semibold text-brand-black">{rotulo(origem)}</span>
+            <span className="text-gray-400">&rarr;</span>
+            <span className="font-semibold text-brand-black">{rotulo(destino)}</span>
+            <button
+              onClick={inverterSentido}
+              className="text-xs font-semibold text-brand-red hover:underline ml-1"
+            >
+              trocar sentido
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1.5">
+            Muda só a prateleira: status, quantidade e evento do material continuam como
+            estão, e dá para mover de volta depois.
           </p>
         </div>
 
@@ -133,9 +159,18 @@ export default function MoverGrupoModal({ materiais, origem, onFechar, onSalvo }
 
         <div className="flex-1 overflow-y-auto px-5 py-3">
           {visiveis.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">
-              Nenhum material em {rotulo(origem)} com esse texto.
-            </p>
+            <div className="text-center py-8 space-y-2">
+              <p className="text-sm text-gray-400">
+                {busca
+                  ? `Nenhum material em ${rotulo(origem)} com esse texto.`
+                  : `${rotulo(origem)} não tem nenhum material.`}
+              </p>
+              {!busca && (
+                <button onClick={inverterSentido} className="btn-secondary text-sm">
+                  Mover de {rotulo(destino)} para {rotulo(origem)}
+                </button>
+              )}
+            </div>
           ) : (
             <ul className="space-y-1.5">
               {visiveis.map(m => {
