@@ -7,6 +7,7 @@ import { formatarData, formatarDataHora, materialPorQuantidade, statusDevolucaoC
 import { comprimirParaDataUrl } from '../../utils/imagem'
 import { gerarRelatorioUsoInterno } from '../../utils/relatorioUsoInterno'
 import FotoPickerBotoes from '../ui/FotoPickerBotoes'
+import CadastrarAvulsosModal from './CadastrarAvulsosModal'
 
 const ABAS = ['Ferramentas em Campo', 'Itens Avulsos', 'Histórico']
 
@@ -667,6 +668,10 @@ function DevolucaoEmprestimoModal({ ordem, onFechar }) {
 function ItensAvulsos({ ordens }) {
   const [fotosView, setFotosView] = useState(null) // { nome, fotos: [] }
   const [carregandoFotos, setCarregandoFotos] = useState(false)
+  const [cadastrarAberto, setCadastrarAberto] = useState(false)
+  const [avisoCadastro, setAvisoCadastro] = useState('')
+  // Para sugerir codigo sem repetir e marcar o que ja tem material com esse nome.
+  const { dados: materiais } = useCollection('materiais')
 
   const agrupados = useMemo(() => {
     const mapa = new Map()
@@ -719,7 +724,31 @@ function ItensAvulsos({ ordens }) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-gray-500">Ordenado pelos que mais saem — priorize cadastrar os do topo.</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-xs text-gray-500">Ordenado pelos que mais saem — priorize cadastrar os do topo.</p>
+        <button
+          onClick={() => { setAvisoCadastro(''); setCadastrarAberto(true) }}
+          className="btn-secondary text-xs py-1.5"
+        >
+          Cadastrar no estoque
+        </button>
+      </div>
+      {avisoCadastro && <p className="text-sm text-green-700 dark:text-green-400">{avisoCadastro}</p>}
+
+      {cadastrarAberto && (
+        <CadastrarAvulsosModal
+          itens={agrupados}
+          materiais={materiais}
+          onFechar={() => setCadastrarAberto(false)}
+          onSalvo={quantos => {
+            setCadastrarAberto(false)
+            setAvisoCadastro(
+              `${quantos} ${quantos === 1 ? 'item cadastrado' : 'itens cadastrados'} em Estoque → Material Interno.`,
+            )
+          }}
+        />
+      )}
+
       {agrupados.map((item, i) => (
         <div key={i} className="card flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-brand-red/10 text-brand-red font-bold flex items-center justify-center flex-shrink-0">

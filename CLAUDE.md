@@ -143,6 +143,16 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 - **Item avulso** (`avulso:true`): nome livre + quantidade + unidade, NÃO mexe em estoque.
 - View **`/uso-interno`** (módulo `USO_INTERNO`): aba "Ferramentas em Campo" (pendentes, mais
   atrasado primeiro, devolver, fotos saída/devolução) e "Itens Avulsos" (agrupa por nome/frequência).
+- **"Cadastrar no estoque"** na aba Itens Avulsos (`CadastrarAvulsosModal.jsx`): transforma o
+  item avulso em material de verdade no grupo `uso_interno`. Sugere categoria e código pelo
+  nome (`sugestaoCadastro.js`, com testes), bloqueia o que já tem material de mesmo nome e só
+  grava com confirmação. `writeBatch` em lotes de 400.
+  - ⚠️ **Consumível cadastrado é baixado INTEIRO numa saída.** O fluxo trata 1 documento =
+    1 unidade: em `UsoInternoFlow`, item cadastrado vira `estoqueAtual: 0` + status
+    `consumido`/`emprestado`, sem descontar quantidade. `materialPorQuantidade` (formatters)
+    só é true para "Protetor de cabo", e esses ficam de FORA da baixa. Ou seja: cadastrar
+    fita/parafuso aqui serve para ter o item na lista, mas a contagem na prateleira ainda
+    não se mantém sozinha. Baixa por quantidade é trabalho separado, ainda não feito.
 - Fotos são por ORDEM (base64 em `fotos_saida`, campo `momento:'saida'|'devolucao'`), não por item.
 - Status de material novos: `emprestado`, `consumido` (em `utils/formatters` e nas pills do Estoque).
 - **Assinaturas** iguais à externa: entregou/recebeu no fluxo + link `/assinar/:token`
