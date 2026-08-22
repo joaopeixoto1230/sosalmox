@@ -6,6 +6,7 @@ import { useAuth } from '../../../contexts/AuthContext'
 import { useCollection } from '../../../hooks/useFirestore'
 import { OPERADORES } from '../../../utils/operadores'
 import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
+import { materialContado, patchSaida, estoqueDe } from '../../estoque/contagem'
 import { comprimirParaDataUrl } from '../../../utils/imagem'
 import DatePicker from '../../ui/DatePicker'
 import FotoPickerBotoes from '../../ui/FotoPickerBotoes'
@@ -92,7 +93,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
 
   function adicionarCadastrado(m) {
     if (itens.some(i => i.id === m.id)) return
-    setItens(prev => [...prev, materialPorQuantidade(m) ? { ...m, quantidade: 1 } : m])
+    setItens(prev => [...prev, (materialPorQuantidade(m) || materialContado(m)) ? { ...m, quantidade: 1 } : m])
     setBusca('')
   }
 
@@ -123,9 +124,16 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
     })
   }
 
+  // Item contado não pode sair em quantidade maior do que a prateleira tem.
+  // A transaction também barra, mas travar o botão evita chegar até lá.
+  const algumPassouDoEstoque = itens.some(
+    it => !it.avulso && materialContado(it) && (Number(it.quantidade) || 1) > estoqueDe(it),
+  )
+
   const podeConfirmar =
     !!responsavelFinal &&
     itens.length > 0 &&
+    !algumPassouDoEstoque &&
     (anexando ? true : (subtipo === 'emprestimo' ? !!dataPrevista : !!motivo))
 
   // Retrato do item gravado na ordem e no doc de assinatura.
@@ -137,7 +145,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         nome: it.nome || null,
         codigo: it.codigo || null,
         categoria: it.categoria || null,
-        ...(materialPorQuantidade(it) ? { quantidade: it.quantidade || 1 } : {}),
+        ...((materialPorQuantidade(it) || materialContado(it)) ? { quantidade: it.quantidade || 1 } : {}),
       }
   }
 
@@ -145,7 +153,7 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
     return {
       nome: it.nome || null,
       codigo: it.codigo || null,
-      ...((it.avulso || materialPorQuantidade(it)) ? { quantidade: it.quantidade || 1 } : {}),
+      ...((it.avulso || materialPorQuantidade(it) || materialContado(it)) ? { quantidade: it.quantidade || 1 } : {}),
     }
   }
 
@@ -202,10 +210,21 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         }
 
         const cadastrados = itens.filter(it => !it.avulso && !materialPorQuantidade(it))
+        // Guarda o doc lido para calcular a baixa na hora de escrever: item
+        // contado (fita, parafuso) desconta a quantidade em vez de zerar.
+        const lidos = {}
         for (const it of cadastrados) {
           const snap = await tx.get(doc(db, 'materiais', it.id))
           if (!snap.exists()) throw new Error(`Material ${it.nome} não encontrado.`)
-          if (snap.data().status !== 'disponivel') throw new Error(`${it.nome} não está mais disponível.`)
+          const dados = snap.data()
+          if (dados.status !== 'disponivel') throw new Error(`${it.nome} não está mais disponível.`)
+          if (materialContado(dados)) {
+            const pedido = Math.max(1, Number(it.quantidade) || 1)
+            if (pedido > estoqueDe(dados)) {
+              throw new Error(`${it.nome}: só há ${estoqueDe(dados)} em estoque.`)
+            }
+          }
+          lidos[it.id] = dados
         }
 
         // ===== ESCRITAS =====
@@ -258,12 +277,12 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
         }
 
         // Baixa de estoque dos itens CADASTRADOS (avulso e por-quantidade nao mexem).
+        // Item contado desconta a quantidade; item de unidade sai inteiro.
         for (const it of cadastrados) {
-          tx.update(doc(db, 'materiais', it.id), {
-            status: subtipo === 'emprestimo' ? 'emprestado' : 'consumido',
-            eventoAtual: null,
-            estoqueAtual: 0,
-          })
+          tx.update(
+            doc(db, 'materiais', it.id),
+            patchSaida(lidos[it.id], it.quantidade || 1, subtipo),
+          )
         }
       })
 
@@ -600,7 +619,9 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
           <div className="space-y-2">
             {itens.map(it => {
               const chave = it.avulso ? it.tempId : it.id
-              const temQtd = it.avulso || materialPorQuantidade(it)
+              const contado = !it.avulso && materialContado(it)
+              const temQtd = it.avulso || materialPorQuantidade(it) || contado
+              const passouDoEstoque = contado && (Number(it.quantidade) || 1) > estoqueDe(it)
               return (
                 <div key={chave} className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
                   <div className="min-w-0 flex-1">
@@ -608,15 +629,20 @@ export default function UsoInternoFlow({ onTrocarTipo }) {
                       {it.nome}
                       {it.avulso && <span className="ml-2 text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">avulso</span>}
                     </p>
-                    <p className="text-xs text-gray-500 font-mono">{it.avulso ? `${it.quantidade} ${it.unidade}` : it.codigo}</p>
+                    <p className="text-xs text-gray-500 font-mono">
+                      {it.avulso ? `${it.quantidade} ${it.unidade}` : it.codigo}
+                      {contado && <span className="ml-2 font-sans">{estoqueDe(it)} em estoque</span>}
+                    </p>
                   </div>
                   {temQtd && (
                     <input
                       type="number"
                       min="1"
+                      // Item contado não pode sair mais do que existe na prateleira.
+                      {...(contado ? { max: estoqueDe(it) } : {})}
                       value={it.quantidade || 1}
                       onChange={e => setQuantidade(chave, e.target.value)}
-                      className="input w-16 text-center py-1"
+                      className={`input w-16 text-center py-1 ${passouDoEstoque ? 'border-brand-red' : ''}`}
                     />
                   )}
                   <button onClick={() => removerItem(chave)} className="text-gray-400 hover:text-brand-red flex-shrink-0" aria-label="Remover item">

@@ -8,6 +8,7 @@ import { comprimirParaDataUrl } from '../../utils/imagem'
 import { gerarRelatorioUsoInterno } from '../../utils/relatorioUsoInterno'
 import FotoPickerBotoes from '../ui/FotoPickerBotoes'
 import CadastrarAvulsosModal from './CadastrarAvulsosModal'
+import { materialContado, patchSaida, patchEstorno, estoqueDe } from '../estoque/contagem'
 
 const ABAS = ['Ferramentas em Campo', 'Itens Avulsos', 'Histórico']
 
@@ -233,7 +234,7 @@ function AdicionarItensModal({ ordem, onFechar }) {
 
   function addCadastrado(m) {
     if (itens.some(i => i.id === m.id)) return
-    setItens(prev => [...prev, materialPorQuantidade(m) ? { ...m, quantidade: 1 } : m])
+    setItens(prev => [...prev, (materialPorQuantidade(m) || materialContado(m)) ? { ...m, quantidade: 1 } : m])
     setBusca('')
   }
 
@@ -287,10 +288,17 @@ function AdicionarItensModal({ ordem, onFechar }) {
           assDados = aSnap.exists() ? aSnap.data() : null
         }
         const cadastrados = itens.filter(it => !it.avulso && !materialPorQuantidade(it))
+        // Guarda o doc lido: item contado desconta a quantidade em vez de zerar.
+        const lidos = {}
         for (const it of cadastrados) {
           const snap = await tx.get(doc(db, 'materiais', it.id))
           if (!snap.exists()) throw new Error(`Material ${it.nome} não encontrado.`)
-          if (snap.data().status !== 'disponivel') throw new Error(`${it.nome} não está mais disponível.`)
+          const d = snap.data()
+          if (d.status !== 'disponivel') throw new Error(`${it.nome} não está mais disponível.`)
+          if (materialContado(d) && Math.max(1, Number(it.quantidade) || 1) > estoqueDe(d)) {
+            throw new Error(`${it.nome}: só há ${estoqueDe(d)} em estoque.`)
+          }
+          lidos[it.id] = d
         }
 
         // ===== ESCRITAS =====
@@ -301,7 +309,7 @@ function AdicionarItensModal({ ordem, onFechar }) {
             nome: it.nome || null,
             codigo: it.codigo || null,
             categoria: it.categoria || null,
-            ...(materialPorQuantidade(it) ? { quantidade: it.quantidade || 1 } : {}),
+            ...((materialPorQuantidade(it) || materialContado(it)) ? { quantidade: it.quantidade || 1 } : {}),
           })
         tx.update(ordemRef, {
           itens: [...(dados.itens || []), ...novos],
@@ -312,12 +320,12 @@ function AdicionarItensModal({ ordem, onFechar }) {
             itens: [...(assDados.itens || []), ...itens.map(it => ({
               nome: it.nome || null,
               codigo: it.codigo || null,
-              ...((it.avulso || materialPorQuantidade(it)) ? { quantidade: it.quantidade || 1 } : {}),
+              ...((it.avulso || materialPorQuantidade(it) || materialContado(it)) ? { quantidade: it.quantidade || 1 } : {}),
             }))],
           })
         }
         for (const it of cadastrados) {
-          tx.update(doc(db, 'materiais', it.id), { status: 'emprestado', eventoAtual: null, estoqueAtual: 0 })
+          tx.update(doc(db, 'materiais', it.id), patchSaida(lidos[it.id], it.quantidade || 1, 'emprestimo'))
         }
       })
       onFechar()
@@ -545,9 +553,11 @@ function DevolucaoEmprestimoModal({ ordem, onFechar }) {
           .map((it, i) => ({ it, i }))
           .filter(({ it }) => it.id && !materialPorQuantidade(it))
         const existentes = {}
+        const lidos = {}
         for (const { it } of cadastrados) {
           const snap = await tx.get(doc(db, 'materiais', it.id))
           existentes[it.id] = snap.exists()
+          if (snap.exists()) lidos[it.id] = snap.data()
         }
 
         // ESCRITAS: bloco devolucao no próprio doc da ordem.
@@ -574,7 +584,8 @@ function DevolucaoEmprestimoModal({ ordem, onFechar }) {
           if (!existentes[it.id]) continue
           const s = statusItens[i]
           const ref = doc(db, 'materiais', it.id)
-          if (s === 'ok') tx.update(ref, { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+          // Item contado devolve a QUANTIDADE que saiu; item de unidade volta a ser 1.
+          if (s === 'ok') tx.update(ref, patchEstorno(lidos[it.id], it.quantidade || 1))
           else if (s === 'problema') tx.update(ref, { status: 'manutencao', eventoAtual: null })
           else if (s === 'nao_devolvido') tx.update(ref, { status: 'perdido', eventoAtual: null })
         }
@@ -849,8 +860,14 @@ function HistoricoInternas({ ordens }) {
         if (ordem.tokenAssinatura) tx.delete(doc(db, 'assinaturas_saida', ordem.tokenAssinatura))
         const esperado = ordem.subtipo === 'consumo' ? 'consumido' : 'emprestado'
         for (const [it, snap] of snaps) {
-          if (snap.exists() && snap.data().status === esperado) {
-            tx.update(doc(db, 'materiais', it.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+          if (!snap.exists()) continue
+          const dados = snap.data()
+          // Item contado nao troca de status enquanto sobra estoque, entao a
+          // devolucao dele nao pode depender do status: basta somar de volta.
+          if (materialContado(dados)) {
+            tx.update(doc(db, 'materiais', it.id), patchEstorno(dados, it.quantidade || 1))
+          } else if (dados.status === esperado) {
+            tx.update(doc(db, 'materiais', it.id), patchEstorno(dados, 1))
           }
         }
       })

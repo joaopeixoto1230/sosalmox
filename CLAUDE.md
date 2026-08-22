@@ -147,12 +147,21 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   item avulso em material de verdade no grupo `uso_interno`. Sugere categoria e código pelo
   nome (`sugestaoCadastro.js`, com testes), bloqueia o que já tem material de mesmo nome e só
   grava com confirmação. `writeBatch` em lotes de 400.
-  - ⚠️ **Consumível cadastrado é baixado INTEIRO numa saída.** O fluxo trata 1 documento =
-    1 unidade: em `UsoInternoFlow`, item cadastrado vira `estoqueAtual: 0` + status
-    `consumido`/`emprestado`, sem descontar quantidade. `materialPorQuantidade` (formatters)
-    só é true para "Protetor de cabo", e esses ficam de FORA da baixa. Ou seja: cadastrar
-    fita/parafuso aqui serve para ter o item na lista, mas a contagem na prateleira ainda
-    não se mantém sozinha. Baixa por quantidade é trabalho separado, ainda não feito.
+- **Baixa por QUANTIDADE dos consumíveis** (`estoque/contagem.js`, testes em `contagem.test.js`
+  incluindo o ciclo completo saída → devolução → exclusão). O resto do sistema trata
+  1 documento = 1 unidade (cada cabo é um doc, a saída zera o doc). Isso serve para cabo e
+  ferramenta, não para fita e parafuso, que saem em quantidade do MESMO doc.
+  - `materialContado(m)`: só no grupo `uso_interno`, categorias Fitas/Fixação/EPI/Consumíveis
+    (ou, fora delas, quem tem mais de 1 na prateleira). **Material de evento não muda em nada**
+    — o guard de grupo existe para isso. "Protetor de cabo" segue de fora (regra própria).
+  - `patchSaida` desconta e **só troca de status ao zerar**: senão a fita sumiria dos
+    disponíveis tendo ainda 17 rolos. `patchEstorno` soma de volta a quantidade que saiu.
+  - ⚠️ Aplicado nos QUATRO pontos que mexem no material: saída (`UsoInternoFlow`), adicionar
+    itens a empréstimo aberto, devolução e excluir lançamento (`UsoInternoView`). Faltar um
+    deles faz a conta desandar em silêncio. Na exclusão, item contado NÃO pode depender do
+    status esperado (`consumido`/`emprestado`), porque ele fica `disponivel` enquanto sobra.
+  - ⚠️ `materialPorQuantidade` (formatters) é usado em 15 lugares do fluxo de EVENTO —
+    não alterar. `materialContado` é conceito separado, só do Uso Interno.
 - Fotos são por ORDEM (base64 em `fotos_saida`, campo `momento:'saida'|'devolucao'`), não por item.
 - Status de material novos: `emprestado`, `consumido` (em `utils/formatters` e nas pills do Estoque).
 - **Assinaturas** iguais à externa: entregou/recebeu no fluxo + link `/assinar/:token`
