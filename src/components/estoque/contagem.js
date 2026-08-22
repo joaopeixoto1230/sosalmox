@@ -18,6 +18,12 @@ export function materialContado(material) {
   if (!material) return false
   // "Protetor de cabo" tem regra própria e nunca mexe em estoque. Não mudar.
   if (materialPorQuantidade(material)) return false
+
+  // Marcado à mão na edição do material. Vale em QUALQUER grupo, porque existe
+  // material de evento que também sai por quantidade — o alambrado de proteção
+  // é o caso: saem 10 de 50 e sobram 40, igual à fita.
+  if (material.porQuantidade === true) return true
+
   if (grupoDoMaterial(material) !== 'uso_interno') return false
 
   const categoria = normalizar(material.categoria)
@@ -58,6 +64,46 @@ export function patchSaida(dados, quantidade, subtipo) {
  * Item contado devolve a quantidade ao que já existe; item de unidade volta a
  * ser 1, como sempre foi.
  */
+/**
+ * Saída para EVENTO. O material de unidade vai inteiro para o evento
+ * (`em_evento` + `eventoAtual`), como sempre. O contado só perde quantidade e
+ * NÃO muda de status: 10 alambrados saírem não pode tirar os outros 40 da
+ * prateleira nem prendê-los a esse evento.
+ */
+export function patchSaidaEvento(dados, quantidade, eventoId) {
+  if (!materialContado(dados)) {
+    return { status: 'em_evento', eventoAtual: eventoId, estoqueAtual: 0 }
+  }
+  return { estoqueAtual: Math.max(0, estoqueDe(dados) - Math.max(0, Number(quantidade) || 0)) }
+}
+
+/**
+ * Devolução de EVENTO. Devolve `null` quando não há nada a escrever.
+ *
+ * ⚠️ Para o contado, a decisão NÃO pode olhar o status (ele continua
+ * `disponivel` enquanto sobra estoque) — a devolução de evento pula item que
+ * não está `em_evento`, e o contado cairia nesse buraco em silêncio.
+ * Danificado e perdido não voltam para o estoque: a linha inteira da devolução
+ * se refere àquelas unidades.
+ */
+export function patchDevolucaoEvento(dados, quantidade, statusDevolucao) {
+  // Material que JÁ está `em_evento` saiu pela regra antiga (doc inteiro), mesmo
+  // que tenha sido marcado como contado depois. Tratar como contado aqui o
+  // deixaria preso em `em_evento` para sempre.
+  const saiuComoUnidade = dados?.status === 'em_evento'
+
+  if (materialContado(dados) && !saiuComoUnidade) {
+    if (statusDevolucao !== 'ok' && statusDevolucao !== 'cortado') return null
+    return { estoqueAtual: estoqueDe(dados) + Math.max(0, Number(quantidade) || 0) }
+  }
+  if (statusDevolucao === 'ok' || statusDevolucao === 'cortado') {
+    return { status: 'disponivel', eventoAtual: null, estoqueAtual: 1 }
+  }
+  if (statusDevolucao === 'perdido') return { status: 'perdido', eventoAtual: null }
+  if (statusDevolucao === 'problema') return { status: 'manutencao', eventoAtual: null }
+  return null
+}
+
 export function patchEstorno(dados, quantidade) {
   if (!materialContado(dados)) {
     return { status: 'disponivel', eventoAtual: null, estoqueAtual: 1 }

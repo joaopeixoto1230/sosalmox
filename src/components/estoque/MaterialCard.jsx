@@ -185,6 +185,7 @@ function ModalEditarMaterial({ material, onFechar }) {
     estoqueMin: material.estoqueMin ?? 0,
     status: material.status || 'disponivel',
     observacao: material.observacao || '',
+    porQuantidade: material.porQuantidade === true,
   })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -235,6 +236,7 @@ function ModalEditarMaterial({ material, onFechar }) {
         metragem: form.metragem.trim() || null,
         estoqueAtual: Number(form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
+        porQuantidade: form.porQuantidade === true,
         status: form.status,
         observacao: form.observacao.trim() || null,
       })
@@ -339,6 +341,20 @@ function ModalEditarMaterial({ material, onFechar }) {
               <input type="number" min="0" value={form.estoqueMin} onChange={e => set('estoqueMin', e.target.value)} className="input" />
             </div>
           </div>
+
+          <label className="flex items-start gap-2 cursor-pointer rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={form.porQuantidade}
+              onChange={e => set('porQuantidade', e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded border-gray-300 text-brand-red focus:ring-brand-red flex-shrink-0"
+            />
+            <span className="text-xs text-gray-600">
+              <b className="text-brand-black block">Controlado por quantidade</b>
+              Para o que sai em várias unidades do mesmo cadastro (alambrado, fita, parafuso):
+              saem 10 de 50 e sobram 40. Sem marcar, o cadastro sai inteiro e volta inteiro.
+            </span>
+          </label>
 
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Status</label>

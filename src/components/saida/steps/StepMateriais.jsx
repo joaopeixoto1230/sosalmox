@@ -4,6 +4,7 @@ import ItemCard from '../ItemCard'
 import NovoMaterialModal from '../../estoque/NovoMaterialModal'
 import ScanPapelModal from '../ScanPapelModal'
 import { materialPorQuantidade } from '../../../utils/formatters'
+import { materialContado } from '../../estoque/contagem'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
@@ -19,7 +20,7 @@ export default function StepMateriais({ evento, itensSelecionados, onToggle, onQ
   function adicionarEscaneado(material, quantidade) {
     if (itensSelecionados.some(i => i.id === material.id)) return
     onToggle(material, 'add')
-    if (materialPorQuantidade(material) && quantidade > 1) {
+    if ((materialPorQuantidade(material) || materialContado(material)) && quantidade > 1) {
       onQuantidade(material.id, quantidade)
     }
   }

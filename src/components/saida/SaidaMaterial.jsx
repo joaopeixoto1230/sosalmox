@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { materialPorQuantidade } from '../../utils/formatters'
+import { materialContado } from '../estoque/contagem'
 import StepEvento from './steps/StepEvento'
 import StepGerador from './steps/StepGerador'
 import StepMateriais from './steps/StepMateriais'
@@ -130,7 +131,7 @@ export default function SaidaMaterial() {
   function handleToggleItem(material, acao) {
     setItensSelecionados(prev =>
       acao === 'add'
-        ? [...prev, materialPorQuantidade(material) ? { ...material, quantidade: 1 } : material]
+        ? [...prev, (materialPorQuantidade(material) || materialContado(material)) ? { ...material, quantidade: 1 } : material]
         : prev.filter(i => i.id !== material.id)
     )
   }

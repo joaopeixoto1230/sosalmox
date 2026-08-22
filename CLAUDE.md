@@ -151,9 +151,19 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   incluindo o ciclo completo saída → devolução → exclusão). O resto do sistema trata
   1 documento = 1 unidade (cada cabo é um doc, a saída zera o doc). Isso serve para cabo e
   ferramenta, não para fita e parafuso, que saem em quantidade do MESMO doc.
-  - `materialContado(m)`: só no grupo `uso_interno`, categorias Fitas/Fixação/EPI/Consumíveis
-    (ou, fora delas, quem tem mais de 1 na prateleira). **Material de evento não muda em nada**
-    — o guard de grupo existe para isso. "Protetor de cabo" segue de fora (regra própria).
+  - `materialContado(m)`: o campo **`porQuantidade: true`** (checkbox "Controlado por
+    quantidade" no cadastro e na edição do material) vale em QUALQUER grupo — é assim que o
+    **alambrado de proteção**, que é material de EVENTO, sai por quantidade. Sem o marcador,
+    conta por categoria só dentro do grupo `uso_interno` (Fitas/Fixação/EPI/Consumíveis, ou
+    quem tem mais de 1). Material de evento **sem o marcador não muda em nada**.
+    "Protetor de cabo" segue de fora (regra própria, não mexe em estoque).
+  - Fluxo de EVENTO: `patchSaidaEvento` desconta e **não** marca `em_evento` nem `eventoAtual`
+    no contado — prender o doc tiraria o resto da prateleira. `patchDevolucaoEvento` devolve a
+    quantidade só em ok/cortado (perdido e danificado não voltam).
+    - ⚠️ A devolução de evento pula item que não está `em_evento`; o contado **nunca** fica
+      `em_evento`, então cairia nesse buraco calado. O `if` só se aplica a material de unidade.
+    - ⚠️ Material que já estava `em_evento` saiu pela regra antiga: `patchDevolucaoEvento`
+      detecta isso e devolve inteiro, senão ficaria preso em `em_evento` para sempre.
   - `patchSaida` desconta e **só troca de status ao zerar**: senão a fita sumiria dos
     disponíveis tendo ainda 17 rolos. `patchEstorno` soma de volta a quantidade que saiu.
   - ⚠️ Aplicado nos QUATRO pontos que mexem no material: saída (`UsoInternoFlow`), adicionar

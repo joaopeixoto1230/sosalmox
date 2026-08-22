@@ -28,6 +28,7 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial, grupoFix
       estoqueAtual: 1,
       estoqueMin: 1,
       observacao: '',
+      porQuantidade: false,
     }
     if (!inicial) return base
     // Ignora campos vazios do inicial para nao sobrescrever os defaults com null/undefined.
@@ -93,6 +94,7 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial, grupoFix
         eventoAtual: null,
         estoqueAtual: Number(form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
+        porQuantidade: form.porQuantidade === true,
         observacao: form.observacao.trim() || null,
       }
       const ref = await addDoc(collection(db, 'materiais'), { ...dados, criadoEm: serverTimestamp() })
@@ -216,6 +218,21 @@ export default function NovoMaterialModal({ onFechar, onSalvo, inicial, grupoFix
                 onChange={e => set('estoqueMin', e.target.value)} className="input" />
             </div>
           </div>
+
+          <label className="flex items-start gap-2 cursor-pointer rounded-xl border border-gray-200 dark:border-gray-700 px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={form.porQuantidade}
+              onChange={e => set('porQuantidade', e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded border-gray-300 text-brand-red focus:ring-brand-red flex-shrink-0"
+            />
+            <span className="text-xs text-gray-600">
+              <b className="text-brand-black block">Controlado por quantidade</b>
+              Para o que sai em várias unidades do mesmo cadastro (alambrado, fita, parafuso):
+              saem 10 de 50 e sobram 40. Sem marcar, o cadastro sai inteiro e volta inteiro.
+            </span>
+          </label>
+
 
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">Observação</label>

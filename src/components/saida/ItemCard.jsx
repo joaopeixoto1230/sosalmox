@@ -7,6 +7,7 @@ import { useCollection } from '../../hooks/useFirestore'
 // Valor sentinela da opcao "criar categoria nova" no select de categoria.
 const NOVA_CATEGORIA = '__nova__'
 import { materialPorQuantidade } from '../../utils/formatters'
+import { materialContado } from '../estoque/contagem'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
@@ -31,10 +32,13 @@ export default function ItemCard({ material, evento, selecionado, quantidade, on
   const [editando, setEditando] = useState(false)
   const [editandoStatus, setEditandoStatus] = useState(false)
   const [detalhes, setDetalhes] = useState(false)
-  const ehQtd = materialPorQuantidade(material)
-  // Materiais por quantidade (protetor de cabo) nunca ficam indisponiveis:
-  // saem em varias unidades e nao prendem estoque a um evento.
-  const disponivel = ehQtd ? true : (material.status === 'disponivel' && material.estoqueAtual > 0)
+  const contado = materialContado(material)
+  const ehQtd = materialPorQuantidade(material) || contado
+  // Protetor de cabo nunca fica indisponivel (nao prende estoque). O contado
+  // (alambrado, fita) depende do que sobrou na prateleira.
+  const disponivel = materialPorQuantidade(material)
+    ? true
+    : (material.status === 'disponivel' && material.estoqueAtual > 0)
   const podeGerenciar = ['admin', 'gerente', 'almoxarife'].includes(tipoPerfil)
 
   async function excluir() {

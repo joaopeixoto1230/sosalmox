@@ -11,6 +11,7 @@ import {
 import { db } from '../../../firebase/config'
 import { useAuth } from '../../../contexts/AuthContext'
 import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/formatters'
+import { materialContado, patchSaidaEvento, estoqueDe } from '../../estoque/contagem'
 import { comprimirParaDataUrl } from '../../../utils/imagem'
 import { gerarDeclaracaoSublocacao } from '../../../utils/declaracaoSublocacao'
 import SignaturePad from '../../ui/SignaturePad'
@@ -102,6 +103,9 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         const atual = contSnap.exists() ? contSnap.data().ultimo : 0
         novoNumero = atual + 1
 
+        // Guarda o doc lido para calcular a baixa na hora de escrever: material
+        // contado (alambrado) desconta a quantidade em vez de ir inteiro.
+        const lidos = {}
         for (const item of itens) {
           // Materiais por quantidade (protetor de cabo) nao prendem estoque:
           // saem em varias unidades e seguem disponiveis para outros eventos.
@@ -113,6 +117,13 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           if (matData.status !== 'disponivel' || matData.estoqueAtual <= 0) {
             throw new Error(`${item.nome} não está mais disponível.`)
           }
+          if (materialContado(matData)) {
+            const pedido = Math.max(1, Number(item.quantidade) || 1)
+            if (pedido > estoqueDe(matData)) {
+              throw new Error(`${item.nome}: só há ${estoqueDe(matData)} em estoque.`)
+            }
+          }
+          lidos[item.id] = matData
         }
 
         // Cria o evento agora, dentro da transacao: so passa a existir se a
@@ -160,7 +171,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             nome: i.nome || null,
             codigo: i.codigo || null,
             categoria: i.categoria || null,
-            ...(materialPorQuantidade(i) ? { quantidade: i.quantidade || 1 } : {}),
+            ...((materialPorQuantidade(i) || materialContado(i)) ? { quantidade: i.quantidade || 1 } : {}),
           })),
           observacoes: observacoes || null,
           responsavelNome: responsavel || null,
@@ -176,12 +187,10 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           // Protetor de cabo nao vira "em_evento" nem zera estoque: continua
           // disponivel para novas saidas (controle so pela quantidade na OS).
           if (materialPorQuantidade(item)) continue
-          const matRef = doc(db, 'materiais', item.id)
-          tx.update(matRef, {
-            status: 'em_evento',
-            eventoAtual: eventoIdFinal,
-            estoqueAtual: 0,
-          })
+          tx.update(
+            doc(db, 'materiais', item.id),
+            patchSaidaEvento(lidos[item.id], item.quantidade || 1, eventoIdFinal),
+          )
         }
 
         const localEvento = evento
@@ -215,7 +224,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         itens: itens.map(i => ({
           nome: i.nome || null,
           codigo: i.codigo || null,
-          ...(materialPorQuantidade(i) ? { quantidade: i.quantidade || 1 } : {}),
+          ...((materialPorQuantidade(i) || materialContado(i)) ? { quantidade: i.quantidade || 1 } : {}),
         })),
         entregouNome: nome || null,
         entregouAssinatura: assinaturaEntregou || null,

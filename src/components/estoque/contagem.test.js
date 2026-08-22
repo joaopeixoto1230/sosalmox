@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { materialContado, patchSaida, patchEstorno, baixaPossivel } from './contagem'
+import { materialContado, patchSaida, patchEstorno, baixaPossivel, patchSaidaEvento, patchDevolucaoEvento } from './contagem'
 
 const fita = { grupo: 'uso_interno', categoria: 'Fitas', nome: 'Fita isolante', estoqueAtual: 20, estoqueMin: 1 }
 const furadeira = { grupo: 'uso_interno', categoria: 'Ferramentas Elétricas', nome: 'Furadeira', estoqueAtual: 1, estoqueMin: 1 }
@@ -16,9 +16,11 @@ describe('materialContado', () => {
     expect(materialContado(furadeira)).toBe(false)
   })
 
-  it('NÃO mexe em material de evento, seja qual for a categoria', () => {
-    // A regra vale só dentro do Material Interno, para o fluxo de evento
-    // (cabos, romaneio, devolução) continuar exatamente como sempre foi.
+  it('material de evento SEM o marcador não é contado, seja qual for a categoria', () => {
+    // Por categoria, a regra vale só dentro do Material Interno: assim cabo,
+    // romaneio e devolução de evento seguem exatamente como sempre foram.
+    // Material de evento só passa a contar com o marcador explícito
+    // `porQuantidade` (o caso do alambrado, mais abaixo).
     expect(materialContado(cabo)).toBe(false)
     expect(materialContado({ categoria: 'Fitas', estoqueAtual: 20 })).toBe(false)
   })
@@ -82,6 +84,75 @@ describe('patchEstorno', () => {
     const depoisDaSaida = { ...fita, ...patchSaida(fita, 4, 'emprestimo') }
     expect(depoisDaSaida.estoqueAtual).toBe(16)
     expect(patchEstorno(depoisDaSaida, 4).estoqueAtual).toBe(20)
+  })
+})
+
+// O alambrado é material de EVENTO e mesmo assim sai por quantidade. Por isso
+// existe o marcador explícito `porQuantidade`, que vale em qualquer grupo.
+const alambrado = {
+  nome: 'Alambrado de Proteção', categoria: 'Outros Materiais', tipo: 'Equipamento',
+  porQuantidade: true, estoqueAtual: 50, estoqueMin: 1,
+}
+
+describe('marcador porQuantidade (alambrado)', () => {
+  it('vale mesmo fora do Material Interno', () => {
+    expect(materialContado(alambrado)).toBe(true)
+  })
+
+  it('sem o marcador, material de evento continua sendo unidade', () => {
+    expect(materialContado({ ...alambrado, porQuantidade: false })).toBe(false)
+    expect(materialContado({ ...alambrado, porQuantidade: undefined })).toBe(false)
+  })
+
+  it('saída de evento desconta e NÃO prende o resto ao evento', () => {
+    // Prender o doc ao evento tiraria os outros 40 da prateleira.
+    expect(patchSaidaEvento(alambrado, 10, 'evt1')).toEqual({ estoqueAtual: 40 })
+  })
+
+  it('material de unidade continua indo inteiro para o evento', () => {
+    expect(patchSaidaEvento(cabo, 1, 'evt1'))
+      .toEqual({ status: 'em_evento', eventoAtual: 'evt1', estoqueAtual: 0 })
+  })
+
+  it('devolvendo em ordem, a quantidade volta para a prateleira', () => {
+    expect(patchDevolucaoEvento({ ...alambrado, estoqueAtual: 40 }, 10, 'ok'))
+      .toEqual({ estoqueAtual: 50 })
+  })
+
+  it('perdido e danificado NÃO voltam ao estoque contado', () => {
+    expect(patchDevolucaoEvento({ ...alambrado, estoqueAtual: 40 }, 10, 'perdido')).toBeNull()
+    expect(patchDevolucaoEvento({ ...alambrado, estoqueAtual: 40 }, 10, 'problema')).toBeNull()
+  })
+
+  it('devolução do material de unidade segue exatamente como era', () => {
+    expect(patchDevolucaoEvento(cabo, 1, 'ok'))
+      .toEqual({ status: 'disponivel', eventoAtual: null, estoqueAtual: 1 })
+    expect(patchDevolucaoEvento(cabo, 1, 'perdido')).toEqual({ status: 'perdido', eventoAtual: null })
+    expect(patchDevolucaoEvento(cabo, 1, 'problema')).toEqual({ status: 'manutencao', eventoAtual: null })
+    expect(patchDevolucaoEvento(cabo, 1, 'aguardando')).toBeNull()
+  })
+
+  it('material que já saiu pela regra antiga volta inteiro, mesmo marcado depois', () => {
+    // Alambrado que estava num evento ANTES de virar contado: o doc está
+    // em_evento com estoque 0. Tratá-lo como contado o deixaria preso em
+    // em_evento para sempre, fora da prateleira.
+    const jaEmEvento = { ...alambrado, status: 'em_evento', estoqueAtual: 0, eventoAtual: 'evt1' }
+    expect(patchDevolucaoEvento(jaEmEvento, 1, 'ok'))
+      .toEqual({ status: 'disponivel', eventoAtual: null, estoqueAtual: 1 })
+  })
+
+  it('ciclo do alambrado: 50 -> saem 10 -> saem 5 -> voltam 10 -> voltam 5', () => {
+    let doc = { ...alambrado }
+    doc = { ...doc, ...patchSaidaEvento(doc, 10, 'evt1') }
+    expect(doc.estoqueAtual).toBe(40)
+    doc = { ...doc, ...patchSaidaEvento(doc, 5, 'evt2') }
+    expect(doc.estoqueAtual).toBe(35)
+    doc = { ...doc, ...patchDevolucaoEvento(doc, 10, 'ok') }
+    expect(doc.estoqueAtual).toBe(45)
+    doc = { ...doc, ...patchDevolucaoEvento(doc, 5, 'ok') }
+    expect(doc.estoqueAtual).toBe(50)
+    // Nunca virou em_evento: os outros seguiram disponíveis o tempo todo.
+    expect(doc.status).toBeUndefined()
   })
 })
 
