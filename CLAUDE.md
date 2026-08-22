@@ -190,6 +190,16 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 - Categorias extras criadas pelo usuário são derivadas dos materiais DO MESMO grupo.
 - NovoMaterialModal e ModalEditarMaterial têm o seletor de grupo (mover material de grupo
   na edição é permitido); "+ Nova categoria…" continua nos dois grupos.
+- **Mover em lote** (`MoverGrupoModal.jsx` + botão "Mover itens de grupo" no topo do Estoque):
+  o grupo Material Interno nasceu DEPOIS do estoque, então fita, parafuso e EPI foram
+  cadastrados em "Outros Materiais", que é categoria do grupo de eventos — e a aba Material
+  Interno ficou vazia. A modal pré-marca o que parece uso interno (`sugestaoGrupo.js`, com
+  testes em `sugestaoGrupo.test.js`) mas **quem confirma é o usuário**: nada se move sozinho.
+  - Só o campo `grupo` muda. Status, quantidade e `eventoAtual` ficam intactos — é mudança de
+    prateleira, não movimentação de estoque —, por isso é reversível movendo de volta.
+  - `writeBatch` em lotes de 400 (o limite do Firestore é 500 operações por batch).
+  - ⚠️ A pré-marcação NUNCA pode pegar cabo: são centenas de docs e o estrago seria grande.
+    O teste cobre isso explicitamente ("NÃO marca material de evento de verdade").
 
 ### Eventos e Locações (`src/components/eventos/Eventos.jsx`)
 - ⚠️ **UM componente, DUAS portas do menu.** `/eventos` e `/locacoes` renderizam o MESMO

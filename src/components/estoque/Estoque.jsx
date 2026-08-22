@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useCollection } from '../../hooks/useFirestore'
 import MaterialCard from './MaterialCard'
 import NovoMaterialModal from './NovoMaterialModal'
+import MoverGrupoModal from './MoverGrupoModal'
 import { GRUPOS, grupoDoMaterial, categoriasDoGrupo } from './categorias'
 import { calcularEspecies, chaveEspecie, materialPorUnidade, materialEmEstoqueBaixo, contarEstoqueBaixo } from './estoqueEspecie'
 
@@ -25,6 +26,8 @@ export default function Estoque() {
   const [busca, setBusca] = useState('')
   const [apenasEstoqueBaixo, setApenasEstoqueBaixo] = useState(false)
   const [novoMaterialAberto, setNovoMaterialAberto] = useState(false)
+  const [moverAberto, setMoverAberto] = useState(false)
+  const [avisoMover, setAvisoMover] = useState('')
 
   // Materiais do grupo selecionado (doc sem `grupo` = eventos).
   const materiaisDoGrupo = useMemo(
@@ -108,6 +111,19 @@ export default function Estoque() {
         />
       )}
 
+      {moverAberto && (
+        <MoverGrupoModal
+          materiais={materiais}
+          origem={grupo}
+          onFechar={() => setMoverAberto(false)}
+          onSalvo={(quantos, destino) => {
+            setMoverAberto(false)
+            const nome = GRUPOS.find(g => g.value === destino)?.label || destino
+            setAvisoMover(`${quantos} ${quantos === 1 ? 'material movido' : 'materiais movidos'} para ${nome}.`)
+          }}
+        />
+      )}
+
       <div className="grid grid-cols-2 gap-1.5 bg-gray-100 rounded-2xl p-1.5">
         {GRUPOS.map(g => (
           <button
@@ -119,6 +135,18 @@ export default function Estoque() {
             {g.label}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap -mt-2">
+        {avisoMover
+          ? <p className="text-sm text-green-700 dark:text-green-400">{avisoMover}</p>
+          : <span />}
+        <button
+          onClick={() => { setAvisoMover(''); setMoverAberto(true) }}
+          className="text-xs font-semibold text-gray-500 hover:text-brand-red hover:underline"
+        >
+          Mover itens de grupo
+        </button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
