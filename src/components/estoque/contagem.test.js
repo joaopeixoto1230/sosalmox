@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { materialContado, patchSaida, patchEstorno, baixaPossivel, patchSaidaEvento, patchDevolucaoEvento } from './contagem'
+import { materialContado, patchSaida, patchEstorno, baixaPossivel, patchSaidaEvento, patchDevolucaoEvento, contadosDoEvento } from './contagem'
 
 const fita = { grupo: 'uso_interno', categoria: 'Fitas', nome: 'Fita isolante', estoqueAtual: 20, estoqueMin: 1 }
 const furadeira = { grupo: 'uso_interno', categoria: 'Ferramentas Elétricas', nome: 'Furadeira', estoqueAtual: 1, estoqueMin: 1 }
@@ -153,6 +153,34 @@ describe('marcador porQuantidade (alambrado)', () => {
     expect(doc.estoqueAtual).toBe(50)
     // Nunca virou em_evento: os outros seguiram disponíveis o tempo todo.
     expect(doc.status).toBeUndefined()
+  })
+})
+
+describe('contadosDoEvento', () => {
+  const materiais = [{ id: 'alb', ...alambrado }, { id: 'cab', ...cabo }]
+
+  it('soma a quantidade do contado espalhada por várias ordens', () => {
+    const ordens = [
+      { itens: [{ id: 'alb', quantidade: 10 }, { id: 'cab' }] },
+      { itens: [{ id: 'alb', quantidade: 5 }] },
+    ]
+    expect(contadosDoEvento(ordens, materiais)).toEqual([
+      { material: materiais[0], quantidade: 15 },
+    ])
+  })
+
+  it('ignora material de unidade — esse volta pelo eventoAtual, como sempre', () => {
+    expect(contadosDoEvento([{ itens: [{ id: 'cab' }] }], materiais)).toEqual([])
+  })
+
+  it('item sem quantidade conta como 1 (ordem antiga, de antes da mudança)', () => {
+    expect(contadosDoEvento([{ itens: [{ id: 'alb' }] }], materiais)[0].quantidade).toBe(1)
+  })
+
+  it('aguenta ordem sem itens, item sem id e material que foi excluído', () => {
+    expect(contadosDoEvento([{}, { itens: [] }, { itens: [{ quantidade: 3 }] }], materiais)).toEqual([])
+    expect(contadosDoEvento([{ itens: [{ id: 'sumiu', quantidade: 3 }] }], materiais)).toEqual([])
+    expect(contadosDoEvento(null, materiais)).toEqual([])
   })
 })
 

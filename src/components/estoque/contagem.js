@@ -104,6 +104,31 @@ export function patchDevolucaoEvento(dados, quantidade, statusDevolucao) {
   return null
 }
 
+/**
+ * Materiais CONTADOS que estão num evento, com a quantidade somada.
+ *
+ * O contado não fica `em_evento` nem ganha `eventoAtual` — o vínculo dele com o
+ * evento são os itens das ordens de saída. Toda tela que devolve material ao
+ * fim do evento (concluir, excluir, editar material) precisa passar por aqui,
+ * senão a quantidade fica fora da prateleira para sempre, sem aviso.
+ *
+ * @returns {{material: object, quantidade: number}[]}
+ */
+export function contadosDoEvento(ordens, materiais) {
+  const porId = new Map()
+  for (const ordem of ordens || []) {
+    for (const item of (ordem?.itens || [])) {
+      if (!item?.id) continue
+      const material = materiais.find(m => m.id === item.id)
+      if (!material || !materialContado(material)) continue
+      const atual = porId.get(item.id) || { material, quantidade: 0 }
+      atual.quantidade += Number(item.quantidade) || 1
+      porId.set(item.id, atual)
+    }
+  }
+  return [...porId.values()]
+}
+
 export function patchEstorno(dados, quantidade) {
   if (!materialContado(dados)) {
     return { status: 'disponivel', eventoAtual: null, estoqueAtual: 1 }

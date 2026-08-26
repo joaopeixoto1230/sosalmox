@@ -164,6 +164,16 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
       `em_evento`, então cairia nesse buraco calado. O `if` só se aplica a material de unidade.
     - ⚠️ Material que já estava `em_evento` saiu pela regra antiga: `patchDevolucaoEvento`
       detecta isso e devolve inteiro, senão ficaria preso em `em_evento` para sempre.
+  - ⚠️ **O contado NÃO tem `eventoAtual`** — o vínculo dele com o evento são os itens da
+    ordem de saída, com a quantidade. `contadosDoEvento(ordens, materiais)` é o único jeito
+    de achá-lo. Toda tela que devolve material ao fim do evento passa por lá: **concluir
+    evento, excluir evento e editar material do evento** (`Eventos.jsx`). Quem procurar só
+    por `where('eventoAtual','==',id)` deixa a quantidade fora da prateleira para sempre.
+    Na exclusão, devolver ANTES de apagar as ordens — a quantidade só existe lá.
+  - Editar material do evento: o contado tem campo de quantidade ao adicionar, mostra
+    "N no evento" e continua na lista de disponíveis enquanto sobra estoque (dá para mandar
+    mais depois). Adicionar grava o item na ordem de saída; sem isso a devolução não teria
+    de onde saber quanto devolver.
   - `patchSaida` desconta e **só troca de status ao zerar**: senão a fita sumiria dos
     disponíveis tendo ainda 17 rolos. `patchEstorno` soma de volta a quantidade que saiu.
   - ⚠️ Aplicado nos QUATRO pontos que mexem no material: saída (`UsoInternoFlow`), adicionar

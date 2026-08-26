@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, query, where, getDocs, writeBatch, runTransaction } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
+import { materialContado, patchSaidaEvento, estoqueDe, contadosDoEvento, patchEstorno } from '../estoque/contagem'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusEventoCor, statusEventoLabel, statusGeradorLabel } from '../../utils/formatters'
 import { gerarDeclaracaoSublocacao } from '../../utils/declaracaoSublocacao'
@@ -129,6 +130,26 @@ export default function Eventos({ filtroInicial = 'evento' }) {
       })
 
       const ordensSnap = await getDocs(query(collection(db, 'ordens_saida'), where('eventoId', '==', excluindo.id)))
+
+      // O contado (alambrado) não tem `eventoAtual`: a busca acima não o acha.
+      // A quantidade dele está nos itens das ordens — e elas são apagadas logo
+      // abaixo, então tem que ser devolvida ANTES de sumirem.
+      // Busca só os materiais citados nas ordens (esta tela não carrega o
+      // estoque inteiro, e não vale a pena carregar por causa da exclusão).
+      const idsCitados = [...new Set(
+        ordensSnap.docs.flatMap(d => (d.data().itens || []).map(it => it.id).filter(Boolean)),
+      )]
+      const citados = []
+      for (const id of idsCitados) {
+        const snap = await getDoc(doc(db, 'materiais', id))
+        if (snap.exists()) citados.push({ id: snap.id, ...snap.data() })
+      }
+      for (const { material, quantidade } of contadosDoEvento(
+        ordensSnap.docs.map(d => ({ id: d.id, ...d.data() })), citados,
+      )) {
+        batch.update(doc(db, 'materiais', material.id), patchEstorno(material, quantidade))
+      }
+
       ordensSnap.forEach(d => batch.delete(d.ref))
 
       // remove tambem as fotos das saidas (fotos_saida) dessas ordens
@@ -1186,10 +1207,22 @@ const STATUS_DEVOLUCAO = [
 
 function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
   const { dados: todosMateriais, carregando } = useCollection('materiais')
+  const { dados: todasOrdens } = useCollection('ordens_saida')
   const [statusMap, setStatusMap] = useState({})
   const [concluindo, setConcluindo] = useState(false)
 
-  const materiaisDoEvento = todosMateriais.filter(m => m.eventoAtual === evento.id)
+  // O contado (alambrado) não tem `eventoAtual` — sem buscá-lo nas ordens, a
+  // quantidade dele ficaria fora da prateleira para sempre ao concluir.
+  const contados = useMemo(
+    () => contadosDoEvento(todasOrdens.filter(o => o.eventoId === evento.id), todosMateriais),
+    [todasOrdens, todosMateriais, evento.id],
+  )
+  const qtdContada = id => contados.find(c => c.material.id === id)?.quantidade || 0
+
+  const materiaisDoEvento = [
+    ...todosMateriais.filter(m => m.eventoAtual === evento.id),
+    ...contados.map(c => ({ ...c.material, quantidadeNoEvento: c.quantidade })),
+  ]
 
   function getStatus(id) { return statusMap[id] || 'disponivel' }
   function setStatus(id, val) { setStatusMap(prev => ({ ...prev, [id]: val })) }
@@ -1207,7 +1240,16 @@ function ModalConcluirEvento({ evento, onFechar, onConcluido }) {
 
       materiaisDoEvento.forEach(m => {
         const novoStatus = getStatus(m.id)
-        batch.update(doc(db, 'materiais', m.id), {
+        const ref = doc(db, 'materiais', m.id)
+        if (materialContado(m)) {
+          // Contado: só a quantidade volta, e só quando o material voltou bem.
+          // Nada de mexer no status, senão o resto da prateleira sumiria.
+          if (novoStatus === 'disponivel') {
+            batch.update(ref, patchEstorno(m, qtdContada(m.id)))
+          }
+          return
+        }
+        batch.update(ref, {
           status: novoStatus,
           estoqueAtual: novoStatus === 'disponivel' ? 1 : 0,
           eventoAtual: null,
@@ -1305,9 +1347,27 @@ const CATEGORIAS_MAT = ['Todos', 'Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (
 
 function ModalEditarMaterialEvento({ evento, onFechar }) {
   const { dados: todosMateriais, carregando } = useCollection('materiais')
+  const { dados: todasOrdens } = useCollection('ordens_saida')
   const [busca, setBusca] = useState('')
   const [categoria, setCategoria] = useState('Todos')
   const [processando, setProcessando] = useState(null)
+  // Quantidade digitada por material contado, antes de adicionar.
+  const [quantidades, setQuantidades] = useState({})
+  const [erro, setErro] = useState('')
+
+  const ordensDoEvento = useMemo(
+    () => todasOrdens.filter(o => o.eventoId === evento.id),
+    [todasOrdens, evento.id],
+  )
+
+  // Material CONTADO (alambrado) não fica `em_evento` nem ganha `eventoAtual`:
+  // ele só perdeu quantidade, e o resto segue disponível. O vínculo com o
+  // evento são os itens da ordem de saída.
+  const contadosNoEvento = useMemo(
+    () => contadosDoEvento(ordensDoEvento, todosMateriais)
+      .map(({ material, quantidade }) => ({ ...material, quantidadeNoEvento: quantidade })),
+    [ordensDoEvento, todosMateriais],
+  )
 
   const categoriasFiltro = useMemo(() => {
     const extras = [...new Set(todosMateriais.map(m => m.categoria).filter(Boolean))]
@@ -1316,9 +1376,14 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
     return [...CATEGORIAS_MAT, ...extras]
   }, [todosMateriais])
 
-  const materiaisDoEvento = todosMateriais.filter(m => m.eventoAtual === evento.id)
+  const materiaisDoEvento = [
+    ...todosMateriais.filter(m => m.eventoAtual === evento.id),
+    ...contadosNoEvento,
+  ]
   const disponiveisFiltrados = todosMateriais.filter(m => {
-    if (m.status !== 'disponivel') return false
+    // Contado continua disponível enquanto sobra na prateleira, mesmo já tendo
+    // ido para este evento — dá para mandar mais 5 depois.
+    if (m.status !== 'disponivel' || (materialContado(m) && estoqueDe(m) <= 0)) return false
     if (categoria !== 'Todos' && m.categoria !== categoria) return false
     if (!busca) return true
     const q = busca.toLowerCase()
@@ -1353,18 +1418,74 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
 
   async function remover(material) {
     setProcessando(material.id)
+    setErro('')
     try {
-      await updateDoc(doc(db, 'materiais', material.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+      if (materialContado(material)) {
+        // Devolve à prateleira só o que estava neste evento, e tira o item das
+        // ordens (o estoque volta pelo total; o relatório perde a linha).
+        const volta = Number(material.quantidadeNoEvento) || 1
+        await runTransaction(db, async (tx) => {
+          const ref = doc(db, 'materiais', material.id)
+          const snap = await tx.get(ref)
+          if (!snap.exists()) throw new Error('Material não encontrado.')
+          tx.update(ref, { estoqueAtual: estoqueDe(snap.data()) + volta })
+        })
+      } else {
+        await updateDoc(doc(db, 'materiais', material.id), { status: 'disponivel', estoqueAtual: 1, eventoAtual: null })
+      }
       await propagarRemocaoNoRelatorio(material)
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error(e)
+      setErro(e.message || 'Não foi possível retirar o material.')
+    }
     finally { setProcessando(null) }
   }
 
   async function adicionar(material) {
     setProcessando(material.id)
+    setErro('')
     try {
-      await updateDoc(doc(db, 'materiais', material.id), { status: 'em_evento', estoqueAtual: 0, eventoAtual: evento.id })
-    } catch (e) { console.error(e) }
+      if (materialContado(material)) {
+        const pedido = Math.max(1, Number(quantidades[material.id]) || 1)
+        // O contado não guarda vínculo no próprio doc: o registro dele é o item
+        // da ordem de saída, com a quantidade. Sem isso a devolução não teria de
+        // onde saber quanto devolver, e o estoque vazaria em silêncio.
+        const ordem = ordensDoEvento[0]
+        if (!ordem) throw new Error('Este evento não tem ordem de saída para registrar a quantidade.')
+        await runTransaction(db, async (tx) => {
+          const matRef = doc(db, 'materiais', material.id)
+          const ordemRef = doc(db, 'ordens_saida', ordem.id)
+          const matSnap = await tx.get(matRef)
+          const ordemSnap = await tx.get(ordemRef)
+          if (!matSnap.exists()) throw new Error('Material não encontrado.')
+          if (!ordemSnap.exists()) throw new Error('Ordem de saída não encontrada.')
+          const dados = matSnap.data()
+          if (pedido > estoqueDe(dados)) throw new Error(`Só há ${estoqueDe(dados)} em estoque.`)
+          tx.update(matRef, patchSaidaEvento(dados, pedido, evento.id))
+          const itens = ordemSnap.data().itens || []
+          const jaTem = itens.find(it => it.id === material.id)
+          tx.update(ordemRef, {
+            itens: jaTem
+              ? itens.map(it => it.id === material.id
+                ? { ...it, quantidade: (Number(it.quantidade) || 1) + pedido }
+                : it)
+              : [...itens, {
+                id: material.id,
+                nome: material.nome || null,
+                codigo: material.codigo || null,
+                categoria: material.categoria || null,
+                quantidade: pedido,
+              }],
+          })
+        })
+        setQuantidades(prev => ({ ...prev, [material.id]: '' }))
+      } else {
+        await updateDoc(doc(db, 'materiais', material.id), { status: 'em_evento', estoqueAtual: 0, eventoAtual: evento.id })
+      }
+    } catch (e) {
+      console.error(e)
+      setErro(e.message || 'Não foi possível adicionar o material.')
+    }
     finally { setProcessando(null) }
   }
 
@@ -1405,7 +1526,12 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-brand-black truncate">{m.nome}</p>
-                      <p className="text-xs text-gray-500 font-mono">{m.codigo}</p>
+                      <p className="text-xs text-gray-500 font-mono">
+                        {m.codigo}
+                        {m.quantidadeNoEvento
+                          ? <span className="ml-2 font-sans text-brand-black">{m.quantidadeNoEvento} no evento</span>
+                          : null}
+                      </p>
                     </div>
                     <button
                       onClick={() => remover(m)}
@@ -1460,8 +1586,27 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-brand-black truncate">{m.nome}</p>
-                      <p className="text-xs text-gray-500 font-mono">{m.codigo}</p>
+                      <p className="text-xs text-gray-500 font-mono">
+                        {m.codigo}
+                        {materialContado(m) && (
+                          <span className="ml-2 font-sans">{estoqueDe(m)} em estoque</span>
+                        )}
+                      </p>
                     </div>
+                    {/* Material contado (alambrado) sai em quantidade: sem este
+                        campo so daria para mandar de um em um. */}
+                    {materialContado(m) && (
+                      <input
+                        type="number"
+                        min="1"
+                        max={estoqueDe(m)}
+                        value={quantidades[m.id] ?? ''}
+                        onChange={e => setQuantidades(prev => ({ ...prev, [m.id]: e.target.value }))}
+                        placeholder="1"
+                        aria-label={`Quantidade de ${m.nome}`}
+                        className="input w-16 text-center py-1 flex-shrink-0"
+                      />
+                    )}
                     <button
                       onClick={() => adicionar(m)}
                       disabled={processando === m.id}
@@ -1476,7 +1621,8 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
           </div>
         </div>
 
-        <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0">
+        <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0 space-y-2">
+          {erro && <p className="text-sm text-brand-red">{erro}</p>}
           <button onClick={onFechar} className="btn-primary w-full justify-center">Fechar</button>
         </div>
       </div>
