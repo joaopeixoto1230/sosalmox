@@ -226,6 +226,12 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   - Alerta se: 0 disponíveis; OU sobrou 1 tendo mais de 1 no acervo; OU ≤20% do total.
     Bitola de unidade única parada no pátio NÃO alerta (regra do João: "se está na
     empresa, não é estoque baixo").
+  - ⚠️ **CABO nunca alerta** (`categoriaDeCabo`, regra do João 27/08/2026: "cada cabo é
+    uma unidade" — 1 de 4 com o resto em evento é operação, não falta). Vale pela
+    CATEGORIA (contém "cabo"/"cable"/"rabicho": Cabos 4x/5x/Terra/(Geral), Jogos de
+    Cabo, Rabichos e as criadas pelo usuário). "Protetor de cabo" é categoria Outros
+    Materiais, então NÃO é pego — segue a regra de quantidade dele. Caixa de passagem,
+    QTA e extintor continuam alertando.
   - Consumíveis (protetor de cabo, fita, parafuso — `materialPorUnidade` = false) mantêm
     a regra clássica estoqueAtual/estoqueMin. Não unificar as duas regras.
   - O card mostra "X de Y" da bitola no lugar do antigo 1/1; o card de estatística conta

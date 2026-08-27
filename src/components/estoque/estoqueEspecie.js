@@ -10,6 +10,19 @@ import { materialPorQuantidade } from '../../utils/formatters'
 // Status que tiram a unidade do acervo: nao contam nem como total.
 const FORA_DO_ACERVO = ['perdido', 'consumido']
 
+// Regra do Joao (27/08/2026): CABO nao entra no alerta de estoque baixo.
+// Cada cabo e uma unidade; "1 de 4 disponiveis" com o resto em evento e
+// operacao normal, nao falta — o alerta enchia a tela de cabo trabalhando.
+// Vale pela CATEGORIA (Cabos 4x/5x/Terra/(Geral), Jogos de Cabo, Rabichos e
+// as criadas pelo usuario, como "Cabo 5x6"), entao "Protetor de cabo", que e
+// categoria Outros Materiais, continua com a regra dele.
+export function categoriaDeCabo(categoria) {
+  const c = String(categoria || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+  return c.includes('cabo') || c.includes('cable') || c.includes('rabicho')
+}
+
 // Material "por unidade": o doc representa um item fisico unico.
 // Consumiveis (protetor de cabo, parafuso 200/100, fita) seguem a regra
 // classica de quantidade — para eles estoqueAtual/estoqueMin faz sentido.
@@ -60,12 +73,14 @@ export function calcularEspecies(materiais) {
     if (!materialPorUnidade(m)) continue
     if (FORA_DO_ACERVO.includes(m.status)) continue
     const chave = chaveEspecie(m)
-    const especie = mapa.get(chave) || { total: 0, disponiveis: 0, rotulo: rotuloEspecie(m) }
+    const especie = mapa.get(chave) || { total: 0, disponiveis: 0, rotulo: rotuloEspecie(m), ehCabo: categoriaDeCabo(m.categoria) }
     especie.total += 1
     if (m.status === 'disponivel') especie.disponiveis += 1
     mapa.set(chave, especie)
   }
-  for (const especie of mapa.values()) especie.baixo = especieEstaBaixa(especie)
+  for (const especie of mapa.values()) {
+    especie.baixo = !especie.ehCabo && especieEstaBaixa(especie)
+  }
   return mapa
 }
 
