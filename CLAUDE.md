@@ -313,6 +313,15 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   fica no secret `ANTHROPIC_API_KEY` do Secret Manager e só usuário logado usa. A antiga
   `VITE_ANTHROPIC_API_KEY` no navegador foi aposentada em 27/08/2026 — NUNCA voltar a chamar
   a API direto do frontend. O scan de romaneio usa o mesmo proxy (teto de 4096 tokens).
+  - **Agente que AGE** (27/08/2026): o chat tem ferramentas (`agente/acoesAgente.js` = parte
+    PURA com testes — definições e resolução do pedido; `agente/ferramentas.js` = execução).
+    v1: `registrar_baixa_filtro` e `abrir_ordem_servico`. **NADA grava sem o usuário clicar
+    Confirmar** no `CardAcao` do chat; a escrita roda no NAVEGADOR com o login do usuário
+    (regras do Firestore e perfis valem — o proxy não escreve nada). Ferramentas filtradas
+    por `temPermissao`. As execuções replicam as transações de BaixaFiltroModal e NovaOS —
+    se a tela mudar de regra, mudar lá junto. Solicitação de compra ficou de FORA porque a
+    manual exige assinatura do solicitante (regra do João — não afrouxar sem falar com ele).
+    Ação pendente restaurada do histórico reabre como cancelada (o preparo vive só em memória).
 - Dark mode com toggle no header
 - Relatórios com abas Saídas / Devoluções / Condições
 

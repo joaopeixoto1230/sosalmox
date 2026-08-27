@@ -18,6 +18,7 @@ import { comprimirParaDataUrl } from '../../utils/imagem'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
 import { chamarClaude } from '../../utils/agenteApi'
+import { ferramentasDoPerfil, instrucaoFerramentas, prepararAcao } from './ferramentas'
 import { normalizarRef } from '../filtros/filtrosUtils'
 import {
   statusGeradorLabel,
@@ -96,6 +97,9 @@ function conteudoParaApi(m) {
 // Versao da mensagem que vai para o Firestore: sem base64, so a referencia do
 // anexo, para o documento nao estourar 1 MB.
 function mensagemParaFirestore(m) {
+  if (m.role === 'acao') {
+    return { role: 'acao', status: m.status || 'pendente', titulo: m.titulo || '', linhas: m.linhas || [], content: '' }
+  }
   return {
     role: m.role,
     content: m.content || '',
@@ -668,6 +672,43 @@ function useColecaoQuandoPermitido(colecao, permitido, restricoes) {
   return estado
 }
 
+// Card de confirmação de uma ação proposta pelo agente. Nada grava sem o
+// Confirmar — e o card vira o registro visual do que aconteceu.
+function CardAcao({ m, onConfirmar, onCancelar, carregando }) {
+  const pendente = m.status === 'pendente'
+  const cores = {
+    pendente: 'border-amber-300 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/30',
+    executada: 'border-green-300 bg-green-50 dark:border-green-900/60 dark:bg-green-950/30',
+    cancelada: 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40',
+    erro: 'border-red-300 bg-red-50 dark:border-red-900/60 dark:bg-red-950/30',
+  }
+  const selo = { executada: '✓ Executada', cancelada: 'Cancelada', erro: 'Falhou' }[m.status]
+  return (
+    <div className={`max-w-[85%] rounded-2xl border px-4 py-3 text-sm shadow-sm ${cores[m.status] || cores.pendente}`}>
+      <p className="font-semibold text-brand-black">⚡ {m.titulo}</p>
+      <ul className="mt-1.5 space-y-0.5">
+        {(m.linhas || []).map((linha, j) => (
+          <li key={j} className="text-xs text-gray-700">{linha}</li>
+        ))}
+      </ul>
+      {pendente ? (
+        <div className="flex gap-2 mt-3">
+          <button onClick={onCancelar} disabled={carregando}
+            className="flex-1 text-xs font-semibold py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:border-gray-400 transition-colors disabled:opacity-50">
+            Cancelar
+          </button>
+          <button onClick={onConfirmar} disabled={carregando}
+            className="flex-1 text-xs font-semibold py-1.5 rounded-lg bg-brand-red text-white hover:bg-brand-red-dark transition-colors disabled:opacity-50">
+            Confirmar
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs font-semibold mt-2 text-gray-500">{selo}</p>
+      )}
+    </div>
+  )
+}
+
 function systemPrompt(perfil, nomeUsuario, resumoDados) {
   const focos = {
     admin: 'Você tem acesso a tudo: materiais, filtros, geradores, manutenção, compras.',
@@ -802,6 +843,9 @@ export default function AgenteChat({ compact = false }) {
   const [anexo, setAnexo] = useState(null)
   const [erroAnexo, setErroAnexo] = useState('')
   const [historicoAberto, setHistoricoAberto] = useState(false)
+  // Ação proposta pelo modelo aguardando o Confirmar/Cancelar do usuário.
+  // Guarda o histórico da API para continuar a MESMA conversa com o tool_result.
+  const [acaoPendente, setAcaoPendente] = useState(null)
   const [conversas, setConversas] = useState([])
   const [carregandoHistorico, setCarregandoHistorico] = useState(false)
   const bottomRef = useRef(null)
@@ -941,7 +985,12 @@ export default function AgenteChat({ compact = false }) {
 
   function abrirConversa(conversa) {
     conversaIdRef.current = conversa.id
-    setMensagens(conversa.mensagens?.length ? conversa.mensagens : [saudacao(nome)])
+    // Ação que ficou pendente numa sessão antiga não tem mais como ser
+    // executada (o preparo vive só em memória): reabre como cancelada.
+    const restauradas = (conversa.mensagens || []).map(m =>
+      m.role === 'acao' && m.status === 'pendente' ? { ...m, status: 'cancelada' } : m)
+    setMensagens(restauradas.length ? restauradas : [saudacao(nome)])
+    setAcaoPendente(null)
     setAnexo(null)
     setErroAnexo('')
     setHistoricoAberto(false)
@@ -990,6 +1039,9 @@ export default function AgenteChat({ compact = false }) {
     // Atalho nunca leva anexo junto — o arquivo escolhido fica esperando o envio.
     const anexoEnviado = texto ? null : anexo
     if ((!msg && !anexoEnviado) || carregando) return
+    // Com uma ação aguardando Confirmar/Cancelar, a conversa fica em espera —
+    // seguir falando por cima deixaria a proposta órfã.
+    if (acaoPendente) return
     setInput('')
     if (anexoEnviado) setAnexo(null)
     const nova = { role: 'user', content: msg, ...(anexoEnviado ? { anexo: anexoEnviado } : {}) }
@@ -1017,6 +1069,10 @@ export default function AgenteChat({ compact = false }) {
         .slice(-10)
         .map(m => ({ role: m.role, content: conteudoParaApi(m) }))
 
+      const ferramentas = ferramentasDoPerfil(tipoPerfil)
+      const sistema = systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs, achadosMaterial].filter(Boolean).join('\n\n'))
+        + instrucaoFerramentas(ferramentas.map(f => f.name))
+
       // Via proxy na Cloud Function: a chave fica no Secret Manager, nunca no
       // navegador (utils/agenteApi.js).
       const data = await chamarClaude({
@@ -1024,13 +1080,111 @@ export default function AgenteChat({ compact = false }) {
         max_tokens: 800,
         // A ficha da OS depende da pergunta (qual OS/equipamento foi citado), entao
         // e montada aqui no envio, e nao no useMemo do resumo geral.
-        system: systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs, achadosMaterial].filter(Boolean).join('\n\n')),
+        system: sistema,
         messages: historico,
+        ...(ferramentas.length ? { tools: ferramentas, tool_choice: { type: 'auto', disable_parallel_tool_use: true } } : {}),
       })
-      const resposta = data.content?.[0]?.text || 'Sem resposta.'
-      setMensagens(prev => [...prev, { role: 'assistant', content: resposta }])
+
+      await tratarResposta(data, historico, sistema, ferramentas)
     } catch (e) {
       setMensagens(prev => [...prev, { role: 'assistant', content: `Erro ao conectar com o Agente: ${e.message}` }])
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  // Trata a resposta do modelo: texto normal, ou pedido de ferramenta. Quando o
+  // modelo chama uma ferramenta, a operação é MONTADA aqui, mas nada grava: o
+  // card de confirmação entra no chat e quem decide é o usuário.
+  async function tratarResposta(data, historico, sistema, ferramentas) {
+    const blocoTexto = data.content?.find(b => b.type === 'text')?.text || ''
+    const blocoTool = data.content?.find(b => b.type === 'tool_use')
+
+    if (!blocoTool) {
+      setMensagens(prev => [...prev, { role: 'assistant', content: blocoTexto || 'Sem resposta.' }])
+      return
+    }
+
+    const historicoApi = [...historico, { role: 'assistant', content: data.content }]
+    const preparo = prepararAcao(blocoTool.name, blocoTool.input || {}, {
+      filtros: carregandoFiltros || erroFiltros ? [] : filtros,
+      geradores: carregandoGeradores || erroGeradores ? [] : geradores,
+      veiculos: carregandoVeiculos || erroVeiculos ? [] : veiculos,
+      uid,
+      nomeUsuario: nome,
+    })
+
+    if (preparo.erro) {
+      // Nada a confirmar: devolve o problema ao modelo, que explica ao usuário.
+      await responderFerramenta(historicoApi, blocoTool.id, `ERRO: ${preparo.erro}`, sistema, ferramentas)
+      return
+    }
+
+    if (blocoTexto) setMensagens(prev => [...prev, { role: 'assistant', content: blocoTexto }])
+    // linhas como strings simples: Firestore não aceita array dentro de array.
+    setMensagens(prev => [...prev, { role: 'acao', status: 'pendente', titulo: preparo.titulo, linhas: preparo.linhas.map(([k, v]) => `${k}: ${v}`) }])
+    setAcaoPendente({ toolUseId: blocoTool.id, preparo, historicoApi, sistema, ferramentas })
+  }
+
+  // Fecha o ciclo da ferramenta: manda o tool_result e mostra a frase final.
+  async function responderFerramenta(historicoApi, toolUseId, resultado, sistema, ferramentas) {
+    const data = await chamarClaude({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      system: sistema,
+      messages: [...historicoApi, {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content: resultado }],
+      }],
+      ...(ferramentas.length ? { tools: ferramentas } : {}),
+    })
+    const texto = data.content?.find(b => b.type === 'text')?.text || resultado
+    setMensagens(prev => [...prev, { role: 'assistant', content: texto }])
+  }
+
+  function fecharAcao(status) {
+    setMensagens(prev => {
+      const proximo = [...prev]
+      for (let i = proximo.length - 1; i >= 0; i--) {
+        if (proximo[i].role === 'acao' && proximo[i].status === 'pendente') {
+          proximo[i] = { ...proximo[i], status }
+          break
+        }
+      }
+      return proximo
+    })
+  }
+
+  async function confirmarAcao() {
+    if (!acaoPendente || carregando) return
+    const { preparo, toolUseId, historicoApi, sistema, ferramentas } = acaoPendente
+    setCarregando(true)
+    try {
+      // A escrita roda no navegador com o login do usuário: as regras do
+      // Firestore e o perfil continuam valendo.
+      const resultado = await preparo.executar()
+      fecharAcao('executada')
+      setAcaoPendente(null)
+      await responderFerramenta(historicoApi, toolUseId, resultado, sistema, ferramentas)
+    } catch (e) {
+      fecharAcao('erro')
+      setAcaoPendente(null)
+      setMensagens(prev => [...prev, { role: 'assistant', content: `A operação falhou: ${e.message}` }])
+    } finally {
+      setCarregando(false)
+    }
+  }
+
+  async function cancelarAcao() {
+    if (!acaoPendente || carregando) return
+    const { toolUseId, historicoApi, sistema, ferramentas } = acaoPendente
+    fecharAcao('cancelada')
+    setAcaoPendente(null)
+    setCarregando(true)
+    try {
+      await responderFerramenta(historicoApi, toolUseId, 'O usuário CANCELOU a operação. Nada foi gravado.', sistema, ferramentas)
+    } catch {
+      setMensagens(prev => [...prev, { role: 'assistant', content: 'Operação cancelada. Nada foi gravado.' }])
     } finally {
       setCarregando(false)
     }
@@ -1131,6 +1285,11 @@ export default function AgenteChat({ compact = false }) {
 
       <div style={{ flex: '1 1 0', minHeight: 0, overflowY: 'auto' }} className="space-y-3 pr-1 pb-2">
         {mensagens.map((m, i) => (
+          m.role === 'acao' ? (
+            <div key={i} className="flex justify-start">
+              <CardAcao m={m} onConfirmar={confirmarAcao} onCancelar={cancelarAcao} carregando={carregando} />
+            </div>
+          ) : (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] ${m.role === 'user' ? 'bg-brand-red text-white' : 'bg-white border border-gray-100 text-brand-black'} rounded-2xl px-4 py-3 text-sm shadow-sm`}>
               {(m.anexo || m.anexoNome) && (
@@ -1162,6 +1321,7 @@ export default function AgenteChat({ compact = false }) {
               )}
             </div>
           </div>
+          )
         ))}
         {carregando && (
           <div className="flex justify-start">
