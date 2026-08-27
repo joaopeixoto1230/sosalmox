@@ -41,17 +41,25 @@ const TEXTOS = {
   },
 }
 
-export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento' }) {
-  const [form, setForm] = useState({ nome: '', local: '', data: '' })
+export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento', inicial = null }) {
+  // `inicial` vem do Agente IA: preenche o passo 1, tudo segue editável.
+  const [form, setForm] = useState({
+    nome: inicial?.nome || '',
+    local: inicial?.local || '',
+    data: inicial?.data || '',
+  })
   // Só o Evento tem previsão de devolução: locação e sublocação ficam com o
   // cliente por tempo indeterminado, até o encerramento do contrato.
   // Sugere a próxima segunda — o evento é no fim de semana e o material volta
   // na segunda. O campo `data` NÃO serve de base: ele guarda o dia do
   // lançamento da saída, não o dia do evento.
-  const [previsao, setPrevisao] = useState(() => proximaSegunda(hojeISO()))
-  const [operador, setOperador] = useState('')
-  const [outroNome, setOutroNome] = useState('')
-  const [mostrarOutro, setMostrarOutro] = useState(false)
+  const [previsao, setPrevisao] = useState(() => inicial?.previsao || proximaSegunda(hojeISO()))
+  // Responsável do prefill: se está na lista, seleciona o botão; senão entra
+  // como "+ Outro" com o nome digitado.
+  const daLista = inicial?.responsavel && OPERADORES.includes(inicial.responsavel)
+  const [operador, setOperador] = useState(daLista ? inicial.responsavel : '')
+  const [outroNome, setOutroNome] = useState(!daLista && inicial?.responsavel ? inicial.responsavel : '')
+  const [mostrarOutro, setMostrarOutro] = useState(!!(!daLista && inicial?.responsavel))
   // Sublocacao: quem retira e de FORA da SOS, entao o nome e digitado (nunca a
   // lista de operadores). Documento e telefone sao OBRIGATORIOS — o material sai
   // com estranho e esses dados sao o respaldo se nao voltar.

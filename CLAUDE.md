@@ -315,7 +315,9 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   a API direto do frontend. O scan de romaneio usa o mesmo proxy (teto de 4096 tokens).
   - **Agente que AGE** (27/08/2026): o chat tem ferramentas (`agente/acoesAgente.js` = parte
     PURA com testes — definições e resolução do pedido; `agente/ferramentas.js` = execução).
-    v1: `registrar_baixa_filtro` e `abrir_ordem_servico`. **NADA grava sem o usuário clicar
+    v1: `registrar_baixa_filtro`, `abrir_ordem_servico` e `iniciar_saida_material` (esta NÃO
+    grava: deixa o passo 1 da Saída pronto via `sessionStorage.agentePrefillSaida` e navega —
+    materiais, romaneio e ASSINATURAS seguem na tela, porque assinatura é obrigatória). **NADA grava sem o usuário clicar
     Confirmar** no `CardAcao` do chat; a escrita roda no NAVEGADOR com o login do usuário
     (regras do Firestore e perfis valem — o proxy não escreve nada). Ferramentas filtradas
     por `temPermissao`. As execuções replicam as transações de BaixaFiltroModal e NovaOS —

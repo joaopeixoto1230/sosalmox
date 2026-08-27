@@ -21,10 +21,21 @@ export { ferramentasDoPerfil, instrucaoFerramentas } from './acoesAgente'
 export function prepararAcao(nomeFerramenta, entrada, ctx) {
   const r = resolverAcao(nomeFerramenta, entrada, ctx)
   if (r.erro) return r
-  const executar = nomeFerramenta === 'registrar_baixa_filtro'
-    ? () => executarBaixaFiltro(r.dados, ctx)
-    : () => executarAbrirOS(r.dados, ctx)
-  return { ...r, executar }
+  const executores = {
+    registrar_baixa_filtro: () => executarBaixaFiltro(r.dados, ctx),
+    abrir_ordem_servico: () => executarAbrirOS(r.dados, ctx),
+    iniciar_saida_material: () => executarIniciarSaida(r.dados, ctx),
+  }
+  return { ...r, executar: executores[nomeFerramenta] }
+}
+
+// Não grava nada: deixa o passo 1 pronto e leva o usuário para a tela de
+// Saída, onde o fluxo segue normal (materiais, romaneio, assinaturas).
+// sessionStorage porque o prefill é de uso único e morre com a aba.
+async function executarIniciarSaida({ prefill }, { navegar }) {
+  sessionStorage.setItem('agentePrefillSaida', JSON.stringify(prefill))
+  navegar?.('/saida')
+  return `Tela de Saída de Material aberta com o passo 1 preenchido (${prefill.nome}). O usuário continua de lá: materiais, romaneio e assinaturas.`
 }
 
 async function executarBaixaFiltro({ filtro, qtd, motivo }, { filtros, uid, nomeUsuario }) {

@@ -16,6 +16,7 @@ import {
 import { db } from '../../firebase/config'
 import { comprimirParaDataUrl } from '../../utils/imagem'
 import { useAuth } from '../../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import { useCollection } from '../../hooks/useFirestore'
 import { chamarClaude } from '../../utils/agenteApi'
 import { ferramentasDoPerfil, instrucaoFerramentas, prepararAcao } from './ferramentas'
@@ -842,6 +843,7 @@ export default function AgenteChat({ compact = false }) {
   const [ouvindo, setOuvindo] = useState(false)
   const [anexo, setAnexo] = useState(null)
   const [erroAnexo, setErroAnexo] = useState('')
+  const navegar = useNavigate()
   const [historicoAberto, setHistoricoAberto] = useState(false)
   // Ação proposta pelo modelo aguardando o Confirmar/Cancelar do usuário.
   // Guarda o histórico da API para continuar a MESMA conversa com o tool_result.
@@ -1112,6 +1114,7 @@ export default function AgenteChat({ compact = false }) {
       veiculos: carregandoVeiculos || erroVeiculos ? [] : veiculos,
       uid,
       nomeUsuario: nome,
+      navegar,
     })
 
     if (preparo.erro) {

@@ -1,4 +1,5 @@
 import { MODULOS, temPermissao } from '../../utils/permissions'
+import { OPERADORES } from '../../utils/operadores'
 import { normalizar } from '../estoque/sugestaoGrupo'
 
 // ===== Ações do agente que AGE — parte PURA =====
@@ -40,6 +41,24 @@ export const DEFINICOES = [
         mecanico: { type: 'string', description: 'Mecânico responsável, se o usuário citou (Nilton Fernandes, Fabio Alves ou Andre França)' },
       },
       required: ['equipamento', 'tipo', 'descricao'],
+    },
+  },
+  {
+    name: 'iniciar_saida_material',
+    modulo: MODULOS.SAIDA,
+    description:
+      'Abre a tela de Saída de Material com o passo 1 já preenchido (modalidade, evento/cliente, local, data, responsável, previsão de devolução). A saída NÃO é gravada por aqui: o usuário continua na tela — escolhe os materiais e geradores, confere o romaneio e colhe as assinaturas obrigatórias. Use quando o usuário pedir para abrir/lançar/criar uma saída de material.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        modalidade: { type: 'string', enum: ['evento', 'locacao_mensal', 'sublocacao'], description: 'Tipo da saída' },
+        nome: { type: 'string', description: 'Nome do evento (ou do cliente/contrato, em locação e sublocação)' },
+        local: { type: 'string', description: 'Local do evento/obra, se o usuário citou' },
+        data: { type: 'string', description: 'Data da saída: AAAA-MM-DD, "hoje" ou "amanhã"' },
+        previsao_devolucao: { type: 'string', description: 'Previsão de devolução do material (só para evento): AAAA-MM-DD, "hoje" ou "amanhã"' },
+        responsavel: { type: 'string', description: 'Quem leva o material, se o usuário citou' },
+      },
+      required: ['modalidade', 'nome'],
     },
   },
 ]
@@ -113,7 +132,65 @@ function acharEquipamento(geradores, veiculos, texto) {
 export function resolverAcao(nomeFerramenta, entrada, ctx) {
   if (nomeFerramenta === 'registrar_baixa_filtro') return resolverBaixaFiltro(entrada, ctx)
   if (nomeFerramenta === 'abrir_ordem_servico') return resolverAbrirOS(entrada, ctx)
+  if (nomeFerramenta === 'iniciar_saida_material') return resolverIniciarSaida(entrada, ctx)
   return { erro: `Ferramenta desconhecida: ${nomeFerramenta}` }
+}
+
+// "hoje"/"amanhã", AAAA-MM-DD ou DD/MM[/AAAA] -> AAAA-MM-DD (null se não der).
+export function resolverData(texto, hoje = new Date()) {
+  const t = normalizar(texto)
+  if (!t) return null
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  if (t === 'hoje') return iso(hoje)
+  if (t === 'amanha') { const d = new Date(hoje); d.setDate(d.getDate() + 1); return iso(d) }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t
+  const br = t.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/)
+  if (br) {
+    const ano = br[3] ? (br[3].length === 2 ? `20${br[3]}` : br[3]) : String(hoje.getFullYear())
+    return `${ano}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`
+  }
+  return null
+}
+
+const TIPO_SAIDA = { evento: 'evento', locacao_mensal: 'locacao', sublocacao: 'sublocacao' }
+const NOME_MODALIDADE = { evento: 'Evento', locacao_mensal: 'Locação Mensal', sublocacao: 'Sublocação' }
+
+function resolverIniciarSaida(entrada, ctx = {}) {
+  const tipoSaida = TIPO_SAIDA[entrada.modalidade]
+  if (!tipoSaida) return { erro: 'Modalidade deve ser evento, locacao_mensal ou sublocacao.' }
+  const nome = String(entrada.nome || '').trim()
+  if (!nome) return { erro: 'Falta o nome do evento (ou do cliente).' }
+
+  const hoje = ctx.hoje || new Date()
+  const data = resolverData(entrada.data, hoje)
+  const previsao = tipoSaida === 'evento' ? resolverData(entrada.previsao_devolucao, hoje) : null
+
+  // Responsável casa com a lista de operadores; sem casar, vai como nome livre
+  // (o "+ Outro" da tela). Mais de um casando é pergunta, não escolha nossa.
+  let responsavel = String(entrada.responsavel || '').trim()
+  if (responsavel && tipoSaida !== 'sublocacao') {
+    const busca = normalizar(responsavel)
+    const casados = OPERADORES.filter(op => busca.split(/\s+/).every(p => normalizar(op).includes(p)))
+    if (casados.length === 1) responsavel = casados[0]
+    else if (casados.length > 1) {
+      return { erro: `Mais de um operador casa com "${entrada.responsavel}": ${casados.join('; ')}. Pergunte qual.` }
+    }
+  }
+
+  return {
+    titulo: 'Abrir Saída de Material preenchida',
+    linhas: [
+      ['Modalidade', NOME_MODALIDADE[entrada.modalidade]],
+      [tipoSaida === 'evento' ? 'Evento' : 'Cliente', nome],
+      ['Local', entrada.local?.trim() || 'preencher na tela'],
+      ['Data', data || 'preencher na tela'],
+      ...(tipoSaida === 'evento' ? [['Previsão de devolução', previsao || 'sugerida na tela']] : []),
+      ['Responsável', responsavel || 'escolher na tela'],
+    ],
+    // A tela é aberta com isso preenchido; materiais, romaneio e assinaturas
+    // continuam no fluxo normal — nada é gravado por aqui.
+    dados: { prefill: { tipoSaida, nome, local: entrada.local?.trim() || '', data, previsao, responsavel } },
+  }
 }
 
 function resolverBaixaFiltro(entrada, { filtros }) {

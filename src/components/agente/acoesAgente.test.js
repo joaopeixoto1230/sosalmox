@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolverAcao, ferramentasDoPerfil } from './acoesAgente'
+import { resolverAcao, ferramentasDoPerfil, resolverData } from './acoesAgente'
 
 const filtros = [
   { id: 'f1', nome: 'Filtro de Óleo 1', referencia: 'WO-950', potenciaGG: '110kVA', quantidadeAtual: 8, estoqueMin: 2 },
@@ -80,10 +80,10 @@ describe('abrir_ordem_servico — resolução', () => {
 describe('ferramentasDoPerfil', () => {
   it('cada perfil só recebe as ferramentas dos módulos que pode usar', () => {
     const nomes = perfil => ferramentasDoPerfil(perfil).map(f => f.name)
-    expect(nomes('admin')).toEqual(['registrar_baixa_filtro', 'abrir_ordem_servico'])
-    // França (mecânico) tem filtros e manutenção
+    expect(nomes('admin')).toEqual(['registrar_baixa_filtro', 'abrir_ordem_servico', 'iniciar_saida_material'])
+    // França (mecânico) tem filtros e manutenção, mas NÃO tem saída
     expect(nomes('franca')).toEqual(['registrar_baixa_filtro', 'abrir_ordem_servico'])
-    // compras não mexe em filtros nem manutenção: sem ferramentas
+    // compras não mexe em filtros, manutenção nem saída: sem ferramentas
     expect(nomes('compras')).toEqual([])
   })
 
@@ -91,5 +91,58 @@ describe('ferramentasDoPerfil', () => {
     for (const f of ferramentasDoPerfil('admin')) {
       expect(Object.keys(f).sort()).toEqual(['description', 'input_schema', 'name'])
     }
+  })
+})
+
+describe('iniciar_saida_material — resolução', () => {
+  const hoje = new Date(2026, 7, 27) // 27/08/2026
+  const ctxSaida = { hoje }
+
+  it('o pedido do print: evento CCUG, joão felipe, de hoje até amanhã', () => {
+    const r = resolverAcao('iniciar_saida_material', {
+      modalidade: 'evento', nome: 'CCUG', responsavel: 'joao felipe',
+      data: 'hoje', previsao_devolucao: 'amanhã',
+    }, ctxSaida)
+    expect(r.erro).toBeUndefined()
+    expect(r.dados.prefill).toMatchObject({
+      tipoSaida: 'evento',
+      nome: 'CCUG',
+      data: '2026-08-27',
+      previsao: '2026-08-28',
+      responsavel: 'João Felipe Peixoto', // resolvido da lista de operadores
+    })
+  })
+
+  it('locação mensal usa o tipo interno "locacao" e não tem previsão', () => {
+    const r = resolverAcao('iniciar_saida_material', {
+      modalidade: 'locacao_mensal', nome: 'Construtora Alfa', previsao_devolucao: 'amanhã',
+    }, ctxSaida)
+    expect(r.dados.prefill.tipoSaida).toBe('locacao')
+    expect(r.dados.prefill.previsao).toBeNull()
+  })
+
+  it('responsável ambíguo vira pergunta (Maycon Teixeira × Maykon Souza não confundem)', () => {
+    // "maycon" so casa com um (grafias diferentes); "ma" casaria com varios
+    const um = resolverAcao('iniciar_saida_material', { modalidade: 'evento', nome: 'X', responsavel: 'maycon' }, ctxSaida)
+    expect(um.erro).toBeUndefined()
+    expect(um.dados.prefill.responsavel).toBe('Maycon Teixeira')
+  })
+
+  it('responsável fora da lista vai como nome livre, sem inventar match', () => {
+    const r = resolverAcao('iniciar_saida_material', { modalidade: 'evento', nome: 'X', responsavel: 'Carlos Visitante' }, ctxSaida)
+    expect(r.dados.prefill.responsavel).toBe('Carlos Visitante')
+  })
+
+  it('datas em vários formatos; ilegível fica para a tela', () => {
+    expect(resolverData('2026-09-01')).toBe('2026-09-01')
+    expect(resolverData('01/09/2026')).toBe('2026-09-01')
+    expect(resolverData('1/9', hoje)).toBe('2026-09-01')
+    expect(resolverData('semana que vem', hoje)).toBeNull()
+    expect(resolverData('', hoje)).toBeNull()
+  })
+
+  it('sem nome ou com modalidade inválida, erro explicável', () => {
+    expect(resolverAcao('iniciar_saida_material', { modalidade: 'evento', nome: '  ' }, ctxSaida).erro).toBeTruthy()
+    expect(resolverAcao('iniciar_saida_material', { modalidade: 'aluguel', nome: 'X' }, ctxSaida).erro).toBeTruthy()
   })
 })

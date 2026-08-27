@@ -119,7 +119,20 @@ function Stepper({ passos, passoAtual, podeProsseguir, onVoltar, onAvancar }) {
 }
 
 export default function SaidaMaterial() {
-  const [tipoSaida, setTipoSaida] = useState(null) // null | 'evento' | 'locacao' | 'uso_interno'
+  // Prefill vindo do Agente IA ("abra uma saída para o evento X..."): só o
+  // passo 1 vem pronto; materiais, romaneio e assinaturas seguem o fluxo normal.
+  // Uso único — sai do sessionStorage na leitura.
+  const [prefillAgente] = useState(() => {
+    try {
+      const bruto = sessionStorage.getItem('agentePrefillSaida')
+      if (!bruto) return null
+      sessionStorage.removeItem('agentePrefillSaida')
+      return JSON.parse(bruto)
+    } catch {
+      return null
+    }
+  })
+  const [tipoSaida, setTipoSaida] = useState(prefillAgente?.tipoSaida || null) // null | 'evento' | 'locacao' | 'uso_interno'
   const [passo, setPasso] = useState(0)
   const [evento, setEvento] = useState(null)
   const [geradores, setGeradores] = useState([])
@@ -227,6 +240,7 @@ export default function SaidaMaterial() {
       {passo === 0 && (
         <StepEvento
           modo={ehSublocacao ? 'sublocacao' : ehLocacao ? 'locacao' : 'evento'}
+          inicial={prefillAgente}
           onSelecionar={(evt) => { setEvento(evt); setPasso(1) }}
           onResponsavel={setResponsavel}
         />
