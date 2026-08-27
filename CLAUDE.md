@@ -89,9 +89,8 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 - Edição de gerador liberada para almoxarife e mecânico
 - DetalheGG: edição inclui a **Ficha técnica (placas)** — motor, alternador, tensão,
   frequência, fator de potência e números de série (antes os campos só eram exibidos).
-- Botão de migração **"Aplicar dados das placas"** no GG-015 (admin, some após aplicar —
-  mesmo padrão do "+ Filtros 700kVA"). Código temporário em `DetalheGG.jsx`
-  (`PLACA_GG15`): pode ser removido depois que o João aplicar.
+- O GG-015 foi atualizado com os dados das placas físicas (BRG Geradores SLIM 110, 110kVA)
+  via botão de migração temporário, já aplicado e removido do código em 27/08/2026.
 
 ### Saída de Material (`src/components/saida/`)
 - Passo inicial **Tipo de Saída** com QUATRO cards (grade 2×2). Não remover o seletor:
