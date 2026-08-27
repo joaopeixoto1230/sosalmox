@@ -3,6 +3,7 @@ import DatePicker from '../../ui/DatePicker'
 import { OPERADORES } from '../../../utils/operadores'
 // Mesma função usada pelo painel, para não existirem duas versões da regra.
 import { proximaSegunda, hojeISO } from '../../dashboard/pendencias'
+import { mascaraCNPJ, mascaraDocumento, mascaraTelefone } from '../../../utils/mascaras'
 
 const TEXTOS = {
   evento: {
@@ -169,7 +170,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
               <label className="block text-sm font-medium text-gray-700 mb-1">CNPJ da empresa *</label>
               <input
                 value={empresaCnpj}
-                onChange={e => setEmpresaCnpj(e.target.value)}
+                onChange={e => setEmpresaCnpj(mascaraCNPJ(e.target.value))}
                 placeholder="00.000.000/0000-00"
                 className="input"
                 inputMode="numeric"
@@ -196,7 +197,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
                 <label className="block text-sm font-medium text-gray-700 mb-1">Documento *</label>
                 <input
                   value={retirante.documento}
-                  onChange={e => setRetirante(p => ({ ...p, documento: e.target.value }))}
+                  onChange={e => setRetirante(p => ({ ...p, documento: mascaraDocumento(e.target.value) }))}
                   placeholder="RG ou CPF"
                   className="input"
                 />
@@ -205,7 +206,7 @@ export default function StepEvento({ onSelecionar, onResponsavel, modo = 'evento
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telefone *</label>
                 <input
                   value={retirante.telefone}
-                  onChange={e => setRetirante(p => ({ ...p, telefone: e.target.value }))}
+                  onChange={e => setRetirante(p => ({ ...p, telefone: mascaraTelefone(e.target.value) }))}
                   placeholder="(00) 00000-0000"
                   className="input"
                   inputMode="tel"
