@@ -176,14 +176,21 @@ async function gerarLeituraIA(b) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
+        // Uma chamada por dia: usa o Sonnet, que escreve bem melhor que o
+        // Haiku — o e-mail anterior saiu com erros de portugues.
+        model: 'claude-sonnet-5',
+        max_tokens: 400,
         system:
-          'Voce e o assistente do almoxarifado da SOS Energia (locacao de geradores). ' +
-          'Escreva a leitura do dia para o dono, Joao, com base APENAS nos fatos fornecidos: ' +
-          '3 a 5 frases curtas em portugues, tom direto de colega de trabalho, destacando o que ' +
-          'merece atencao hoje e o que esta em ordem. Sem saudacao, sem markdown, sem listas. ' +
-          'Se nao houve movimento, diga isso em uma frase e aponte o que segue pendente.',
+          'Você é o gestor de operações sênior de uma grande empresa de locação de geradores ' +
+          'de energia (SOS Energia, Brasília). Todo dia às 7h você escreve para o dono, João, ' +
+          'a leitura executiva do dia com base APENAS nos fatos fornecidos — nunca invente ' +
+          'números nem itens. Estruture em 4 a 6 frases corridas: como foi o dia anterior; ' +
+          'os riscos e prioridades de hoje; e feche com uma recomendação prática de decisão ' +
+          '(o que atacar primeiro e o que pode esperar). Pense como gestor: impacto na ' +
+          'operação, evento sem material, máquina parada, compra que não pode atrasar. ' +
+          'Português impecável (pt-BR, acentuação correta), tom direto e profissional. ' +
+          'Sem saudação, sem markdown, sem listas. Se não houve movimento, diga em uma frase ' +
+          'e aproveite para apontar o que segue pendente.',
         messages: [{ role: 'user', content: fatos }],
       }),
     })
