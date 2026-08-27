@@ -308,7 +308,11 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   lançado um a um, o botão vira "Encerrar devolução do evento" (fecha ordens/geradores/evento).
   Status "Parcial" não lança sozinho — parcial significa que ainda falta voltar.
 - Compras: fila de solicitações, nova solicitação manual
-- Agente IA (Claude Haiku via `VITE_ANTHROPIC_API_KEY`), botão flutuante em todas as telas
+- Agente IA (Claude Haiku), botão flutuante em todas as telas. **Toda chamada de IA passa
+  pelo proxy `agente` em `functions/index.js`** (`utils/agenteApi.js` no frontend): a chave
+  fica no secret `ANTHROPIC_API_KEY` do Secret Manager e só usuário logado usa. A antiga
+  `VITE_ANTHROPIC_API_KEY` no navegador foi aposentada em 27/08/2026 — NUNCA voltar a chamar
+  a API direto do frontend. O scan de romaneio usa o mesmo proxy (teto de 4096 tokens).
 - Dark mode com toggle no header
 - Relatórios com abas Saídas / Devoluções / Condições
 

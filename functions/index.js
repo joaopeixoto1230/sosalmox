@@ -157,6 +157,83 @@ async function enviarBriefing() {
   logger.info(`Briefing diário enviado para ${DESTINATARIO} (movimento: ${b.houveMovimento})`)
 }
 
+// ===== Proxy do Agente IA =====
+// O chat e o escaneamento de romaneio chamavam a API da Anthropic direto do
+// navegador, com a chave embutida no bundle (VITE_ANTHROPIC_API_KEY) — qualquer
+// pessoa que abrisse o site conseguia extrair a chave e gastar por fora.
+// Este proxy guarda a chave no Secret Manager e só atende usuário logado no
+// sistema (Firebase Auth). O frontend chama via utils/agenteApi.js.
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY')
+
+// Trava contra uso da função por fora do app: só os modelos que o sistema usa,
+// e um teto de tokens por resposta.
+const MODELOS_PERMITIDOS = ['claude-haiku-4-5-20251001', 'claude-sonnet-5']
+const MAX_TOKENS_TETO = 4096 // o scan de romaneio usa 4000
+const ORIGENS_PERMITIDAS = [
+  'https://sos-almox.web.app',
+  'https://sos-almox.firebaseapp.com',
+  'http://localhost:5173',
+]
+
+exports.agente = onRequest(
+  { region: 'us-central1', secrets: [ANTHROPIC_API_KEY], cors: ORIGENS_PERMITIDAS, timeoutSeconds: 120 },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: { message: 'Use POST.' } })
+      return
+    }
+
+    // Só usuário autenticado no sistema usa a chave.
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '')
+    let usuario
+    try {
+      usuario = await admin.auth().verifyIdToken(token)
+    } catch {
+      res.status(401).json({ error: { message: 'Sessão inválida. Entre de novo no sistema.' } })
+      return
+    }
+
+    // Corpo em whitelist: nada além do que o app precisa passa adiante.
+    const { model, system, messages, max_tokens, tools, tool_choice } = req.body || {}
+    if (!MODELOS_PERMITIDOS.includes(model)) {
+      res.status(400).json({ error: { message: `Modelo não permitido: ${model}` } })
+      return
+    }
+    if (!Array.isArray(messages) || messages.length === 0) {
+      res.status(400).json({ error: { message: 'Sem mensagens.' } })
+      return
+    }
+
+    const corpo = {
+      model,
+      messages,
+      max_tokens: Math.min(Number(max_tokens) || 800, MAX_TOKENS_TETO),
+      ...(system ? { system } : {}),
+      // `tools` fica pronto para o agente que AGE (fase seguinte).
+      ...(Array.isArray(tools) && tools.length ? { tools } : {}),
+      ...(tool_choice ? { tool_choice } : {}),
+    }
+
+    try {
+      const resposta = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY.value(),
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify(corpo),
+      })
+      const dados = await resposta.json().catch(() => ({}))
+      logger.info(`agente: ${usuario.email || usuario.uid} model=${model} status=${resposta.status}`)
+      res.status(resposta.status).json(dados)
+    } catch (e) {
+      logger.error('agente: falha ao chamar a Anthropic', e)
+      res.status(502).json({ error: { message: 'Falha ao falar com o agente. Tente de novo.' } })
+    }
+  }
+)
+
 // Roda todo dia às 07:00 (horário de São Paulo), resumindo as últimas 24h
 exports.briefingDiario = onSchedule(
   { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: SECRETS },

@@ -17,6 +17,7 @@ import { db } from '../../firebase/config'
 import { comprimirParaDataUrl } from '../../utils/imagem'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
+import { chamarClaude } from '../../utils/agenteApi'
 import { normalizarRef } from '../filtros/filtrosUtils'
 import {
   statusGeradorLabel,
@@ -995,13 +996,6 @@ export default function AgenteChat({ compact = false }) {
     setMensagens(prev => [...prev, nova])
     setCarregando(true)
 
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-    if (!apiKey) {
-      setMensagens(prev => [...prev, { role: 'assistant', content: 'Agente IA não configurado. Adicione VITE_ANTHROPIC_API_KEY no arquivo .env para ativar.' }])
-      setCarregando(false)
-      return
-    }
-
     const fichaOs = permitidos.includes('os') && !carregandoOrdens && !erroOrdens
       ? detalharOrdens(ordens, carregandoFiltros || erroFiltros ? [] : filtros, msg)
       : null
@@ -1023,29 +1017,16 @@ export default function AgenteChat({ compact = false }) {
         .slice(-10)
         .map(m => ({ role: m.role, content: conteudoParaApi(m) }))
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 800,
-          // A ficha da OS depende da pergunta (qual OS/equipamento foi citado), entao
-          // e montada aqui no envio, e nao no useMemo do resumo geral.
-          system: systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs, achadosMaterial].filter(Boolean).join('\n\n')),
-          messages: historico,
-        }),
+      // Via proxy na Cloud Function: a chave fica no Secret Manager, nunca no
+      // navegador (utils/agenteApi.js).
+      const data = await chamarClaude({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        // A ficha da OS depende da pergunta (qual OS/equipamento foi citado), entao
+        // e montada aqui no envio, e nao no useMemo do resumo geral.
+        system: systemPrompt(tipoPerfil, nome, [resumoDados, fichaOs, achadosMaterial].filter(Boolean).join('\n\n')),
+        messages: historico,
       })
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}))
-        throw new Error(`${res.status}: ${errBody?.error?.message || res.statusText}`)
-      }
-      const data = await res.json()
       const resposta = data.content?.[0]?.text || 'Sem resposta.'
       setMensagens(prev => [...prev, { role: 'assistant', content: resposta }])
     } catch (e) {

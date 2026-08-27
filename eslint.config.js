@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // functions/ e planner-functions/ sao CommonJS (Cloud Functions, Node):
+  // linta-las com as regras do site so gera falso 'require is not defined'.
+  globalIgnores(['dist', 'functions', 'planner-functions']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

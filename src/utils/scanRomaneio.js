@@ -1,8 +1,9 @@
+import { chamarClaude } from './agenteApi'
 // Leitura de romaneio manuscrito por visao (Claude).
 //
 // O colaborador anota a saida no papel (cabos, caixas, rabichos, quantidades) e
-// aqui a foto vira uma lista estruturada de itens. Reaproveita a MESMA integracao
-// do AgenteChat: VITE_ANTHROPIC_API_KEY + acesso direto do navegador. So a leitura
+// aqui a foto vira uma lista estruturada de itens. Usa o MESMO proxy do
+// AgenteChat (Cloud Function `agente`, chave no Secret Manager). So a leitura
 // usa um modelo mais forte (Sonnet) porque a caligrafia e dificil; o chat continua
 // no Haiku. O resultado NUNCA e lancado automaticamente: passa sempre pela tela de
 // conferencia (ScanPapelModal), onde o colaborador confirma/corrige.
@@ -75,9 +76,6 @@ const MEDIA_SUPORTADAS = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 // `imagens`: array de { base64, mediaType } (base64 PURO, sem o prefixo data:).
 // Aceita tambem uma unica imagem (retrocompat), como (base64, mediaType).
 export async function escanearRomaneio(imagens, mediaTypeLegado = 'image/jpeg') {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('Leitura por IA nao configurada. Adicione VITE_ANTHROPIC_API_KEY no .env.')
-
   const lista = Array.isArray(imagens)
     ? imagens
     : [{ base64: imagens, mediaType: mediaTypeLegado }]
@@ -93,34 +91,19 @@ export async function escanearRomaneio(imagens, mediaTypeLegado = 'image/jpeg') 
     },
   }))
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5',
-      max_tokens: 4000,
-      messages: [{
-        role: 'user',
-        content: [
-          ...blocosImagem,
-          { type: 'text', text: PROMPT },
-        ],
-      }],
-    }),
+  // Via proxy na Cloud Function (utils/agenteApi.js): a chave nunca vai ao navegador.
+  const data = await chamarClaude({
+    model: 'claude-sonnet-5',
+    max_tokens: 4000,
+    messages: [{
+      role: 'user',
+      content: [
+        ...blocosImagem,
+        { type: 'text', text: PROMPT },
+      ],
+    }],
   })
 
-  if (!res.ok) {
-    let detalhe = ''
-    try { detalhe = (await res.text()).slice(0, 200) } catch { /* ignore */ }
-    throw new Error(`Falha ao ler a foto (HTTP ${res.status}). ${detalhe}`)
-  }
-
-  const data = await res.json()
   const texto = data?.content?.find(b => b.type === 'text')?.text || data?.content?.[0]?.text || ''
   return parseItens(texto)
 }
