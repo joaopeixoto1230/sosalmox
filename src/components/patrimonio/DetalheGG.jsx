@@ -39,6 +39,11 @@ export default function DetalheGG() {
       numSerie: gg.numSerie || '',
       numSerieMotor: gg.numSerieMotor || '',
       numSerieAlternador: gg.numSerieAlternador || '',
+      fabricante: gg.fabricante || '',
+      painel: gg.painel || '',
+      cor: gg.cor || '',
+      corrente: gg.corrente || '',
+      peso: gg.peso || '',
     })
     setEditando(true)
   }
@@ -59,6 +64,11 @@ export default function DetalheGG() {
         numSerie: form.numSerie.trim() || null,
         numSerieMotor: form.numSerieMotor.trim() || null,
         numSerieAlternador: form.numSerieAlternador.trim() || null,
+        fabricante: form.fabricante.trim() || null,
+        painel: form.painel.trim() || null,
+        cor: form.cor.trim() || null,
+        corrente: form.corrente.trim() || null,
+        peso: form.peso.trim() || null,
         semHorimetro: form.semHorimetro,
         horimetroAtual: form.semHorimetro ? null : (form.horimetroAtual === '' ? null : Number(form.horimetroAtual)),
         atualizadoEm: serverTimestamp(),
@@ -179,7 +189,9 @@ export default function DetalheGG() {
               {[['motor', 'Motor', 'Ex: FPT NEF 45'], ['alternador', 'Alternador', 'Ex: WEG GTA202AI34'],
                 ['tensao', 'Tensão', 'Ex: 440/380/220V'], ['frequencia', 'Frequência', 'Ex: 60 Hz'],
                 ['fatorPotencia', 'Fator de potência', 'Ex: 0,8'], ['numSerie', 'Nº de série', ''],
-                ['numSerieMotor', 'Nº série motor', ''], ['numSerieAlternador', 'Nº série alternador', '']].map(([k, label, ph]) => (
+                ['numSerieMotor', 'Nº série motor', ''], ['numSerieAlternador', 'Nº série alternador', ''],
+                ['fabricante', 'Fabricante', ''], ['painel', 'Painel', 'Ex: Analógico'],
+                ['cor', 'Cor', 'Ex: Branco'], ['corrente', 'Corrente', ''], ['peso', 'Peso', '']].map(([k, label, ph]) => (
                 <div key={k}>
                   <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
                   <input value={form[k]} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} className="input" placeholder={ph} />
