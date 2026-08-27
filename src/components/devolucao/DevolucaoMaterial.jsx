@@ -6,6 +6,7 @@ import { useCollection } from '../../hooks/useFirestore'
 import ItemDevolucao from './ItemDevolucao'
 import { formatarData, statusEventoCor, statusEventoLabel, formatarNumeroOrdem, statusGeradorLabel, materialPorQuantidade } from '../../utils/formatters'
 import { materialContado, patchDevolucaoEvento } from '../estoque/contagem'
+import { itensPorEvento, filtrarEventosDevolucao } from './buscaDevolucao'
 
 export default function DevolucaoMaterial() {
   const { uid, nome } = useAuth()
@@ -26,6 +27,14 @@ export default function DevolucaoMaterial() {
     const idsComOrdem = new Set(ordens.filter(o => o.status === 'ativo').map(o => o.eventoId))
     return eventos.filter(e => idsComOrdem.has(e.id))
   }, [eventos, ordens])
+
+  // Busca por evento E por material: digitar o nome (ou código) do cabo acha
+  // os eventos que têm aquele item em campo, mostrando o item que casou.
+  const mapaItens = useMemo(() => itensPorEvento(ordens), [ordens])
+  const eventosFiltrados = useMemo(
+    () => filtrarEventosDevolucao(eventosComOrdem, mapaItens, busca),
+    [eventosComOrdem, mapaItens, busca],
+  )
 
   const ordensDoEvento = useMemo(() => {
     if (!eventoSelecionado) return []
@@ -282,18 +291,21 @@ export default function DevolucaoMaterial() {
             <h2 className="font-semibold text-brand-black mb-3">Selecionar Evento</h2>
             <input
               type="search"
-              placeholder="Buscar evento..."
+              placeholder="Buscar por evento ou material (ex: Cabo 4x50)..."
               value={busca}
               onChange={e => setBusca(e.target.value)}
               className="input mb-3"
             />
             {eventosComOrdem.length === 0 ? (
               <p className="text-gray-400 text-sm text-center py-6">Nenhum evento com material em campo.</p>
+            ) : eventosFiltrados.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-6">
+                Nenhum evento nem material em campo com esse texto.
+              </p>
             ) : (
               <div className="space-y-2">
-                {eventosComOrdem
-                  .filter(e => e.nome.toLowerCase().includes(busca.toLowerCase()))
-                  .map(evt => (
+                {eventosFiltrados
+                  .map(({ evento: evt, itensBatidos }) => (
                     <button
                       key={evt.id}
                       onClick={() => setEventoSelecionado(evt)}
@@ -314,6 +326,14 @@ export default function DevolucaoMaterial() {
                             {evt.local} • {formatarData(evt.data)}
                             {evt.retiradoPor ? ` • retirado por ${evt.retiradoPor}` : ''}
                           </p>
+                          {itensBatidos.length > 0 && (
+                            // O evento entrou na lista por causa do material buscado:
+                            // mostra qual, senão o resultado parece não ter a ver.
+                            <p className="text-xs text-brand-red mt-0.5 truncate">
+                              tem aqui: {itensBatidos.slice(0, 2).map(i => i.nome || i.codigo).join(', ')}
+                              {itensBatidos.length > 2 ? ` +${itensBatidos.length - 2}` : ''}
+                            </p>
+                          )}
                         </div>
                         <span className={`badge ${statusEventoCor(evt.status)} flex-shrink-0`}>
                           {statusEventoLabel(evt.status)}

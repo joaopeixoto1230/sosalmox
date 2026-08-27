@@ -29,6 +29,16 @@ export default function DetalheGG() {
       ano: gg.ano || '',
       horimetroAtual: gg.horimetroAtual ?? '',
       semHorimetro: gg.semHorimetro || false,
+      // Ficha técnica (dados de placa). Antes só dava para VER esses campos —
+      // nenhuma tela gravava neles, então placa nova não tinha onde entrar.
+      motor: gg.motor || '',
+      alternador: gg.alternador || '',
+      tensao: gg.tensao || '',
+      frequencia: gg.frequencia || '',
+      fatorPotencia: gg.fatorPotencia || '',
+      numSerie: gg.numSerie || '',
+      numSerieMotor: gg.numSerieMotor || '',
+      numSerieAlternador: gg.numSerieAlternador || '',
     })
     setEditando(true)
   }
@@ -41,6 +51,14 @@ export default function DetalheGG() {
         marca: form.marca,
         modelo: form.modelo,
         ano: form.ano,
+        motor: form.motor.trim() || null,
+        alternador: form.alternador.trim() || null,
+        tensao: form.tensao.trim() || null,
+        frequencia: form.frequencia.trim() || null,
+        fatorPotencia: form.fatorPotencia.trim() || null,
+        numSerie: form.numSerie.trim() || null,
+        numSerieMotor: form.numSerieMotor.trim() || null,
+        numSerieAlternador: form.numSerieAlternador.trim() || null,
         semHorimetro: form.semHorimetro,
         horimetroAtual: form.semHorimetro ? null : (form.horimetroAtual === '' ? null : Number(form.horimetroAtual)),
         atualizadoEm: serverTimestamp(),
@@ -123,6 +141,21 @@ export default function DetalheGG() {
             </label>
           </div>
 
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Ficha técnica (placas)</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[['motor', 'Motor', 'Ex: FPT NEF 45'], ['alternador', 'Alternador', 'Ex: WEG GTA202AI34'],
+                ['tensao', 'Tensão', 'Ex: 440/380/220V'], ['frequencia', 'Frequência', 'Ex: 60 Hz'],
+                ['fatorPotencia', 'Fator de potência', 'Ex: 0,8'], ['numSerie', 'Nº de série', ''],
+                ['numSerieMotor', 'Nº série motor', ''], ['numSerieAlternador', 'Nº série alternador', '']].map(([k, label, ph]) => (
+                <div key={k}>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+                  <input value={form[k]} onChange={e => setForm(p => ({ ...p, [k]: e.target.value }))} className="input" placeholder={ph} />
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <button onClick={() => setEditando(false)} className="btn-secondary flex-1 justify-center">Cancelar</button>
             <button onClick={salvarEdicao} disabled={salvando} className="btn-primary flex-1 justify-center">
@@ -165,6 +198,7 @@ export default function DetalheGG() {
       {(() => {
         const campos = [
           ['fabricante', 'Fabricante'],
+          ['motor', 'Motor'],
           ['alternador', 'Alternador'],
           ['painel', 'Painel'],
           ['cor', 'Cor'],
