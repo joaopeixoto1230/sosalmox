@@ -144,7 +144,7 @@ function renderHtml(b, leitura) {
       <p style="font-size:11px;color:#999;margin-top:-6px;">Cabos e itens de unidade não entram aqui: a regra deles é por espécie e está no painel do sistema.</p>
 
       <p style="font-size:12px;color:#999;margin-top:24px;border-top:1px solid #eee;padding-top:10px;">
-        Gerado automaticamente todo dia às 07h pelo sistema SOS Almoxarifado.
+        Gerado automaticamente todo dia às 07h pelo sistema SOS Almoxarifado. · regras v2
       </p>
     </div>
   </div>`
