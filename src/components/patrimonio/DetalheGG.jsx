@@ -96,11 +96,20 @@ export default function DetalheGG() {
     numSerie: '3737',
     numSerieMotor: '6249230',
     numSerieAlternador: '1064884147 12 21',
+    // A máquina é branca (confirmado pelo João). O resto do cadastro antigo
+    // (Olympian 2001) sai de vez: era de outra máquina, e ano/painel/corrente/
+    // peso da atual não constam nas placas — melhor vazio do que errado.
+    cor: 'Branco',
+    ano: null,
+    painel: null,
+    fabricante: null,
+    corrente: null,
+    peso: null,
   }
   const migracaoGG15Pendente =
     tipoPerfil === 'admin'
     && ['GG-015', 'GG-15'].includes(gg?.codigo)
-    && gg?.marca !== PLACA_GG15.marca
+    && (gg?.marca !== PLACA_GG15.marca || gg?.cor !== PLACA_GG15.cor)
 
   async function aplicarPlacaGG15() {
     setSalvando(true)
@@ -243,9 +252,9 @@ export default function DetalheGG() {
         <div className="card border-blue-200 bg-blue-50 dark:border-blue-900/60 dark:bg-blue-950/40">
           <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">Dados das placas do GG-15</p>
           <p className="text-xs text-blue-800/80 dark:text-blue-200/80 mt-1">
-            Atualiza para BRG Geradores SLIM 110 (110kVA), motor FPT NEF 45, alternador WEG e
-            números de série. Ano, painel, cor e horímetro não mudam. Confira o nº de série do
-            motor na placa (manuscrito): 6249230.
+            Atualiza para BRG Geradores SLIM 110 (110kVA), motor FPT NEF 45, alternador WEG,
+            números de série e cor branca — e apaga o que sobrou do cadastro antigo
+            (ano, painel, corrente, peso). O horímetro não muda.
           </p>
           <button onClick={aplicarPlacaGG15} disabled={salvando} className="btn-primary text-sm mt-3">
             {salvando ? 'Aplicando...' : 'Aplicar dados das placas'}
