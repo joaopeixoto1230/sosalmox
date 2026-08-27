@@ -279,6 +279,9 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 - **Briefing das 7h com "Leitura do agente"**: `gerarLeituraIA` em `functions/index.js`
   escreve 3-5 frases via Haiku EM CIMA dos números do buildBriefing (nunca inventa número);
   se a chamada falhar, o e-mail sai sem o parágrafo. Usa o secret `ANTHROPIC_API_KEY`.
+  - ⚠️ O estoque baixo do E-MAIL cobre só CONSUMÍVEIS (estoqueAtual>1 ou estoqueMin>1):
+    material de unidade fica fora, senão todo cabo 1/1 vira alerta (aconteceu: 301 itens,
+    e a leitura da IA amplificou o número errado). A regra por espécie vive só no app.
   - Cada pendência declara o **MÓDULO** a que pertence e o painel filtra por `temPermissao`:
     ninguém recebe alerta que não consegue resolver. A faixa some por completo quando não há nada.
 - `Rosca.jsx` + `cores.js`: roscas de saídas por tipo, frota e preventiva × corretiva.

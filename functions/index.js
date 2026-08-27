@@ -67,11 +67,21 @@ async function buildBriefing() {
   const solicitacoes = solicitacoesSnap.docs.map(d => d.data())
   const solicitacoesUrgentes = solicitacoes.filter(s => s.urgente)
 
-  // Estoque baixo (aproximação: regra clássica estoqueAtual <= estoqueMin,
-  // aplicável a consumíveis; itens por unidade têm lógica mais fina no app)
+  // Estoque baixo do e-mail: SO consumiveis (fita, parafuso, protetor), pela
+  // regra classica estoqueAtual <= estoqueMin. Material de UNIDADE (cada cabo/
+  // jogo/rabicho/ferramenta e um doc 1/1) fica FORA: a comparacao simples
+  // marcava todo cabo como baixo (301 itens no e-mail de 28/08/2026) e a
+  // leitura da IA amplificava o numero errado. A regra certa para unidade e
+  // por especie e mora no app (estoqueEspecie.js) — e cabo nunca alerta.
   const materiaisBaixo = materiaisBaixoSnap.docs
     .map(d => d.data())
-    .filter(m => typeof m.estoqueMin === 'number' && m.estoqueAtual <= m.estoqueMin)
+    .filter(m => {
+      const atual = Number(m.estoqueAtual) || 0
+      const minimo = Number(m.estoqueMin) || 0
+      const porUnidade = atual <= 1 && minimo <= 1
+      if (porUnidade) return false
+      return minimo > 0 && atual <= minimo
+    })
 
   const houveMovimento =
     saidasEvento.length + saidasUsoInterno.length + osAbertas.length + osConcluidas.length +
@@ -129,9 +139,9 @@ function renderHtml(b, leitura) {
       <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">🧯 Filtros — movimentação</h2>
       <p style="margin:4px 0 12px;">${b.entradasFiltro} entrada(s) · ${b.baixasFiltro} baixa(s) nas últimas 24h.</p>
 
-      <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">⚠️ Alerta de estoque baixo (${b.materiaisBaixo.length})</h2>
+      <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">⚠️ Consumíveis abaixo do mínimo (${b.materiaisBaixo.length})</h2>
       ${li(b.materiaisBaixo, m => `${m.nome || m.codigo || 'item'} — ${m.estoqueAtual ?? '?'} / min ${m.estoqueMin ?? '?'}`)}
-      <p style="font-size:11px;color:#999;margin-top:-6px;">Aproximação simples (estoqueAtual ≤ estoqueMin). A tela de Estoque do sistema tem a regra completa por espécie.</p>
+      <p style="font-size:11px;color:#999;margin-top:-6px;">Cabos e itens de unidade não entram aqui: a regra deles é por espécie e está no painel do sistema.</p>
 
       <p style="font-size:12px;color:#999;margin-top:24px;border-top:1px solid #eee;padding-top:10px;">
         Gerado automaticamente todo dia às 07h pelo sistema SOS Almoxarifado.
@@ -154,7 +164,7 @@ async function gerarLeituraIA(b) {
       `OS concluidas: ${b.osConcluidas.length}`,
       `Solicitacoes de compra novas: ${b.solicitacoes.length} (${b.solicitacoesUrgentes.length} urgentes)`,
       `Movimentacao de filtros: ${b.entradasFiltro} entradas, ${b.baixasFiltro} baixas`,
-      `Consumiveis abaixo do minimo: ${b.materiaisBaixo.length}` +
+      `Consumiveis (fita, parafuso etc.) abaixo do minimo: ${b.materiaisBaixo.length}` +
         (b.materiaisBaixo.length ? ` (${b.materiaisBaixo.slice(0, 8).map(m => m.nome || m.codigo).join('; ')})` : ''),
     ].join('\n')
 
