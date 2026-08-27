@@ -63,6 +63,15 @@ export default function DevolucaoMaterial() {
       .sort((a, b) => new Date(b.data) - new Date(a.data))
   }, [eventos, eventoSelecionado])
 
+  // Sai do evento e limpa o que já tinha sido marcado — os status são daquele
+  // evento, não podem vazar para o próximo que for aberto.
+  function voltarParaLista() {
+    setEventoSelecionado(null)
+    setStatusItens({})
+    setDescricoes({})
+    setDestinoGeradores({})
+  }
+
   function handleStatus(itemId, valor) {
     setStatusItens(prev => ({ ...prev, [itemId]: valor }))
   }
@@ -348,14 +357,24 @@ export default function DevolucaoMaterial() {
       ) : (
         <div className="space-y-4">
           <div className="card bg-gray-50 border-gray-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-brand-black">{eventoSelecionado.nome}</p>
-                <p className="text-xs text-gray-500">{todosItens.length} itens para devolver</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                {/* Mesma seta de voltar das outras telas de detalhe (ex: GG). */}
+                <button
+                  onClick={voltarParaLista}
+                  className="btn-ghost px-2 flex-shrink-0"
+                  aria-label="Voltar para a lista de eventos"
+                >
+                  ←
+                </button>
+                <div className="min-w-0">
+                  <p className="font-semibold text-brand-black truncate">{eventoSelecionado.nome}</p>
+                  <p className="text-xs text-gray-500">{todosItens.length} itens para devolver</p>
+                </div>
               </div>
               <button
-                onClick={() => { setEventoSelecionado(null); setStatusItens({}); setDescricoes({}); setDestinoGeradores({}) }}
-                className="text-sm text-brand-red hover:underline"
+                onClick={voltarParaLista}
+                className="text-sm text-brand-red hover:underline flex-shrink-0"
               >
                 Trocar
               </button>

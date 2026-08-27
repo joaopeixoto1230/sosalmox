@@ -87,6 +87,11 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 - GG-001 a GG-107 + caminhões + empilhadeiras; status automático por evento/OS/devolução
 - Status "Em Locação" e "Sublocado"; edição de horímetro e opção "sem horímetro"
 - Edição de gerador liberada para almoxarife e mecânico
+- DetalheGG: edição inclui a **Ficha técnica (placas)** — motor, alternador, tensão,
+  frequência, fator de potência e números de série (antes os campos só eram exibidos).
+- Botão de migração **"Aplicar dados das placas"** no GG-015 (admin, some após aplicar —
+  mesmo padrão do "+ Filtros 700kVA"). Código temporário em `DetalheGG.jsx`
+  (`PLACA_GG15`): pode ser removido depois que o João aplicar.
 
 ### Saída de Material (`src/components/saida/`)
 - Passo inicial **Tipo de Saída** com QUATRO cards (grade 2×2). Não remover o seletor:
