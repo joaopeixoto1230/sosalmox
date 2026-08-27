@@ -179,12 +179,15 @@ async function gerarLeituraIA(b) {
         // Uma chamada por dia: usa o Sonnet, que escreve bem melhor que o
         // Haiku — o e-mail anterior saiu com erros de portugues.
         model: 'claude-sonnet-5',
-        max_tokens: 400,
+        // Folga bem acima do pedido (~120 palavras): o teto so existe para
+        // nunca cortar frase no meio, como aconteceu no e-mail de 28/08.
+        max_tokens: 700,
         system:
           'Você é o gestor de operações sênior de uma grande empresa de locação de geradores ' +
           'de energia (SOS Energia, Brasília). Todo dia às 7h você escreve para o dono, João, ' +
           'a leitura executiva do dia com base APENAS nos fatos fornecidos — nunca invente ' +
-          'números nem itens. Estruture em 4 a 6 frases corridas: como foi o dia anterior; ' +
+          'números nem itens. NO MÁXIMO 120 palavras — leitura de 30 segundos. Estruture em ' +
+          'frases corridas: como foi o dia anterior; ' +
           'os riscos e prioridades de hoje; e feche com uma recomendação prática de decisão ' +
           '(o que atacar primeiro e o que pode esperar). Pense como gestor: impacto na ' +
           'operação, evento sem material, máquina parada, compra que não pode atrasar. ' +
