@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { itensPorEvento, filtrarEventosDevolucao } from './buscaDevolucao'
+import { itensPorEvento, filtrarEventosDevolucao, itensPendentesDevolucao, itemLancavelSozinho } from './buscaDevolucao'
 
 const eventos = [
   { id: 'e1', nome: 'HOT WHEELS MONSTER TRUCK LIVE', local: 'Eixo Monumental' },
@@ -53,5 +53,45 @@ describe('busca da devolução por evento + material', () => {
   it('aguenta ordem sem itens e item sem nome', () => {
     const m = itensPorEvento([{ eventoId: 'e1', status: 'ativo' }, { eventoId: 'e1', status: 'ativo', itens: [{}] }])
     expect(filtrarEventosDevolucao(eventos, m, 'cabo')).toEqual([])
+  })
+})
+
+describe('devolução item a item', () => {
+  const mapa = new Map([
+    ['cabo1', { id: 'cabo1', categoria: 'Cabos 4x', status: 'em_evento', estoqueAtual: 0, estoqueMin: 1 }],
+    ['cabo2', { id: 'cabo2', categoria: 'Cabos 4x', status: 'disponivel', estoqueAtual: 1, estoqueMin: 1 }],
+    ['alamb', { id: 'alamb', nome: 'Alambrado', categoria: 'Outros Materiais', porQuantidade: true, estoqueAtual: 40 }],
+    ['prot', { id: 'prot', nome: 'Protetor de cabo 5 vias', tipo: 'Protetor de cabo', categoria: 'Outros Materiais', estoqueAtual: 10 }],
+  ])
+  const itens = [{ id: 'cabo1' }, { id: 'cabo2' }, { id: 'alamb', quantidade: 10 }, { id: 'prot', quantidade: 2 }, { id: 'sumiu' }]
+
+  it('item de unidade que já voltou sai da lista — o caso do lançamento individual', () => {
+    // cabo2 já está disponivel: foi lançado sozinho. Mantê-lo na lista faria a
+    // confirmação final registrá-lo de novo.
+    const pendentes = itensPendentesDevolucao(itens, mapa)
+    expect(pendentes.map(i => i.id)).toEqual(['cabo1', 'alamb', 'prot', 'sumiu'])
+  })
+
+  it('contado e por-quantidade ficam até o fim: não deixam rastro no status', () => {
+    const pendentes = itensPendentesDevolucao([{ id: 'alamb' }, { id: 'prot' }], mapa)
+    expect(pendentes).toHaveLength(2)
+  })
+
+  it('material apagado do banco continua na lista — a transaction dá o erro com mensagem', () => {
+    expect(itensPendentesDevolucao([{ id: 'sumiu' }], mapa)).toHaveLength(1)
+  })
+
+  it('só material de unidade pode ser lançado sozinho', () => {
+    expect(itemLancavelSozinho({ id: 'cabo1' }, mapa)).toBe(true)
+    // contado devolve por quantidade e nao tem status para travar o duplo
+    // credito; por-quantidade nem mexe em estoque; sumido nao da para validar
+    expect(itemLancavelSozinho({ id: 'alamb' }, mapa)).toBe(false)
+    expect(itemLancavelSozinho({ id: 'prot' }, mapa)).toBe(false)
+    expect(itemLancavelSozinho({ id: 'sumiu' }, mapa)).toBe(false)
+  })
+
+  it('aguenta lista e mapa vazios', () => {
+    expect(itensPendentesDevolucao(null, mapa)).toEqual([])
+    expect(itensPendentesDevolucao(itens, undefined).map(i => i.id)).toEqual(itens.map(i => i.id))
   })
 })

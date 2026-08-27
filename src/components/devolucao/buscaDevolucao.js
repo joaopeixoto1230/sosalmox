@@ -1,4 +1,6 @@
 import { normalizar } from '../estoque/sugestaoGrupo'
+import { materialPorQuantidade } from '../../utils/formatters'
+import { materialContado } from '../estoque/contagem'
 
 // Busca da tela de Devolução: por evento E por material.
 //
@@ -53,4 +55,29 @@ export function filtrarEventosDevolucao(eventos, mapaItens, busca) {
     }
   }
   return resultado
+}
+
+/**
+ * Itens de um evento que AINDA estão em campo.
+ *
+ * Item de unidade que já voltou (status != em_evento) sai da lista — foi
+ * lançado individualmente ou voltou por outro caminho; mantê-lo faria a
+ * confirmação final registrá-lo de novo. Contado (alambrado) e por-quantidade
+ * (protetor) não deixam esse rastro no status, então ficam até o fim.
+ * Material que sumiu do banco também fica: a transaction acusa o erro na hora
+ * certa, com mensagem — melhor que sumir da lista em silêncio.
+ */
+export function itensPendentesDevolucao(itens, materiaisMap) {
+  return (itens || []).filter(item => {
+    const mat = materiaisMap?.get(item.id)
+    if (!mat) return true
+    if (materialPorQuantidade(mat) || materialContado(mat)) return true
+    return mat.status === 'em_evento'
+  })
+}
+
+/** O item pode ser lançado sozinho? Só material de unidade tem esse rastro. */
+export function itemLancavelSozinho(item, materiaisMap) {
+  const mat = materiaisMap?.get(item?.id)
+  return !!mat && !materialPorQuantidade(mat) && !materialContado(mat)
 }

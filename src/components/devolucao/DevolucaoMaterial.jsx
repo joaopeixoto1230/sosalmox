@@ -6,19 +6,21 @@ import { useCollection } from '../../hooks/useFirestore'
 import ItemDevolucao from './ItemDevolucao'
 import { formatarData, statusEventoCor, statusEventoLabel, formatarNumeroOrdem, statusGeradorLabel, materialPorQuantidade } from '../../utils/formatters'
 import { materialContado, patchDevolucaoEvento } from '../estoque/contagem'
-import { itensPorEvento, filtrarEventosDevolucao } from './buscaDevolucao'
+import { itensPorEvento, filtrarEventosDevolucao, itensPendentesDevolucao, itemLancavelSozinho } from './buscaDevolucao'
 
 export default function DevolucaoMaterial() {
   const { uid, nome } = useAuth()
   const { dados: eventos } = useCollection('eventos')
   const { dados: ordens } = useCollection('ordens_saida')
   const { dados: geradores } = useCollection('geradores')
+  const { dados: materiais } = useCollection('materiais')
 
   const [eventoSelecionado, setEventoSelecionado] = useState(null)
   const [statusItens, setStatusItens] = useState({})
   const [descricoes, setDescricoes] = useState({})
   const [destinoGeradores, setDestinoGeradores] = useState({})
   const [salvando, setSalvando] = useState(false)
+  const [lancandoItem, setLancandoItem] = useState(null)
   const [concluido, setConcluido] = useState(false)
   const [erro, setErro] = useState('')
   const [busca, setBusca] = useState('')
@@ -50,6 +52,15 @@ export default function DevolucaoMaterial() {
     })
     return Array.from(mapa.values())
   }, [ordensDoEvento])
+
+  const materiaisMap = useMemo(() => new Map(materiais.map(m => [m.id, m])), [materiais])
+
+  // Só o que AINDA está em campo: item lançado individualmente sai da lista,
+  // senão a confirmação final o registraria de novo.
+  const pendentes = useMemo(
+    () => itensPendentesDevolucao(todosItens, materiaisMap),
+    [todosItens, materiaisMap],
+  )
 
   const geradoresDoEvento = useMemo(() => {
     if (!eventoSelecionado) return []
@@ -94,19 +105,62 @@ export default function DevolucaoMaterial() {
 
   const statusResumo = useMemo(() => {
     const totais = { ok: 0, problema: 0, cortado: 0, perdido: 0, parcial: 0, aguardando: 0 }
-    todosItens.forEach(item => {
+    pendentes.forEach(item => {
       const s = statusItens[item.id] || 'aguardando'
       totais[s] = (totais[s] || 0) + 1
     })
     return totais
-  }, [todosItens, statusItens])
+  }, [pendentes, statusItens])
 
-  const podeConcluir = todosItens.length > 0 && geradoresValidos && todosItens.every(item => {
+  // Com tudo lançado individualmente, ainda pode restar o fechamento (ordens,
+  // geradores, evento) — por isso a confirmação vale mesmo com a lista vazia,
+  // desde que exista gerador ou item para tratar.
+  const podeConcluir = (pendentes.length > 0 || geradoresDoEvento.length > 0)
+    && geradoresValidos
+    && pendentes.every(item => {
+      const s = statusItens[item.id]
+      if (!s || s === 'aguardando') return false
+      if ((s === 'problema' || s === 'cortado') && !descricoes[item.id]?.trim()) return false
+      return true
+    })
+
+  // Lança UM item, sem fechar nada: os outros continuam no evento. Parcial não
+  // entra aqui — parcial é "ainda falta voltar", então o item segue pendente.
+  async function lancarItem(item) {
     const s = statusItens[item.id]
-    if (!s || s === 'aguardando') return false
-    if ((s === 'problema' || s === 'cortado') && !descricoes[item.id]?.trim()) return false
-    return true
-  })
+    if (!s || s === 'aguardando' || s === 'parcial') return
+    if ((s === 'problema' || s === 'cortado') && !descricoes[item.id]?.trim()) return
+    setLancandoItem(item.id)
+    setErro('')
+    try {
+      await runTransaction(db, async (tx) => {
+        const matRef = doc(db, 'materiais', item.id)
+        const snap = await tx.get(matRef)
+        if (!snap.exists()) throw new Error(`Material ${item.nome} não encontrado.`)
+        if (snap.data().status !== 'em_evento') throw new Error(`${item.nome} já não está mais no evento.`)
+        // Registro próprio em devolucoes, com a marca de parcial — o relatório
+        // continua enxergando tudo.
+        tx.set(doc(collection(db, 'devolucoes')), {
+          eventoId: eventoSelecionado.id,
+          eventoNome: eventoSelecionado.nome,
+          parcial: true,
+          itens: [{ ...item, statusDevolucao: s, descricao: descricoes[item.id] || null }],
+          operadorUid: uid,
+          operadorNome: nome,
+          criadoEm: serverTimestamp(),
+        })
+        const patch = patchDevolucaoEvento(snap.data(), item.quantidade || 1, s)
+        if (patch) tx.update(matRef, patch)
+      })
+      // O listener de materiais tira o item da lista; limpa o estado dele.
+      setStatusItens(prev => { const p = { ...prev }; delete p[item.id]; return p })
+      setDescricoes(prev => { const p = { ...prev }; delete p[item.id]; return p })
+    } catch (err) {
+      setErro(err.message || 'Erro ao lançar o item.')
+    } finally {
+      setLancandoItem(null)
+    }
+  }
 
   async function confirmarDevolucao() {
     setSalvando(true)
@@ -120,7 +174,7 @@ export default function DevolucaoMaterial() {
         // travam a devolução — apenas não têm o estoque alterado de novo.
         const statusAtualMat = {}
         const lidos = {}
-        for (const item of todosItens) {
+        for (const item of pendentes) {
           if (materialPorQuantidade(item)) continue
           const matRef = doc(db, 'materiais', item.id)
           const snap = await tx.get(matRef)
@@ -143,21 +197,26 @@ export default function DevolucaoMaterial() {
         }
 
         // ===== ESCRITAS =====
-        const devRef = doc(collection(db, 'devolucoes'))
-        tx.set(devRef, {
-          eventoId: eventoSelecionado.id,
-          eventoNome: eventoSelecionado.nome,
-          itens: todosItens.map(item => ({
-            ...item,
-            statusDevolucao: statusItens[item.id] || 'aguardando',
-            descricao: descricoes[item.id] || null,
-          })),
-          operadorUid: uid,
-          operadorNome: nome,
-          criadoEm: serverTimestamp(),
-        })
+        // Item lançado individualmente já tem o próprio registro em devolucoes
+        // (parcial: true) — aqui entram só os que restaram. Se todos foram
+        // lançados um a um, a confirmação vira só o fechamento e não cria doc.
+        if (pendentes.length > 0) {
+          const devRef = doc(collection(db, 'devolucoes'))
+          tx.set(devRef, {
+            eventoId: eventoSelecionado.id,
+            eventoNome: eventoSelecionado.nome,
+            itens: pendentes.map(item => ({
+              ...item,
+              statusDevolucao: statusItens[item.id] || 'aguardando',
+              descricao: descricoes[item.id] || null,
+            })),
+            operadorUid: uid,
+            operadorNome: nome,
+            criadoEm: serverTimestamp(),
+          })
+        }
 
-        for (const item of todosItens) {
+        for (const item of pendentes) {
           // Consumível por quantidade: não prende estoque, nada a alterar aqui.
           if (materialPorQuantidade(item)) continue
           const dados = lidos[item.id]
@@ -369,7 +428,7 @@ export default function DevolucaoMaterial() {
                 </button>
                 <div className="min-w-0">
                   <p className="font-semibold text-brand-black truncate">{eventoSelecionado.nome}</p>
-                  <p className="text-xs text-gray-500">{todosItens.length} itens para devolver</p>
+                  <p className="text-xs text-gray-500">{pendentes.length} {pendentes.length === 1 ? 'item' : 'itens'} para devolver</p>
                 </div>
               </div>
               <button
@@ -382,7 +441,7 @@ export default function DevolucaoMaterial() {
           </div>
 
           <div className="space-y-3">
-            {todosItens.map(item => (
+            {pendentes.map(item => (
               <ItemDevolucao
                 key={item.id}
                 item={item}
@@ -390,6 +449,8 @@ export default function DevolucaoMaterial() {
                 descricao={descricoes[item.id]}
                 onStatus={handleStatus}
                 onDescricao={handleDescricao}
+                onLancar={itemLancavelSozinho(item, materiaisMap) ? () => lancarItem(item) : null}
+                lancando={lancandoItem === item.id}
               />
             ))}
           </div>
@@ -497,9 +558,11 @@ export default function DevolucaoMaterial() {
                 </svg>
                 Salvando...
               </>
-            ) : `Confirmar Devolução (${todosItens.length} itens)`}
+            ) : (pendentes.length > 0
+              ? `Confirmar Devolução (${pendentes.length} ${pendentes.length === 1 ? 'item' : 'itens'})`
+              : 'Encerrar devolução do evento')}
           </button>
-          {!podeConcluir && todosItens.length > 0 && (
+          {!podeConcluir && pendentes.length > 0 && (
             <p className="text-xs text-gray-400 text-center">Marque o status de todos os itens para continuar.</p>
           )}
         </div>

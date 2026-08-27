@@ -299,6 +299,14 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 
 ### Outros
 - Devolução (Evento), transferência, estoque com filtro de status em pills coloridas
+- **Devolução item a item** (`buscaDevolucao.js`: `itensPendentesDevolucao`/`itemLancavelSozinho`,
+  com testes): "Lançar só este item" devolve UM material sem fechar o evento (doc próprio em
+  `devolucoes` com `parcial: true`; ordens, geradores e evento intactos). A lista mostra só o
+  que ainda está `em_evento` — item lançado sozinho SAI dela, senão a confirmação final o
+  registraria de novo. Contado (alambrado) e por-quantidade (protetor) não têm esse rastro:
+  ficam até a confirmação final e NÃO têm lançamento individual (dupla contagem). Com tudo
+  lançado um a um, o botão vira "Encerrar devolução do evento" (fecha ordens/geradores/evento).
+  Status "Parcial" não lança sozinho — parcial significa que ainda falta voltar.
 - Compras: fila de solicitações, nova solicitação manual
 - Agente IA (Claude Haiku via `VITE_ANTHROPIC_API_KEY`), botão flutuante em todas as telas
 - Dark mode com toggle no header
