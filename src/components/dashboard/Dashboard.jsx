@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useCollection } from '../../hooks/useFirestore'
+import { where, Timestamp } from 'firebase/firestore'
 import { statusEventoCor, statusEventoLabel } from '../../utils/formatters'
 import { PERFIS, MODULOS, temPermissao } from '../../utils/permissions'
 import { GRUPOS, grupoDoMaterial } from '../estoque/categorias'
@@ -12,6 +13,12 @@ import { calcularPendencias, previsaoDoEvento, diasDeAtraso, hojeISO } from './p
 import Rosca from './Rosca'
 import { CORES } from './cores'
 import { seedFiltrosReais, seedMateriaisReais, fixCategoriasReais, seedGeradoresReais, fixGeradoresReais } from '../../firebase/seed'
+
+// Constante de módulo: recriar o where a cada render refaria a assinatura da
+// consulta no useCollection.
+const RESTRICAO_BAIXAS_60D = [
+  where('criadoEm', '>=', Timestamp.fromDate(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000))),
+]
 
 function CardResumo({ titulo, valor, cor, icone, to, detalhe }) {
   const conteudo = (
@@ -93,6 +100,9 @@ export default function Dashboard() {
   const { dados: ordensSaida } = useCollection('ordens_saida')
   const { dados: ordensServico } = useCollection('ordens_servico')
   const { dados: solicitacoes } = useCollection('solicitacoes_compra')
+  // Baixas dos últimos 60 dias, para a previsão de ruptura e o consumo anormal
+  // (a coleção inteira cresce sem parar; a janela é o que a análise usa).
+  const { dados: baixasFiltro } = useCollection('baixas_filtro', RESTRICAO_BAIXAS_60D, 'painel-60d')
 
   const importOk = {
     filtros: importForced.filtros || filtros.length >= 100,
@@ -225,9 +235,9 @@ export default function Dashboard() {
   }, [ordensSaida, ordensServico, frota, abertoEm])
 
   const pendencias = useMemo(() => calcularPendencias(
-    { eventos, ordensSaida, ordensServico, solicitacoes },
+    { eventos, ordensSaida, ordensServico, solicitacoes, filtros, baixasFiltro },
     { podeVer: modulo => temPermissao(tipoPerfil, modulo) },
-  ), [eventos, ordensSaida, ordensServico, solicitacoes, tipoPerfil])
+  ), [eventos, ordensSaida, ordensServico, solicitacoes, filtros, baixasFiltro, tipoPerfil])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'

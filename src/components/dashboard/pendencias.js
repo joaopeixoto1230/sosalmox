@@ -1,4 +1,5 @@
 import { MODULOS } from '../../utils/permissions'
+import { previsaoRuptura, consumoAnormal, RUPTURA_CRITICA_DIAS } from '../filtros/ruptura'
 
 // ===== Pendências do painel =====
 // O que exige ação hoje, calculado a partir do que já existe no banco.
@@ -108,6 +109,7 @@ export function calcularPendencias(dados, opcoes = {}) {
 
   const {
     eventos = [], ordensSaida = [], ordensServico = [], solicitacoes = [],
+    filtros = [], baixasFiltro = [],
   } = dados
 
   const itens = []
@@ -179,6 +181,38 @@ export function calcularPendencias(dados, opcoes = {}) {
       detalhe: '',
       para: '/solicitacoes',
       acao: 'Solicitações',
+    })
+  }
+
+  // Avisos proativos de filtros: previsão de ruptura e consumo fora do padrão
+  // (filtros/ruptura.js). Números determinísticos — a IA só escreve sobre eles.
+  const ruptura = previsaoRuptura(filtros, baixasFiltro, opcoes.agora || new Date())
+  if (ruptura.length) {
+    const pior = ruptura[0]
+    itens.push({
+      chave: 'ruptura',
+      modulo: MODULOS.FILTROS,
+      nivel: pior.diasRestantes <= RUPTURA_CRITICA_DIAS ? 'critico' : 'aviso',
+      n: ruptura.length,
+      texto: `${ruptura.length === 1 ? 'filtro a caminho' : 'filtros a caminho'} de acabar`,
+      detalhe: `no ritmo atual, ${pior.filtro.nome} acaba em ~${plural(pior.diasRestantes, 'dia', 'dias')}`,
+      para: '/filtros',
+      acao: 'Filtros',
+    })
+  }
+
+  const anormal = consumoAnormal(filtros, baixasFiltro, opcoes.agora || new Date())
+  if (anormal.length) {
+    const maior = anormal[0]
+    itens.push({
+      chave: 'consumo',
+      modulo: MODULOS.FILTROS,
+      nivel: 'aviso',
+      n: anormal.length,
+      texto: `${anormal.length === 1 ? 'filtro com consumo' : 'filtros com consumo'} fora do padrão`,
+      detalhe: `${maior.filtro.nome}: ${maior.ultimaSemana} na última semana (média ${maior.mediaSemanal.toFixed(1).replace('.', ',')}/sem)`,
+      para: '/filtros',
+      acao: 'Filtros',
     })
   }
 

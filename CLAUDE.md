@@ -271,7 +271,14 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
 - Ordem da tela: **pendências → números → roscas → frota → agenda → atalhos**.
 - `pendencias.js` (com testes em `pendencias.test.js` — rodar `npm test` antes de mexer):
   material a cobrar, OS parada >2 dias, ferramenta emprestada em atraso, saída sem assinatura
-  de quem recebeu e solicitação de compra na fila.
+  de quem recebeu, solicitação de compra na fila — e os **avisos proativos de filtros**
+  (`filtros/ruptura.js`, com testes): previsão de ruptura pelo consumo de 60 dias
+  (crítico com ≤10 dias) e consumo fora do padrão (última semana ≥ 2× a média de 4 semanas,
+  mínimo 4 un.). Agrupado por REFERÊNCIA (estoque compartilhado). O painel carrega
+  `baixas_filtro` só dos últimos 60 dias (`RESTRICAO_BAIXAS_60D`).
+- **Briefing das 7h com "Leitura do agente"**: `gerarLeituraIA` em `functions/index.js`
+  escreve 3-5 frases via Haiku EM CIMA dos números do buildBriefing (nunca inventa número);
+  se a chamada falhar, o e-mail sai sem o parágrafo. Usa o secret `ANTHROPIC_API_KEY`.
   - Cada pendência declara o **MÓDULO** a que pertence e o painel filtra por `temPermissao`:
     ninguém recebe alerta que não consegue resolver. A faixa some por completo quando não há nada.
 - `Rosca.jsx` + `cores.js`: roscas de saídas por tipo, frota e preventiva × corretiva.

@@ -93,7 +93,7 @@ async function buildBriefing() {
   }
 }
 
-function renderHtml(b) {
+function renderHtml(b, leitura) {
   const li = (arr, render) => arr.length
     ? `<ul style="margin:4px 0 12px;padding-left:20px;">${arr.map(x => `<li style="margin-bottom:4px;">${render(x)}</li>`).join('')}</ul>`
     : `<p style="margin:4px 0 12px;color:#888;">Nada nas últimas 24h.</p>`
@@ -105,6 +105,11 @@ function renderHtml(b) {
       <p style="margin:4px 0 0;font-size:13px;opacity:.9;">${fmtData(b.inicio)} a ${fmtData(b.agora)}</p>
     </div>
     <div style="border:1px solid #eee;border-top:none;padding:20px;border-radius:0 0 8px 8px;">
+      ${leitura ? `
+      <div style="background:#FFF8F0;border-left:4px solid #CC0000;padding:12px 16px;border-radius:6px;margin-bottom:18px;">
+        <p style="margin:0 0 4px;font-size:12px;font-weight:bold;color:#CC0000;">🤖 Leitura do agente</p>
+        <p style="margin:0;font-size:14px;line-height:1.5;">${leitura.replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>
+      </div>` : ''}
 
       <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">📦 Saídas de material — Evento (${b.saidasEvento.length})</h2>
       ${li(b.saidasEvento, s => `<strong>${s.numeroFormatado || s.numero || ''}</strong> — ${s.eventoNome || 'sem evento'} · ${s.itens?.length || 0} item(ns) · responsável: ${s.responsavelNome || '—'}`)}
@@ -135,9 +140,59 @@ function renderHtml(b) {
   </div>`
 }
 
+// A IA escreve a "leitura do dia" EM CIMA dos numeros ja apurados pelo
+// buildBriefing — ela nao inventa numero nenhum. Se a chamada falhar, o
+// briefing sai normalmente, so sem o paragrafo.
+async function gerarLeituraIA(b) {
+  try {
+    const fatos = [
+      `Saidas de material para evento nas ultimas 24h: ${b.saidasEvento.length}` +
+        (b.saidasEvento.length ? ` (${b.saidasEvento.map(s => s.eventoNome || 'sem evento').join('; ')})` : ''),
+      `Saidas de uso interno: ${b.saidasUsoInterno.length}`,
+      `OS de manutencao abertas: ${b.osAbertas.length}` +
+        (b.osAbertas.length ? ` (${b.osAbertas.map(o => `${o.equipamentoLabel || ''} ${o.tipo || ''}`).join('; ')})` : ''),
+      `OS concluidas: ${b.osConcluidas.length}`,
+      `Solicitacoes de compra novas: ${b.solicitacoes.length} (${b.solicitacoesUrgentes.length} urgentes)`,
+      `Movimentacao de filtros: ${b.entradasFiltro} entradas, ${b.baixasFiltro} baixas`,
+      `Consumiveis abaixo do minimo: ${b.materiaisBaixo.length}` +
+        (b.materiaisBaixo.length ? ` (${b.materiaisBaixo.slice(0, 8).map(m => m.nome || m.codigo).join('; ')})` : ''),
+    ].join('\n')
+
+    const resposta = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY.value(),
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        system:
+          'Voce e o assistente do almoxarifado da SOS Energia (locacao de geradores). ' +
+          'Escreva a leitura do dia para o dono, Joao, com base APENAS nos fatos fornecidos: ' +
+          '3 a 5 frases curtas em portugues, tom direto de colega de trabalho, destacando o que ' +
+          'merece atencao hoje e o que esta em ordem. Sem saudacao, sem markdown, sem listas. ' +
+          'Se nao houve movimento, diga isso em uma frase e aponte o que segue pendente.',
+        messages: [{ role: 'user', content: fatos }],
+      }),
+    })
+    if (!resposta.ok) {
+      logger.warn(`leitura IA do briefing falhou: HTTP ${resposta.status}`)
+      return null
+    }
+    const dados = await resposta.json()
+    return dados.content?.find(c => c.type === 'text')?.text?.trim() || null
+  } catch (e) {
+    logger.warn('leitura IA do briefing falhou', e)
+    return null
+  }
+}
+
 async function enviarBriefing() {
   const b = await buildBriefing()
-  const html = renderHtml(b)
+  const leitura = await gerarLeituraIA(b)
+  const html = renderHtml(b, leitura)
 
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -236,7 +291,7 @@ exports.agente = onRequest(
 
 // Roda todo dia às 07:00 (horário de São Paulo), resumindo as últimas 24h
 exports.briefingDiario = onSchedule(
-  { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: SECRETS },
+  { schedule: 'every day 07:00', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [...SECRETS, ANTHROPIC_API_KEY] },
   async () => {
     await enviarBriefing()
   }
@@ -246,7 +301,7 @@ exports.briefingDiario = onSchedule(
 // e-mail antes de confiar 100% no agendamento). Protegido por um token simples.
 const TEST_TOKEN = defineSecret('BRIEFING_TEST_TOKEN')
 exports.briefingDiarioTeste = onRequest(
-  { region: 'us-central1', secrets: [...SECRETS, TEST_TOKEN] },
+  { region: 'us-central1', secrets: [...SECRETS, ANTHROPIC_API_KEY, TEST_TOKEN] },
   async (req, res) => {
     if (req.query.token !== TEST_TOKEN.value()) {
       res.status(403).send('Forbidden')
