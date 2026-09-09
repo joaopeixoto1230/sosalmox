@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { itensPorEvento, filtrarEventosDevolucao, itensPendentesDevolucao, itemLancavelSozinho } from './buscaDevolucao'
+import { itensPorEvento, filtrarEventosDevolucao, itensPendentesDevolucao, itemLancavelSozinho, itensNoEvento, materiaisPresos } from './buscaDevolucao'
 
 const eventos = [
   { id: 'e1', nome: 'HOT WHEELS MONSTER TRUCK LIVE', local: 'Eixo Monumental' },
@@ -93,5 +93,76 @@ describe('devolução item a item', () => {
   it('aguenta lista e mapa vazios', () => {
     expect(itensPendentesDevolucao(null, mapa)).toEqual([])
     expect(itensPendentesDevolucao(itens, undefined).map(i => i.id)).toEqual(itens.map(i => i.id))
+  })
+})
+
+// O bug de produção (09/09/2026): material adicionado pelo "Editar material" do
+// evento não entra na ordem de saída, então a devolução — que montava a lista
+// só pelas ordens — nunca o via. Ficava em_evento para sempre.
+describe('itensNoEvento', () => {
+  const materiais = [
+    { id: 'cabo1', nome: 'Cabo 4x50', status: 'em_evento', eventoAtual: 'e1' },
+    { id: 'cx1', nome: 'Caixa de passagem', status: 'em_evento', eventoAtual: 'e1' },
+    { id: 'cabo2', nome: 'Cabo 5x6', status: 'em_evento', eventoAtual: 'e2' },
+    { id: 'cabo3', nome: 'Cabo terra', status: 'disponivel', eventoAtual: null },
+  ]
+  const ordens = [{ itens: [{ id: 'cabo1', nome: 'Cabo 4x50', codigo: 'C45' }] }]
+
+  it('pega o material que entrou pelo "Editar material", fora de qualquer ordem', () => {
+    const r = itensNoEvento(ordens, materiais, 'e1')
+    expect(r.map(i => i.id).sort()).toEqual(['cabo1', 'cx1'])
+  })
+
+  it('não repete o item que está na ordem E aponta para o evento', () => {
+    expect(itensNoEvento(ordens, materiais, 'e1').filter(i => i.id === 'cabo1')).toHaveLength(1)
+  })
+
+  it('não traz material de outro evento nem o que já voltou', () => {
+    const ids = itensNoEvento(ordens, materiais, 'e1').map(i => i.id)
+    expect(ids).not.toContain('cabo2')
+    expect(ids).not.toContain('cabo3')
+  })
+
+  it('preserva o item da ordem como está — ele carrega quantidade e código', () => {
+    expect(itensNoEvento(ordens, materiais, 'e1').find(i => i.id === 'cabo1').codigo).toBe('C45')
+  })
+
+  it('aguenta lista vazia dos dois lados', () => {
+    expect(itensNoEvento(null, null, 'e1')).toEqual([])
+    expect(itensNoEvento([], materiais, 'inexistente')).toEqual([])
+  })
+})
+
+describe('materiaisPresos', () => {
+  const eventos = [
+    { id: 'ativo', nome: 'CCUG', status: 'ativo' },
+    { id: 'fechado', nome: 'SESC', status: 'concluido' },
+  ]
+  const materiais = [
+    { id: 'a', nome: 'No evento ativo', status: 'em_evento', eventoAtual: 'ativo' },
+    { id: 'b', nome: 'Evento concluído', status: 'em_evento', eventoAtual: 'fechado' },
+    { id: 'c', nome: 'Evento apagado', status: 'em_evento', eventoAtual: 'sumiu' },
+    { id: 'd', nome: 'Sem vínculo', status: 'em_evento', eventoAtual: null },
+    { id: 'e', nome: 'Normal', status: 'disponivel', eventoAtual: null },
+  ]
+
+  it('acha só o que está preso — material em evento ATIVO não é problema', () => {
+    const r = materiaisPresos(materiais, eventos)
+    expect(r.map(x => x.material.id).sort()).toEqual(['b', 'c', 'd'])
+  })
+
+  it('explica o motivo de cada um, para o usuário entender antes de liberar', () => {
+    const porId = Object.fromEntries(materiaisPresos(materiais, eventos).map(x => [x.material.id, x.motivo]))
+    expect(porId.b).toContain('concluído')
+    expect(porId.c).toContain('excluído')
+    expect(porId.d).toContain('sem evento')
+  })
+
+  it('sem eventos carregados, não acusa nada de errado por engano', () => {
+    // Os materiais carregam antes dos eventos. Julgar com a lista vazia
+    // marcaria TODO material em evento como "evento excluído" — falso alarme
+    // que levaria alguém a liberar material que está na rua.
+    expect(materiaisPresos(materiais, [])).toEqual([])
+    expect(materiaisPresos(materiais, null)).toEqual([])
   })
 })

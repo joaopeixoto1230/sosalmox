@@ -327,6 +327,30 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   ficam até a confirmação final e NÃO têm lançamento individual (dupla contagem). Com tudo
   lançado um a um, o botão vira "Encerrar devolução do evento" (fecha ordens/geradores/evento).
   Status "Parcial" não lança sozinho — parcial significa que ainda falta voltar.
+- ⚠️ **MATERIAL PRESO EM EVENTO** (bug de produção corrigido em 09/09/2026 — não reintroduzir).
+  Sintoma: material devolvido no papel continuava `em_evento` no estoque, e a Saída recusava
+  com "X não está mais disponível" mesmo com o card mostrando "Disponível".
+  - **Causa 1 — a devolução só enxergava as ORDENS.** Material entra no evento por DOIS
+    caminhos: a Saída de Material (grava o item na `ordens_saida`) e o **"Editar material"**
+    do evento (`Eventos.jsx`), que mexia SÓ no doc do material. O segundo grupo ficava
+    invisível na devolução, e como a devolução CONCLUI o evento, ele nunca mais tinha por
+    onde voltar. Corrigido dos dois lados: `itensNoEvento(ordens, materiais, eventoId)` em
+    `buscaDevolucao.js` (com testes) soma às ordens todo material com
+    `eventoAtual === eventoId && status === 'em_evento'`, e o `adicionar` do "Editar material"
+    passou a gravar o item de unidade na ordem também (transaction), como já fazia com o
+    contado. **Nunca montar a devolução só pelas ordens.**
+  - **Causa 2 — troca rápida de status no card do Estoque.** `MaterialCard.trocarStatus`
+    gravava só `{ status }`. A saída zera o `estoqueAtual` e prende o `eventoAtual`, então o
+    card dizia "Disponível" enquanto a validação do `StepConfirmacao`
+    (`status !== 'disponivel' || estoqueAtual <= 0`) recusava. Ao voltar para `disponivel` o
+    patch agora limpa `eventoAtual` e devolve `estoqueAtual: 1` (contado tem quantidade
+    própria e fica de fora).
+  - **Conserto do que já quebrou**: `materiaisPresos(materiais, eventos)` +
+    `LiberarPresosModal.jsx`, com faixa âmbar no topo do Estoque que só aparece quando há
+    material preso. Lista o motivo de cada um (evento excluído / concluído / sem vínculo) e
+    libera só o que o usuário confirmar — `writeBatch` em lotes de 400.
+    ⚠️ `materiaisPresos` devolve `[]` quando a lista de eventos está vazia: sem isso, o
+    instante antes de os eventos carregarem marcaria o pátio inteiro como preso.
 - Compras: fila de solicitações, nova solicitação manual
 - Agente IA (Claude Haiku), botão flutuante em todas as telas. **Toda chamada de IA passa
   pelo proxy `agente` em `functions/index.js`** (`utils/agenteApi.js` no frontend): a chave

@@ -6,7 +6,7 @@ import { useCollection } from '../../hooks/useFirestore'
 import ItemDevolucao from './ItemDevolucao'
 import { formatarData, statusEventoCor, statusEventoLabel, formatarNumeroOrdem, statusGeradorLabel, materialPorQuantidade } from '../../utils/formatters'
 import { materialContado, patchDevolucaoEvento } from '../estoque/contagem'
-import { itensPorEvento, filtrarEventosDevolucao, itensPendentesDevolucao, itemLancavelSozinho } from './buscaDevolucao'
+import { itensPorEvento, filtrarEventosDevolucao, itensPendentesDevolucao, itemLancavelSozinho, itensNoEvento } from './buscaDevolucao'
 
 export default function DevolucaoMaterial() {
   const { uid, nome } = useAuth()
@@ -43,15 +43,13 @@ export default function DevolucaoMaterial() {
     return ordens.filter(o => o.eventoId === eventoSelecionado.id && o.status === 'ativo')
   }, [ordens, eventoSelecionado])
 
-  const todosItens = useMemo(() => {
-    const mapa = new Map()
-    ordensDoEvento.forEach(o => {
-      o.itens?.forEach(item => {
-        if (!mapa.has(item.id)) mapa.set(item.id, item)
-      })
-    })
-    return Array.from(mapa.values())
-  }, [ordensDoEvento])
+  // ⚠️ NÃO montar só pelas ordens: material adicionado pelo "Editar material" do
+  // evento não entra em ordem nenhuma e ficaria invisível aqui — devolução
+  // conclui o evento e o material ficava preso em `em_evento` para sempre.
+  const todosItens = useMemo(
+    () => (eventoSelecionado ? itensNoEvento(ordensDoEvento, materiais, eventoSelecionado.id) : []),
+    [ordensDoEvento, materiais, eventoSelecionado],
+  )
 
   const materiaisMap = useMemo(() => new Map(materiais.map(m => [m.id, m])), [materiais])
 

@@ -3,6 +3,8 @@ import { useCollection } from '../../hooks/useFirestore'
 import MaterialCard from './MaterialCard'
 import NovoMaterialModal from './NovoMaterialModal'
 import MoverGrupoModal from './MoverGrupoModal'
+import LiberarPresosModal from './LiberarPresosModal'
+import { materiaisPresos } from '../devolucao/buscaDevolucao'
 import { GRUPOS, grupoDoMaterial, categoriasDoGrupo } from './categorias'
 import { calcularEspecies, chaveEspecie, materialPorUnidade, materialEmEstoqueBaixo, contarEstoqueBaixo } from './estoqueEspecie'
 
@@ -28,6 +30,11 @@ export default function Estoque() {
   const [novoMaterialAberto, setNovoMaterialAberto] = useState(false)
   const [moverAberto, setMoverAberto] = useState(false)
   const [avisoMover, setAvisoMover] = useState('')
+  const [presosAberto, setPresosAberto] = useState(false)
+
+  // Material marcado "Em Evento" cujo evento acabou/sumiu: some da devolução e
+  // nunca volta sozinho. O aviso só aparece quando existe algum.
+  const presos = useMemo(() => materiaisPresos(materiais, eventos), [materiais, eventos])
 
   // Materiais do grupo selecionado (doc sem `grupo` = eventos).
   const materiaisDoGrupo = useMemo(
@@ -111,6 +118,18 @@ export default function Estoque() {
         />
       )}
 
+      {presosAberto && (
+        <LiberarPresosModal
+          materiais={materiais}
+          eventos={eventos}
+          onFechar={() => setPresosAberto(false)}
+          onSalvo={(quantos) => {
+            setPresosAberto(false)
+            setAvisoMover(`${quantos} ${quantos === 1 ? 'material liberado' : 'materiais liberados'} e de volta ao estoque.`)
+          }}
+        />
+      )}
+
       {moverAberto && (
         <MoverGrupoModal
           materiais={materiais}
@@ -136,6 +155,22 @@ export default function Estoque() {
           </button>
         ))}
       </div>
+
+      {presos.length > 0 && (
+        <button
+          onClick={() => { setAvisoMover(''); setPresosAberto(true) }}
+          className="w-full flex items-center gap-3 text-left rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 hover:bg-amber-100/70 transition-colors dark:border-amber-900/60 dark:bg-amber-950/30 dark:hover:bg-amber-900/30"
+        >
+          <span className="min-w-[30px] h-6 px-1.5 rounded-lg bg-amber-100 text-amber-800 text-sm font-bold flex items-center justify-center flex-shrink-0 dark:bg-amber-900/60 dark:text-amber-200">
+            {presos.length}
+          </span>
+          <span className="text-sm text-brand-black flex-1 min-w-0">
+            {presos.length === 1 ? 'material preso' : 'materiais presos'} em evento que já acabou
+            <span className="text-gray-500"> — não voltaram ao estoque</span>
+          </span>
+          <span className="text-xs font-semibold text-brand-red flex-shrink-0">Revisar →</span>
+        </button>
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap -mt-2">
         {avisoMover

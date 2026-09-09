@@ -1486,7 +1486,38 @@ function ModalEditarMaterialEvento({ evento, onFechar }) {
         })
         setQuantidades(prev => ({ ...prev, [material.id]: '' }))
       } else {
-        await updateDoc(doc(db, 'materiais', material.id), { status: 'em_evento', estoqueAtual: 0, eventoAtual: evento.id })
+        // ⚠️ Registrar TAMBÉM na ordem de saída. O material de unidade guarda o
+        // vínculo no próprio doc (`eventoAtual`), então "funcionava" sem isso —
+        // mas ficava fora do romaneio, do relatório e da lista de devolução, que
+        // é montada pelas ordens. Resultado em produção: material devolvido no
+        // papel e preso em `em_evento` no sistema para sempre.
+        // Sem ordem (evento antigo/importado) segue só pelo doc do material — a
+        // devolução também enxerga por ali (`itensNoEvento`).
+        const ordem = ordensDoEvento[0]
+        if (!ordem) {
+          await updateDoc(doc(db, 'materiais', material.id), { status: 'em_evento', estoqueAtual: 0, eventoAtual: evento.id })
+        } else {
+          await runTransaction(db, async (tx) => {
+            const matRef = doc(db, 'materiais', material.id)
+            const ordemRef = doc(db, 'ordens_saida', ordem.id)
+            const matSnap = await tx.get(matRef)
+            const ordemSnap = await tx.get(ordemRef)
+            if (!matSnap.exists()) throw new Error('Material não encontrado.')
+            if (!ordemSnap.exists()) throw new Error('Ordem de saída não encontrada.')
+            tx.update(matRef, { status: 'em_evento', estoqueAtual: 0, eventoAtual: evento.id })
+            const itens = ordemSnap.data().itens || []
+            if (!itens.some(it => it.id === material.id)) {
+              tx.update(ordemRef, {
+                itens: [...itens, {
+                  id: material.id,
+                  nome: material.nome || null,
+                  codigo: material.codigo || null,
+                  categoria: material.categoria || null,
+                }],
+              })
+            }
+          })
+        }
       }
     } catch (e) {
       console.error(e)
