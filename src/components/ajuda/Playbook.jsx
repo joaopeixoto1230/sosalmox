@@ -116,6 +116,7 @@ export default function Playbook() {
     <div className="max-w-3xl mx-auto space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
+          <img src="/logo-sos-v2.png" alt="SOS Energia" className="h-7 w-auto mb-2" />
           <h1 className="text-2xl font-bold text-brand-black">Playbook do Almoxarifado</h1>
           <p className="text-gray-500 text-sm mt-1">
             Guia do sistema para o dia a dia. Toque num assunto para abrir.

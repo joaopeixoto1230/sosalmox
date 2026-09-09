@@ -27,6 +27,11 @@ function bloco(b) {
   return ''
 }
 
+// Logo oficial servido pelo hosting. O iframe de impressão herda a base do
+// documento, então o caminho absoluto resolve. Trocar a imagem exige subir o
+// sufixo do arquivo (-v3 etc.) — ver a nota de cache no CLAUDE.md.
+const LOGO = '/logo-sos-v2.png'
+
 export function imprimirPlaybook() {
   const hoje = new Date().toLocaleDateString('pt-BR')
 
@@ -55,8 +60,8 @@ export function imprimirPlaybook() {
     /* ===== Capa ===== */
     .capa { height: 246mm; display: flex; flex-direction: column; justify-content: center;
             text-align: center; page-break-after: always; }
-    .capa .marca { font-size: 46pt; font-weight: 800; color: #CC0000; letter-spacing: -1px; }
-    .capa .sub { font-size: 12pt; color: #666; margin-top: 2px; letter-spacing: 3px; text-transform: uppercase; }
+    .capa .marca img { width: 62mm; height: auto; display: block; margin: 0 auto; }
+    .capa .sub { font-size: 12pt; color: #666; margin-top: 8px; letter-spacing: 3px; text-transform: uppercase; }
     .capa h1 { font-size: 30pt; margin: 42px 0 8px; color: #0A0A0A; line-height: 1.15; }
     .capa .linha { width: 70px; height: 4px; background: #CC0000; margin: 22px auto; border-radius: 2px; }
     .capa .desc { font-size: 12.5pt; color: #555; max-width: 118mm; margin: 0 auto; }
@@ -107,7 +112,7 @@ export function imprimirPlaybook() {
 <body>
   <div class="capa">
     <div>
-      <div class="marca">SOS</div>
+      <div class="marca"><img src="${LOGO}" alt="SOS Energia"></div>
       <div class="sub">${esc(EMPRESA.nomeFantasia)}</div>
     </div>
     <h1>Playbook do<br>Almoxarifado</h1>
@@ -145,10 +150,17 @@ export function imprimirPlaybook() {
   iframe.setAttribute('aria-hidden', 'true')
   iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
   iframe.onload = () => {
-    setTimeout(() => {
-      imprimirComNome(iframe.contentWindow, 'Playbook do Almoxarifado - SOS Energia')
-      setTimeout(() => iframe.remove(), 60000)
-    }, 300)
+    // Espera o logo decodificar antes de imprimir — sem isso a capa sai sem a
+    // marca (mesmo cuidado do relatório de uso interno com as fotos).
+    const doc = iframe.contentDocument
+    const img = doc?.querySelector('.capa img')
+    const pronto = img?.decode ? img.decode().catch(() => {}) : Promise.resolve()
+    pronto.then(() => {
+      setTimeout(() => {
+        imprimirComNome(iframe.contentWindow, 'Playbook do Almoxarifado - SOS Energia')
+        setTimeout(() => iframe.remove(), 60000)
+      }, 200)
+    })
   }
   document.body.appendChild(iframe)
   iframe.srcdoc = html
