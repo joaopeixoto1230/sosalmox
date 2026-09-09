@@ -24,6 +24,9 @@ export const MODULOS = {
   EVENTOS: 'eventos',
   LOCACOES: 'locacoes',
   USO_INTERNO: 'uso_interno',
+  // O Playbook é o guia do sistema: TODO perfil tem, inclusive o que só usa
+  // uma tela. Quem mais precisa do guia é justamente quem menos usa o sistema.
+  PLAYBOOK: 'playbook',
 }
 
 const permissoes = {
@@ -45,6 +48,7 @@ const permissoes = {
     MODULOS.EVENTOS,
     MODULOS.LOCACOES,
     MODULOS.USO_INTERNO,
+    MODULOS.PLAYBOOK,
   ],
   [PERFIS.ALMOXARIFE]: [
     MODULOS.DASHBOARD,
@@ -63,6 +67,7 @@ const permissoes = {
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
     MODULOS.USO_INTERNO,
+    MODULOS.PLAYBOOK,
   ],
   [PERFIS.FRANCA]: [
     MODULOS.FILTROS,
@@ -71,10 +76,12 @@ const permissoes = {
     MODULOS.MANUTENCAO,
     MODULOS.AGENTE_IA,
     MODULOS.RELATORIOS,
+    MODULOS.PLAYBOOK,
   ],
   [PERFIS.COMPRAS]: [
     MODULOS.DASHBOARD_COMPRAS,
     MODULOS.FILA_SOLICITACOES,
+    MODULOS.PLAYBOOK,
   ],
 }
 
@@ -118,6 +125,7 @@ export function getMenuItems(perfil) {
     { label: 'Dashboard Compras', path: '/compras', modulo: MODULOS.DASHBOARD_COMPRAS, icon: 'shopping-cart' },
     { label: 'Solicitações', path: '/solicitacoes', modulo: MODULOS.FILA_SOLICITACOES, icon: 'clipboard' },
     { label: 'Usuários', path: '/usuarios', modulo: MODULOS.GESTAO_USUARIOS, icon: 'users' },
+    { label: 'Playbook', path: '/playbook', modulo: MODULOS.PLAYBOOK, icon: 'book' },
   ]
   return todos
     .map(item => item.filhos

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import Playbook from './components/ajuda/Playbook'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import LoginPage from './components/auth/LoginPage'
 import MainLayout from './components/layout/MainLayout'
@@ -111,6 +112,9 @@ export default function App() {
             } />
             <Route path="solicitacoes" element={
               <ProtectedRoute modulo={MODULOS.FILA_SOLICITACOES}><FilaSolicitacoes /></ProtectedRoute>
+            } />
+            <Route path="playbook" element={
+              <ProtectedRoute modulo={MODULOS.PLAYBOOK}><Playbook /></ProtectedRoute>
             } />
             <Route path="usuarios" element={
               <ProtectedRoute modulo={MODULOS.GESTAO_USUARIOS}><Usuarios /></ProtectedRoute>

@@ -38,7 +38,13 @@ describe('menu por perfil', () => {
     const itens = getMenuItems(PERFIS.COMPRAS)
     expect(rotulos(itens)).not.toContain('Eventos e Locações')
     expect(rotulos(itens)).not.toContain('Estoque')
-    expect(rotulos(itens)).toEqual(['Dashboard Compras', 'Solicitações'])
+    expect(rotulos(itens)).toEqual(['Dashboard Compras', 'Solicitações', 'Playbook'])
+  })
+
+  it('TODO perfil enxerga o Playbook — quem menos usa o sistema é quem mais precisa do guia', () => {
+    for (const perfil of Object.values(PERFIS)) {
+      expect(rotulos(getMenuItems(perfil)), perfil).toContain('Playbook')
+    }
   })
 
   it('todo item tem destino: ou é grupo com filhos, ou tem path', () => {

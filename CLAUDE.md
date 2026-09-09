@@ -347,6 +347,18 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
     Ação pendente restaurada do histórico reabre como cancelada (o preparo vive só em memória).
 - Dark mode com toggle no header
 - Relatórios com abas Saídas / Devoluções / Condições
+- **Playbook do Almoxarifado** (`src/components/ajuda/`, rota `/playbook`): o guia do sistema
+  para a equipe, em linguagem de chão de galpão. Vive DENTRO do sistema (consulta pelo celular
+  na hora da dúvida) e tem botão Imprimir que gera a versão em papel com capa, sumário e um
+  capítulo por página.
+  - ⚠️ O texto fica em `conteudoPlaybook.js`, em DADOS — a tela (`Playbook.jsx`) e a versão
+    impressa (`playbookImpresso.js`) leem a MESMA fonte. Escrever texto direto no JSX criaria
+    duas cópias e a impressa envelheceria calada. **Ao mudar um fluxo do sistema, atualizar o
+    playbook junto** e subir a `VERSAO`.
+  - Módulo `PLAYBOOK` liberado para TODOS os perfis (teste cobre): quem menos usa o sistema é
+    quem mais precisa do guia.
+  - No celular as tabelas viram lista de cards — tabela de 2 colunas em 360px espreme o texto
+    a uma palavra por linha.
 
 ## 📱 Celular (a equipe usa Samsung Galaxy)
 
