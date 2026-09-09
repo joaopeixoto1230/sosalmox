@@ -337,7 +337,8 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
     PURA com testes — definições e resolução do pedido; `agente/ferramentas.js` = execução).
     v1: `registrar_baixa_filtro`, `abrir_ordem_servico` e `iniciar_saida_material` (esta NÃO
     grava: deixa o passo 1 da Saída pronto via `sessionStorage.agentePrefillSaida` e navega —
-    materiais, romaneio e ASSINATURAS seguem na tela, porque assinatura é obrigatória). **NADA grava sem o usuário clicar
+    materiais, romaneio e assinaturas seguem na tela, que é onde o romaneio é conferido).
+    **NADA grava sem o usuário clicar
     Confirmar** no `CardAcao` do chat; a escrita roda no NAVEGADOR com o login do usuário
     (regras do Firestore e perfis valem — o proxy não escreve nada). Ferramentas filtradas
     por `temPermissao`. As execuções replicam as transações de BaixaFiltroModal e NovaOS —
