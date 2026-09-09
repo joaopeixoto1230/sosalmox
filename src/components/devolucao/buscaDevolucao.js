@@ -113,9 +113,16 @@ export function itensNoEvento(ordens, materiais, eventoId) {
 }
 
 /**
- * Material PRESO: está `em_evento` mas não há evento ativo que o justifique —
- * o evento foi concluído, excluído, ou o campo ficou vazio. Some das telas de
- * devolução e nunca volta ao estoque sozinho.
+ * Material PRESO: o cadastro dele ficou num estado de onde não sai sozinho.
+ * Dois formatos:
+ *  1. `em_evento` sem evento ativo que justifique — concluído, excluído ou o
+ *     campo vazio. Some das telas de devolução e nunca volta ao estoque.
+ *  2. `disponivel` mas sem estoque para sair — a saída zera o `estoqueAtual` e
+ *     prende o `eventoAtual`; quem trocou o status na mão (regra antiga do card)
+ *     deixou esses dois para trás. O card diz "Disponível" e a saída recusa com
+ *     "não está mais disponível" (Cabo terra 95/72/11m, 09/09/2026).
+ * Contado e por-quantidade ficam de fora do caso 2: neles zero é falta de
+ * verdade, não defeito de cadastro.
  * @returns {{material, motivo}[]}
  */
 export function materiaisPresos(materiais, eventos) {
@@ -125,16 +132,28 @@ export function materiaisPresos(materiais, eventos) {
   const porId = new Map(eventos.map(e => [e.id, e]))
   const presos = []
   for (const m of materiais || []) {
-    if (m?.status !== 'em_evento') continue
-    if (!m.eventoAtual) {
-      presos.push({ material: m, motivo: 'sem evento vinculado' })
+    if (m?.status === 'em_evento') {
+      if (!m.eventoAtual) {
+        presos.push({ material: m, motivo: 'sem evento vinculado' })
+        continue
+      }
+      const evento = porId.get(m.eventoAtual)
+      if (!evento) {
+        presos.push({ material: m, motivo: 'o evento foi excluído' })
+      } else if (evento.status === 'concluido') {
+        presos.push({ material: m, motivo: `evento concluído: ${evento.nome || 'sem nome'}` })
+      }
       continue
     }
-    const evento = porId.get(m.eventoAtual)
-    if (!evento) {
-      presos.push({ material: m, motivo: 'o evento foi excluído' })
-    } else if (evento.status === 'concluido') {
-      presos.push({ material: m, motivo: `evento concluído: ${evento.nome || 'sem nome'}` })
+    if (m?.status !== 'disponivel') continue
+    if (materialContado(m) || materialPorQuantidade(m)) continue
+    // Só o zero ESCRITO acusa. Campo ausente não é defeito — a validação da
+    // saída (`estoqueAtual <= 0`) também deixa passar `undefined`, e tratar a
+    // ausência como zero acusaria material antigo sem o campo.
+    if (m.estoqueAtual != null && Number(m.estoqueAtual) <= 0) {
+      presos.push({ material: m, motivo: 'consta disponível, mas sem estoque — a saída recusa' })
+    } else if (m.eventoAtual) {
+      presos.push({ material: m, motivo: 'disponível, mas ainda preso a um evento antigo' })
     }
   }
   return presos

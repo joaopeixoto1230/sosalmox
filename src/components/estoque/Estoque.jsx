@@ -165,8 +165,8 @@ export default function Estoque() {
             {presos.length}
           </span>
           <span className="text-sm text-brand-black flex-1 min-w-0">
-            {presos.length === 1 ? 'material preso' : 'materiais presos'} em evento que já acabou
-            <span className="text-gray-500"> — não voltaram ao estoque</span>
+            {presos.length === 1 ? 'material travado' : 'materiais travados'} fora da prateleira
+            <span className="text-gray-500"> — evento que já acabou ou cadastro sem estoque</span>
           </span>
           <span className="text-xs font-semibold text-brand-red flex-shrink-0">Revisar →</span>
         </button>

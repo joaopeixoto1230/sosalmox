@@ -143,12 +143,42 @@ describe('materiaisPresos', () => {
     { id: 'b', nome: 'Evento concluído', status: 'em_evento', eventoAtual: 'fechado' },
     { id: 'c', nome: 'Evento apagado', status: 'em_evento', eventoAtual: 'sumiu' },
     { id: 'd', nome: 'Sem vínculo', status: 'em_evento', eventoAtual: null },
-    { id: 'e', nome: 'Normal', status: 'disponivel', eventoAtual: null },
+    { id: 'e', nome: 'Normal', status: 'disponivel', eventoAtual: null, estoqueAtual: 1 },
   ]
 
   it('acha só o que está preso — material em evento ATIVO não é problema', () => {
     const r = materiaisPresos(materiais, eventos)
     expect(r.map(x => x.material.id).sort()).toEqual(['b', 'c', 'd'])
+  })
+
+  it('acha o "disponível" que a saída recusa por falta de estoque', () => {
+    // O caso do Cabo terra 95/72/11m: o status foi trocado na mão, mas o
+    // estoqueAtual continuou 0 e o evento continuou preso. O card diz
+    // "Disponível" e a saída recusa com "não está mais disponível".
+    const quebrados = [
+      { id: 'x', nome: 'Cabo terra', status: 'disponivel', estoqueAtual: 0, eventoAtual: 'fechado' },
+      { id: 'y', nome: 'Cabo 4x50', status: 'disponivel', estoqueAtual: 1, eventoAtual: 'fechado' },
+    ]
+    const porId = Object.fromEntries(materiaisPresos(quebrados, eventos).map(x => [x.material.id, x.motivo]))
+    expect(porId.x).toContain('sem estoque')
+    expect(porId.y).toContain('evento antigo')
+  })
+
+  it('fita e alambrado zerados são falta de verdade, não defeito de cadastro', () => {
+    // Contado e por-quantidade administram a própria quantidade: zero ali
+    // significa acabou, e liberar devolveria estoque que não existe.
+    const consumiveis = [
+      { id: 'fita', nome: 'Fita', grupo: 'uso_interno', categoria: 'Fitas', status: 'disponivel', estoqueAtual: 0 },
+      { id: 'alambrado', nome: 'Alambrado', porQuantidade: true, status: 'disponivel', estoqueAtual: 0 },
+      { id: 'protetor', nome: 'Protetor de cabo', status: 'disponivel', estoqueAtual: 0 },
+    ]
+    expect(materiaisPresos(consumiveis, eventos)).toEqual([])
+  })
+
+  it('material sem o campo estoqueAtual não é acusado', () => {
+    // A saída deixa `undefined` passar; acusar aqui encheria a tela de falso
+    // alarme com material antigo, cadastrado antes do campo existir.
+    expect(materiaisPresos([{ id: 'z', nome: 'Antigo', status: 'disponivel' }], eventos)).toEqual([])
   })
 
   it('explica o motivo de cada um, para o usuário entender antes de liberar', () => {

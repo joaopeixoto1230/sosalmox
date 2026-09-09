@@ -90,17 +90,19 @@ export default function LiberarPresosModal({ materiais, eventos, onFechar, onSal
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="bg-white dark:bg-gray-900 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[92vh] flex flex-col">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
-          <h2 className="font-bold text-brand-black">Material preso em evento</h2>
+          <h2 className="font-bold text-brand-black">Material travado fora da prateleira</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Estes itens estão marcados como "Em Evento", mas o evento já acabou, foi excluído
-            ou não existe mais. Liberar devolve cada um à prateleira, como uma devolução faria.
+            Itens marcados como "Em Evento" cujo evento já acabou, e itens que constam
+            disponíveis mas sem estoque para sair. Liberar devolve cada um à prateleira,
+            como uma devolução faria.
           </p>
         </div>
 
         {presos.length === 0 ? (
           <div className="px-5 py-10 text-center">
             <p className="text-sm text-gray-500">
-              Nenhum material preso. Todo item "Em Evento" está num evento que continua ativo.
+              Nada travado. Todo item "Em Evento" está num evento que continua ativo, e todo
+              item disponível tem estoque para sair.
             </p>
           </div>
         ) : (

@@ -347,10 +347,15 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
     própria e fica de fora).
   - **Conserto do que já quebrou**: `materiaisPresos(materiais, eventos)` +
     `LiberarPresosModal.jsx`, com faixa âmbar no topo do Estoque que só aparece quando há
-    material preso. Lista o motivo de cada um (evento excluído / concluído / sem vínculo) e
-    libera só o que o usuário confirmar — `writeBatch` em lotes de 400.
+    material travado. Lista o motivo de cada um e libera só o que o usuário confirmar —
+    `writeBatch` em lotes de 400. Pega DOIS formatos:
+    `em_evento` sem evento que justifique (concluído / excluído / sem vínculo) **e**
+    `disponivel` que a saída recusa (`estoqueAtual` 0, ou `eventoAtual` preso).
     ⚠️ `materiaisPresos` devolve `[]` quando a lista de eventos está vazia: sem isso, o
     instante antes de os eventos carregarem marcaria o pátio inteiro como preso.
+    ⚠️ No caso `disponivel`, só o **zero escrito** acusa — campo ausente passa, igual à
+    validação da saída — e contado/por-quantidade ficam de fora: neles zero é falta de
+    verdade, e liberar inventaria estoque.
 - Compras: fila de solicitações, nova solicitação manual
 - Agente IA (Claude Haiku), botão flutuante em todas as telas. **Toda chamada de IA passa
   pelo proxy `agente` em `functions/index.js`** (`utils/agenteApi.js` no frontend): a chave
