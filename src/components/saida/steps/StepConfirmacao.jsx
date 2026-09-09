@@ -14,6 +14,7 @@ import { formatarNumeroOrdem, materialPorQuantidade } from '../../../utils/forma
 import { materialContado, patchSaidaEvento, estoqueDe } from '../../estoque/contagem'
 import { comprimirParaDataUrl } from '../../../utils/imagem'
 import { gerarDeclaracaoSublocacao } from '../../../utils/declaracaoSublocacao'
+import { linkWhatsApp } from '../../../utils/whatsapp'
 import SignaturePad from '../../ui/SignaturePad'
 import FotoPickerBotoes from '../../ui/FotoPickerBotoes'
 
@@ -62,14 +63,11 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
   const rotuloStatusGerador = ehSublocacao ? 'Sublocado' : 'Em Locação'
 
   async function confirmarSaida() {
-    // Sublocação: o material sai com gente de fora, então a assinatura de quem
-    // retira é colhida no balcão, antes de o equipamento deixar a empresa.
-    // O link continua existindo para os outros casos e para correção posterior.
-    if (ehSublocacao && !assinaturaRecebeu) {
-      setErro('Na sublocação, quem retira precisa assinar antes de sair com o material.')
-      setStatus('erro')
-      return
-    }
+    // A assinatura de quem recebe NUNCA trava a saída — em nenhuma modalidade
+    // (regra do João, 09/09/2026). Quem retira pode assinar aqui na tela, ou
+    // depois pelo link enviado no WhatsApp: o material precisa poder sair
+    // enquanto o recebedor ainda está a caminho ou já está no evento.
+    // Sem assinatura, a saída fica `pendente` e o link cobra a regularização.
     setStatus('carregando')
     setErro('')
     try {
@@ -317,8 +315,8 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           <div>
             <h3 className="font-semibold text-sm text-gray-700">Assinaturas</h3>
             <p className="text-xs text-gray-400">
-              Quem entrega assina agora. Quem recebe pode assinar agora (se presente) ou depois,
-              por link/presencialmente.
+              Quem entrega assina agora. Quem recebe assina aqui, se estiver presente, ou depois
+              pelo link do WhatsApp — nenhuma das duas trava a saída.
             </p>
           </div>
           <SignaturePad
@@ -328,21 +326,16 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             altura={120}
           />
           <SignaturePad
-            titulo={`Quem recebeu${responsavel ? ` — ${responsavel}` : ''}${ehSublocacao ? ' *' : ' (opcional)'}`}
+            titulo={`Quem recebeu${responsavel ? ` — ${responsavel}` : ''} (opcional)`}
             valor={assinaturaRecebeu}
             onChange={setAssinaturaRecebeu}
             altura={120}
           />
-          {ehSublocacao && !assinaturaRecebeu && (
-            <p className="text-xs text-brand-red bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              Na sublocação a assinatura de quem retira é <strong>obrigatória</strong>: o material
-              não sai da empresa sem ela. Peça para assinar na tela antes de confirmar.
-            </p>
-          )}
-          {!ehSublocacao && !assinaturaRecebeu && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Sem a assinatura de quem recebeu, a saída fica <strong>pendente</strong> e um link
-              será gerado para o recebedor assinar no evento.
+          {!assinaturaRecebeu && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 dark:bg-amber-950/30 dark:border-amber-900/60 dark:text-amber-300">
+              Sem a assinatura agora, a saída fica <strong>pendente</strong> e no fim aparece um
+              link para enviar no WhatsApp — {ehSublocacao ? 'quem retira' : 'o recebedor'} assina
+              pelo celular, de onde estiver.
             </p>
           )}
         </div>
@@ -355,7 +348,7 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
 
         <button
           onClick={confirmarSaida}
-          disabled={status === 'carregando' || (ehSublocacao && !assinaturaRecebeu)}
+          disabled={status === 'carregando'}
           className="btn-primary w-full justify-center py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {status === 'carregando' ? (
@@ -390,27 +383,37 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
 
         {recebeuPendente && tokenGerado && (() => {
           const link = `${window.location.origin}/assinar/${tokenGerado}`
-          const msg = `Confirme o recebimento do material da SOS Energia assinando aqui: ${link}`
+          const oQue = ehSublocacao
+            ? `a retirada do material da SOS Energia${evento?.nome ? ` (${evento.nome})` : ''}`
+            : `o recebimento do material da SOS Energia${evento?.nome ? ` — ${evento.nome}` : ''}`
+          const msg = `Confirme ${oQue} assinando aqui: ${link}`
+          // Na sublocação o telefone de quem retira é obrigatório: abre a
+          // conversa já na pessoa, em vez de cair no seletor de contatos.
+          const href = linkWhatsApp(ehSublocacao ? evento?.retiradoTelefone : null, msg)
           return (
-            <div className="card text-left max-w-md mx-auto space-y-3">
+            <div className="card text-left max-w-md mx-auto space-y-3 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900/60">
               <div>
                 <p className="font-semibold text-sm text-brand-black">Falta a assinatura de quem recebeu</p>
-                <p className="text-xs text-gray-500 mt-0.5">Envie o link para {responsavel || 'o recebedor'} assinar no evento.</p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  Envie o link para <strong>{responsavel || 'o recebedor'}</strong> assinar pelo
+                  celular{ehSublocacao && evento?.retiradoTelefone ? ` — ${evento.retiradoTelefone}` : ''}.
+                  Serve tanto para quem levou o material quanto para quem retira aqui na empresa.
+                </p>
               </div>
-              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 dark:bg-gray-900 dark:border-gray-700">
                 <span className="text-xs text-gray-600 font-mono truncate flex-1">{link}</span>
                 <button
                   onClick={() => { navigator.clipboard?.writeText(link); setLinkCopiado(true); setTimeout(() => setLinkCopiado(false), 2000) }}
-                  className="text-xs font-semibold text-brand-red flex-shrink-0"
+                  className="text-xs font-semibold text-brand-red flex-shrink-0 min-h-[44px] px-2"
                 >
                   {linkCopiado ? 'Copiado!' : 'Copiar'}
                 </button>
               </div>
               <a
-                href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+                href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn-primary w-full justify-center gap-2 bg-green-600 hover:bg-green-700"
+                className="btn-primary w-full justify-center gap-2 py-3 bg-green-600 hover:bg-green-700"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.207zM17.41 14.382c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.247-.694.247-1.289.173-1.413z" />

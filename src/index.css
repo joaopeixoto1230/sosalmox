@@ -9,10 +9,22 @@
   body {
     @apply bg-brand-bg text-brand-black font-sans;
     margin: 0;
+    /* O Android (Samsung Internet e Chrome) pinta um retangulo cinza a cada
+       toque; some o realce e a tela deixa de parecer travada. */
+    -webkit-tap-highlight-color: transparent;
   }
   #root {
     width: 100%;
     min-height: 100vh;
+    /* dvh acompanha a barra de endereco do navegador aparecendo/sumindo. Com
+       100vh o celular reserva a altura da barra escondida e o ultimo botao da
+       tela (ex: "Confirmar Saida") fica embaixo da barra, sem alcance. */
+    min-height: 100dvh;
+  }
+  /* Toque sem os 300ms de espera do duplo-toque, e sem selecionar texto ao
+     segurar o botao — no celular isso passava sensacao de travamento. */
+  button, a, [role="button"], label {
+    touch-action: manipulation;
   }
 }
 
@@ -71,6 +83,21 @@
   }
   .input {
     @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red focus:border-transparent transition-all bg-white;
+  }
+  /* Celular: alvo de 44px (dedo) e fonte de 16px (abaixo disso o navegador
+     movel da zoom sozinho ao focar o campo e o layout "pula"). */
+  @media (max-width: 640px) {
+    .input {
+      @apply text-base;
+      min-height: 44px;
+    }
+    .btn-primary, .btn-secondary, .btn-ghost {
+      min-height: 44px;
+    }
+    select.input {
+      /* o select do Android encolhe sem isso */
+      height: 44px;
+    }
   }
   .badge {
     @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold;

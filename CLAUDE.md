@@ -108,8 +108,14 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
     retirando" é **texto livre** (nunca a lista de OPERADORES). Esse nome já alimenta a assinatura
     de quem recebeu, o link `/assinar/:token` e o relatório — não redigitar em lugar nenhum.
     - **Obrigatórios na sublocação** (e só nela): CNPJ da empresa, documento e telefone de quem
-      retira, e a **assinatura de quem recebeu** — o botão Confirmar fica travado sem ela.
-      Regra do João: a pessoa assina antes de sair da empresa. Não afrouxar sem falar com ele.
+      retira. O telefone tem uso prático: alimenta o link do WhatsApp (`utils/whatsapp.js`),
+      que abre a conversa JÁ na pessoa que vai assinar.
+    - ⚠️ **A assinatura de quem recebe NUNCA trava a saída — em NENHUMA modalidade**
+      (evento, locação mensal e sublocação). Regra do João, 09/09/2026, revogando a regra
+      anterior que travava a sublocação: o material precisa poder sair enquanto o recebedor
+      está a caminho ou já está no evento. Quem recebe assina na tela (se presente) OU pelo
+      link enviado no WhatsApp; sem assinatura a saída fica `pendente` e o link cobra a
+      regularização. **Não voltar a bloquear o botão Confirmar por causa de assinatura.**
     - **Declaração de Entrega de Material** (`utils/declaracaoSublocacao.js`): documento que a
       outra empresa assina, com timbre, itens agrupados, cláusula de conservação e as duas
       assinaturas. Sai na tela de sucesso da saída e no detalhe da sublocação. Os dados da SOS
@@ -133,6 +139,10 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 - `StepConfirmacao`: grava `ordens_saida` via transaction, fotos base64 em `fotos_saida`,
   assinaturas com link público (`/assinar/:token`, coleção `assinaturas_saida`). O estado de erro
   mostra a mensagem (NÃO voltar ao `return null` que dava tela preta).
+  - Tela de sucesso e detalhe do evento (`BlocoAssinaturas`) mostram o link pendente com
+    "Copiar" e "Enviar no WhatsApp" — o mesmo link serve para quem levou o material e para
+    quem retira no balcão. `linkWhatsApp` (testado) usa o telefone de quem retira na
+    sublocação e cai no seletor de contatos quando não há número confiável.
 
 ### Uso Interno (`src/components/saida/usointerno/` + `src/components/usointerno/`)
 Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'uso_interno'`
@@ -336,6 +346,28 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
     Ação pendente restaurada do histórico reabre como cancelada (o preparo vive só em memória).
 - Dark mode com toggle no header
 - Relatórios com abas Saídas / Devoluções / Condições
+
+## 📱 Celular (a equipe usa Samsung Galaxy)
+
+Toda a operação de campo roda em Galaxy. O que já está resolvido — não regredir:
+
+- **`100dvh`, nunca só `100vh`** (`#root` no index.css, `h-dvh` no MainLayout). Com `vh` o
+  celular reserva a altura da barra de endereço escondida e o último botão da tela
+  (ex: "Confirmar Saída") fica embaixo da barra do navegador, sem alcance.
+- **Alvo de toque mínimo 44px**: `.input`, `.btn-*` e itens do menu têm `min-height` em
+  telas ≤640px. Item de submenu tinha ~32px.
+- **Fonte do input 16px no celular** (`text-base` no media query): abaixo disso o navegador
+  móvel dá zoom sozinho ao focar o campo e o layout "pula".
+- `-webkit-tap-highlight-color: transparent` e `touch-action: manipulation` em botões/links:
+  tiram o retângulo cinza do Android e a espera de 300ms do duplo-toque.
+- `viewport` com `interactive-widget=resizes-content`: ao abrir o teclado, a página encolhe
+  em vez de ser empurrada, e o campo em foco continua visível.
+- ⚠️ **Evitar área rolável dentro de página rolável** no celular (`max-h-* overflow-y-auto`):
+  o dedo prende na área interna. Se precisar, restringir ao desktop (`sm:max-h-48`).
+- **`SignaturePad`**: o canvas se dimensiona ao espaço real × `devicePixelRatio` (teto 3),
+  via ResizeObserver, preservando o traço ao redimensionar. Era fixo em 600×160 esticado por
+  CSS: num Galaxy a assinatura saía **37% esticada** e com 1,83 pixel por ponto num aparelho
+  de DPR 3. **Não voltar a fixar width/height no canvas.**
 
 ## 🖼️ Logo e identidade visual
 

@@ -115,7 +115,7 @@ function Grupo({ item, onFechar }) {
       <button
         onClick={() => setAberto(v => !v)}
         aria-expanded={aberto}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+        className={`w-full flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors
           ${temFilhoAtivo && !aberto
             ? 'bg-brand-red text-white'
             : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}
@@ -137,7 +137,7 @@ function Grupo({ item, onFechar }) {
                 onClick={onFechar}
                 end
                 className={({ isActive }) =>
-                  `block px-3 py-2 rounded-lg text-sm transition-colors
+                  `flex items-center px-3 py-2 min-h-[44px] rounded-lg text-sm transition-colors
                   ${isActive
                     ? 'bg-brand-red text-white font-medium'
                     : 'text-gray-500 hover:text-white hover:bg-gray-800'}`
@@ -201,7 +201,7 @@ export default function Sidebar({ aberto, onFechar }) {
                       to={item.path}
                       onClick={onFechar}
                       className={({ isActive }) =>
-                        `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors
+                        `flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors
                         ${isActive
                           ? 'bg-brand-red text-white'
                           : 'text-gray-400 hover:text-white hover:bg-gray-800'

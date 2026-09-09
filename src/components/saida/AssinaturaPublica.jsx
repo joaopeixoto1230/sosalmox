@@ -49,7 +49,7 @@ export default function AssinaturaPublica() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-bg flex flex-col items-center px-4 py-8">
+    <div className="min-h-screen min-h-dvh bg-brand-bg flex flex-col items-center px-4 py-8">
       <div className="w-full max-w-md">
         <div className="flex items-center gap-2 mb-6 justify-center">
           <img src="/logo-sos-v2.png" alt="SOS Energia" className="h-10 object-contain" />
@@ -90,8 +90,13 @@ export default function AssinaturaPublica() {
         {estado === 'ok' && dados && (
           <div className="space-y-4">
             <div className="card">
-              <h1 className="font-bold text-brand-black">Confirmação de recebimento</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Confira os dados e assine para confirmar.</p>
+              <h1 className="font-bold text-brand-black">
+                {dados.tipo === 'sublocacao' ? 'Confirmação de retirada' : 'Confirmação de recebimento'}
+              </h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Confira os dados e assine para confirmar
+                {dados.tipo === 'sublocacao' ? ' a retirada do material.' : ' o recebimento.'}
+              </p>
 
               <div className="mt-3 space-y-1.5 text-sm">
                 {dados.numeroFormatado && (
@@ -105,7 +110,7 @@ export default function AssinaturaPublica() {
               {dados.itens?.length > 0 && (
                 <div className="mt-3 border-t border-gray-100 pt-3">
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Materiais ({dados.itens.length})</p>
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                  <div className="space-y-1 sm:max-h-48 sm:overflow-y-auto">
                     {dados.itens.map((it, i) => (
                       <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
                         <span className="w-1.5 h-1.5 rounded-full bg-gray-300 flex-shrink-0" />
@@ -127,7 +132,7 @@ export default function AssinaturaPublica() {
                   <p className="text-xs text-gray-400 mt-0.5">Confira se o nome está correto. Em caso de divergência, fale com o almoxarifado.</p>
                 </div>
               </div>
-              <SignaturePad titulo="Assinatura *" valor={assinatura} onChange={setAssinatura} />
+              <SignaturePad titulo="Assinatura *" valor={assinatura} onChange={setAssinatura} altura={160} />
               {erro && <p className="text-sm text-brand-red">{erro}</p>}
               <button onClick={confirmar} disabled={salvando} className="btn-primary w-full justify-center py-3 disabled:opacity-50">
                 {salvando ? 'Salvando...' : 'Confirmar recebimento'}

@@ -4,6 +4,7 @@ import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, query, whe
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useFirestore'
 import { materialContado, patchSaidaEvento, estoqueDe, contadosDoEvento, patchEstorno } from '../estoque/contagem'
+import { linkWhatsApp } from '../../utils/whatsapp'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusEventoCor, statusEventoLabel, statusGeradorLabel } from '../../utils/formatters'
 import { gerarDeclaracaoSublocacao } from '../../utils/declaracaoSublocacao'
@@ -851,6 +852,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
                     {assinaturas[ordem.id] && (
                       <BlocoAssinaturas
                         ass={assinaturas[ordem.id]}
+                        evento={evento}
                         onAmpliar={setFotoAmpliada}
                         onColetar={(papel) => setColetando({ ass: assinaturas[ordem.id], papel })}
                       />
@@ -938,10 +940,14 @@ function ModalDetalheEvento({ evento, onFechar }) {
 }
 
 // Mostra o status das assinaturas de uma OS e as acoes (link / presencial).
-function BlocoAssinaturas({ ass, onAmpliar, onColetar }) {
+function BlocoAssinaturas({ ass, evento, onAmpliar, onColetar }) {
   const link = `${window.location.origin}/assinar/${ass.id}`
   const [copiado, setCopiado] = useState(false)
-  const msg = `Confirme o recebimento do material da SOS Energia assinando aqui: ${link}`
+  const ehSub = evento?.tipo === 'sublocacao'
+  const msg = `Confirme ${ehSub ? 'a retirada' : 'o recebimento'} do material da SOS Energia`
+    + `${evento?.nome ? ` (${evento.nome})` : ''} assinando aqui: ${link}`
+  // Sublocação tem telefone de quem retira: abre a conversa direto na pessoa.
+  const href = linkWhatsApp(ehSub ? evento?.retiradoTelefone : null, msg)
 
   function linha(papel, nome, assinatura) {
     return (
@@ -977,17 +983,17 @@ function BlocoAssinaturas({ ass, onAmpliar, onColetar }) {
         <div className="flex items-center gap-2 pt-0.5">
           <button
             onClick={() => { navigator.clipboard?.writeText(link); setCopiado(true); setTimeout(() => setCopiado(false), 2000) }}
-            className="text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-2.5 py-1 hover:border-brand-red hover:text-brand-red transition-colors"
+            className="text-xs font-medium text-gray-600 border border-gray-200 rounded-lg px-3 min-h-[40px] hover:border-brand-red hover:text-brand-red transition-colors"
           >
             {copiado ? 'Link copiado!' : 'Copiar link'}
           </button>
           <a
-            href={`https://wa.me/?text=${encodeURIComponent(msg)}`}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs font-medium text-green-700 border border-green-200 rounded-lg px-2.5 py-1 hover:bg-green-50 transition-colors"
+            className="text-xs font-medium text-green-700 border border-green-200 rounded-lg px-3 min-h-[40px] inline-flex items-center hover:bg-green-50 transition-colors"
           >
-            WhatsApp
+            Enviar no WhatsApp
           </a>
         </div>
       )}
