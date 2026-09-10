@@ -139,6 +139,17 @@ Inventário de funcionalidades que JÁ EXISTEM e não podem sumir:
 - `StepConfirmacao`: grava `ordens_saida` via transaction, fotos base64 em `fotos_saida`,
   assinaturas com link público (`/assinar/:token`, coleção `assinaturas_saida`). O estado de erro
   mostra a mensagem (NÃO voltar ao `return null` que dava tela preta).
+  - ⚠️ **A CONFIRMAÇÃO PODE SER REPETIDA SEM ESTRAGO** (corrigido em 10/09/2026 — não
+    regredir). A gravação tem três etapas: fotos → transação (ordem + baixa do estoque) →
+    doc de assinatura. Quando a rede caía **depois** da transação (4G de galpão), o app caía
+    no catch e reabilitava o botão, mas o estoque já tinha sido baixado. Como os IDs eram
+    criados a cada clique, o segundo toque criava uma **segunda ordem** e morria em "X não
+    está mais disponível" — o material já estava preso pela primeira. Era a falha em série
+    que o João reportou, um cabo diferente a cada tentativa.
+    Agora `ordemRef`/`assinaturaRef`/`eventoRef` nascem num `useRef`, UMA vez por tela, e a
+    transação começa lendo a própria ordem: se ela já existe, não refaz nada e só termina o
+    que faltou. `fotosEnviadas` evita reenviar o álbum. **Nunca voltar a criar os IDs dentro
+    de `confirmarSaida`.**
   - Tela de sucesso e detalhe do evento (`BlocoAssinaturas`) mostram o link pendente com
     "Copiar" e "Enviar no WhatsApp" — o mesmo link serve para quem levou o material e para
     quem retira no balcão. `linkWhatsApp` (testado) usa o telefone de quem retira na
@@ -339,12 +350,21 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
     `eventoAtual === eventoId && status === 'em_evento'`, e o `adicionar` do "Editar material"
     passou a gravar o item de unidade na ordem também (transaction), como já fazia com o
     contado. **Nunca montar a devolução só pelas ordens.**
-  - **Causa 2 — troca rápida de status no card do Estoque.** `MaterialCard.trocarStatus`
-    gravava só `{ status }`. A saída zera o `estoqueAtual` e prende o `eventoAtual`, então o
-    card dizia "Disponível" enquanto a validação do `StepConfirmacao`
-    (`status !== 'disponivel' || estoqueAtual <= 0`) recusava. Ao voltar para `disponivel` o
-    patch agora limpa `eventoAtual` e devolve `estoqueAtual: 1` (contado tem quantidade
-    própria e fica de fora).
+  - **Causa 2 — o par status × estoque escrito à mão em cada tela.** Trocar só o `status`
+    deixava `estoqueAtual: 0` e o `eventoAtual` preso: o card dizia "Disponível" e a
+    validação do `StepConfirmacao` (`status !== 'disponivel' || estoqueAtual <= 0`)
+    recusava. A regra virou UMA função em `estoque/contagem.js`, com testes, usada pelos
+    quatro pontos que gravam material (card do Estoque e card da Saída, troca de status e
+    edição):
+    - `patchStatusManual(material, status)` — voltando a `disponivel`, limpa o evento e
+      devolve a unidade; **contado só troca de status** (forçar 1 viraria 17 rolos de fita
+      em 1 — era o que a modal da Saída fazia).
+    - `estoqueAoEditar(material, status, digitado)` — unidade `disponivel` nunca é salva com
+      zero. O formulário abre com `estoqueAtual ?? 0`, então material antigo sem o campo era
+      zerado só por alguém corrigir o nome, e parava de sair.
+    ⚠️ `ItemCard.jsx` (Saída) tem cópias próprias de "Editar status"/"Editar material",
+    separadas das do `MaterialCard.jsx` (Estoque). Ao mexer na regra de estoque, conferir as
+    DUAS — foi a divergência entre elas que gerou parte da bagunça.
   - **Conserto do que já quebrou**: `materiaisPresos(materiais, eventos)` +
     `LiberarPresosModal.jsx`, com faixa âmbar no topo do Estoque que só aparece quando há
     material travado. Lista o motivo de cada um e libera só o que o usuário confirmar —

@@ -4,7 +4,7 @@ import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { statusMaterialCor, statusMaterialLabel } from '../../utils/formatters'
 import { useCollection } from '../../hooks/useFirestore'
 import { GRUPOS, CATEGORIAS_POR_GRUPO, TIPOS_POR_CATEGORIA, categoriasDoGrupo, grupoDoMaterial } from './categorias'
-import { materialContado } from './contagem'
+import { patchStatusManual, estoqueAoEditar } from './contagem'
 
 // Valor sentinela da opcao "criar categoria nova" no select de categoria.
 const NOVA_CATEGORIA = '__nova__'
@@ -31,19 +31,9 @@ export default function MaterialCard({ material, evento, especie }) {
     setAlterando(true)
     setMenuAberto(false)
     try {
-      // ⚠️ Trocar SÓ o status deixava o material inconsistente: a saída zera o
-      // `estoqueAtual` e prende o `eventoAtual`. O card passava a mostrar
-      // "Disponível", mas a saída recusava com "não está mais disponível" —
-      // a validação exige estoqueAtual > 0. Aconteceu em produção com o
-      // Cabo terra 95/72/11m (09/09/2026).
-      const patch = { status: novoStatus }
-      if (novoStatus === 'disponivel') {
-        // De volta à prateleira: solta o evento e devolve a unidade. O contado
-        // tem quantidade própria — não sobrescrever com 1.
-        patch.eventoAtual = null
-        if (!materialContado(material)) patch.estoqueAtual = 1
-      }
-      await updateDoc(doc(db, 'materiais', material.id), patch)
+      // A regra do par status × estoque vive em `patchStatusManual` — a mesma
+      // troca existe no card da Saída, e duas cópias divergiriam calado.
+      await updateDoc(doc(db, 'materiais', material.id), patchStatusManual(material, novoStatus))
     } finally {
       setAlterando(false)
     }
@@ -247,7 +237,7 @@ function ModalEditarMaterial({ material, onFechar }) {
         tipo: form.tipo,
         bitola: form.bitola.trim() || null,
         metragem: form.metragem.trim() || null,
-        estoqueAtual: Number(form.estoqueAtual),
+        estoqueAtual: estoqueAoEditar({ ...material, porQuantidade: form.porQuantidade === true }, form.status, form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
         porQuantidade: form.porQuantidade === true,
         status: form.status,

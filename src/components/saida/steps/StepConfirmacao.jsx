@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   runTransaction,
@@ -30,6 +30,28 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
   const [tokenGerado, setTokenGerado] = useState(null)
   const [recebeuPendente, setRecebeuPendente] = useState(false)
   const [linkCopiado, setLinkCopiado] = useState(false)
+
+  // ⚠️ Os IDs da saída nascem UMA vez por tela, não a cada toque em Confirmar.
+  //
+  // A gravação tem três etapas: fotos → transação (ordem + baixa do estoque) →
+  // doc de assinatura. Se a rede cair DEPOIS da transação — 4G de galpão, o
+  // celular perde o sinal no caminho de volta — o app cai no catch e o botão
+  // reabilita, mas o estoque JÁ foi baixado. Com ID novo a cada clique, o
+  // segundo toque criava uma SEGUNDA ordem e morria em "X não está mais
+  // disponível", porque o material já estava preso no evento pela primeira.
+  // Era essa a falha em série nos lançamentos (09-10/09/2026).
+  //
+  // Com o ID fixo, a retentativa reconhece a ordem que já passou e apenas
+  // termina o que faltou, sem baixar estoque de novo nem duplicar a ordem.
+  const refs = useRef(null)
+  if (refs.current == null) {
+    refs.current = {
+      ordemRef: doc(collection(db, 'ordens_saida')),
+      assinaturaRef: doc(collection(db, 'assinaturas_saida')),
+      eventoRef: doc(collection(db, 'eventos')),
+    }
+  }
+  const fotosEnviadas = useRef(false)
 
   // libera as URLs de preview da memoria quando o componente desmonta
   useEffect(() => {
@@ -72,15 +94,16 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
     setErro('')
     try {
       const contadorRef = doc(db, 'contadores', 'ordens_saida')
-      const ordemRef = doc(collection(db, 'ordens_saida'))
-      const assinaturaRef = doc(collection(db, 'assinaturas_saida'))
+      const { ordemRef, assinaturaRef, eventoRef } = refs.current
       const tokenAssinatura = assinaturaRef.id
       let novoNumero
 
       // Envia as fotos primeiro (uma por documento em fotos_saida, comprimidas
       // para caber no limite de 1 MB do Firestore). Se falhar, a saida nem e
       // gravada — mesmo padrao das fotos da OS de Manutencao.
-      if (fotos.length > 0) {
+      // `fotosEnviadas` evita mandar tudo de novo numa retentativa: as fotos já
+      // estão gravadas com o mesmo `ordemId`, e reenviar duplicaria o álbum.
+      if (fotos.length > 0 && !fotosEnviadas.current) {
         for (let i = 0; i < fotos.length; i++) {
           setProgresso({ atual: i + 1, total: fotos.length })
           const dataUrl = await comprimirParaDataUrl(fotos[i].file)
@@ -93,10 +116,19 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
             criadoEm: serverTimestamp(),
           })
         }
+        fotosEnviadas.current = true
         setProgresso(null)
       }
 
       await runTransaction(db, async (tx) => {
+        // A tentativa anterior pode ter gravado tudo e morrido na volta. Se a
+        // ordem já existe, o estoque já foi baixado: nada a refazer aqui.
+        const jaGravada = await tx.get(ordemRef)
+        if (jaGravada.exists()) {
+          novoNumero = jaGravada.data().numero
+          return
+        }
+
         const contSnap = await tx.get(contadorRef)
         const atual = contSnap.exists() ? contSnap.data().ultimo : 0
         novoNumero = atual + 1
@@ -112,8 +144,20 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
           const matSnap = await tx.get(matRef)
           if (!matSnap.exists()) throw new Error(`Material ${item.nome} não encontrado.`)
           const matData = matSnap.data()
-          if (matData.status !== 'disponivel' || matData.estoqueAtual <= 0) {
-            throw new Error(`${item.nome} não está mais disponível.`)
+          // Dizer POR QUE: "não está mais disponível" mandava o almoxarife
+          // adivinhar. Em evento é uma coisa (falta devolver), estoque zerado
+          // com status disponível é outra (cadastro travado — a faixa do
+          // Estoque libera).
+          if (matData.status !== 'disponivel') {
+            const motivo = matData.status === 'em_evento'
+              ? 'ainda consta em evento — falta lançar a devolução'
+              : `está como "${matData.status}"`
+            throw new Error(`${item.nome}: ${motivo}.`)
+          }
+          if (!(matData.estoqueAtual > 0)) {
+            throw new Error(
+              `${item.nome}: consta disponível, mas com estoque zerado. Abra o Estoque e use "material travado fora da prateleira" para liberar.`,
+            )
           }
           if (materialContado(matData)) {
             const pedido = Math.max(1, Number(item.quantidade) || 1)
@@ -128,7 +172,6 @@ export default function StepConfirmacao({ evento, geradores, itens, observacoes,
         // saida for confirmada. Voltar/abandonar o fluxo nao grava nada.
         let eventoIdFinal = evento?.id || null
         if (evento?.novo) {
-          const eventoRef = doc(collection(db, 'eventos'))
           eventoIdFinal = eventoRef.id
           tx.set(eventoRef, {
             nome: evento.nome || null,

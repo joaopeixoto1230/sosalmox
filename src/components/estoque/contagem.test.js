@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { materialContado, patchSaida, patchEstorno, baixaPossivel, patchSaidaEvento, patchDevolucaoEvento, contadosDoEvento } from './contagem'
+import { materialContado, patchSaida, patchEstorno, baixaPossivel, patchSaidaEvento, patchDevolucaoEvento, contadosDoEvento, patchStatusManual, estoqueAoEditar } from './contagem'
 
 const fita = { grupo: 'uso_interno', categoria: 'Fitas', nome: 'Fita isolante', estoqueAtual: 20, estoqueMin: 1 }
 const furadeira = { grupo: 'uso_interno', categoria: 'Ferramentas Elétricas', nome: 'Furadeira', estoqueAtual: 1, estoqueMin: 1 }
@@ -228,5 +228,51 @@ describe('baixaPossivel', () => {
     expect(baixaPossivel(fita, 3)).toBe(3)
     expect(baixaPossivel({ ...fita, estoqueAtual: 2 }, 5)).toBe(2)
     expect(baixaPossivel({ ...fita, estoqueAtual: 0 }, 1)).toBe(0)
+  })
+})
+
+describe('patchStatusManual — troca de status pelo menu do card', () => {
+  it('ao voltar para disponível, solta o evento E devolve a unidade', () => {
+    // Só o status deixaria estoqueAtual 0 e o evento preso: o card diria
+    // "Disponível" e a Saída recusaria o material.
+    const cabo = { id: 'c1', status: 'em_evento', estoqueAtual: 0, eventoAtual: 'ev1' }
+    expect(patchStatusManual(cabo, 'disponivel')).toEqual({
+      status: 'disponivel', eventoAtual: null, estoqueAtual: 1,
+    })
+  })
+
+  it('não sobrescreve a quantidade do contado', () => {
+    // Forçar 1 aqui transformaria 17 rolos de fita em 1.
+    const fita = { id: 'f1', grupo: 'uso_interno', categoria: 'Fitas', status: 'disponivel', estoqueAtual: 17 }
+    expect(patchStatusManual(fita, 'manutencao')).toEqual({ status: 'manutencao' })
+    expect(patchStatusManual(fita, 'disponivel')).toEqual({ status: 'disponivel' })
+  })
+
+  it('sair da prateleira zera o estoque da unidade', () => {
+    const cabo = { id: 'c1', status: 'disponivel', estoqueAtual: 1 }
+    expect(patchStatusManual(cabo, 'manutencao')).toEqual({ status: 'manutencao', estoqueAtual: 0 })
+  })
+})
+
+describe('estoqueAoEditar — salvar a edição do material', () => {
+  it('unidade disponível nunca é salva com zero', () => {
+    // O formulário abre com `estoqueAtual ?? 0`: material antigo sem o campo
+    // era salvo com zero só por alguém corrigir o nome, e não saía mais.
+    const cabo = { id: 'c1' }
+    expect(estoqueAoEditar(cabo, 'disponivel', 0)).toBe(1)
+    expect(estoqueAoEditar(cabo, 'disponivel', '')).toBe(1)
+    expect(estoqueAoEditar(cabo, 'disponivel', 1)).toBe(1)
+  })
+
+  it('respeita o número digitado quando faz sentido', () => {
+    const cabo = { id: 'c1' }
+    expect(estoqueAoEditar(cabo, 'disponivel', '3')).toBe(3)
+    expect(estoqueAoEditar(cabo, 'em_evento', 0)).toBe(0)
+  })
+
+  it('contado pode ser salvo com zero — ali zero é falta de verdade', () => {
+    const fita = { id: 'f1', porQuantidade: true }
+    expect(estoqueAoEditar(fita, 'disponivel', 0)).toBe(0)
+    expect(estoqueAoEditar(fita, 'disponivel', '12')).toBe(12)
   })
 })

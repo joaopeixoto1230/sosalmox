@@ -136,3 +136,35 @@ export function patchEstorno(dados, quantidade) {
   const devolvida = Math.max(0, Number(quantidade) || 0)
   return { status: 'disponivel', eventoAtual: null, estoqueAtual: estoqueDe(dados) + devolvida }
 }
+
+/**
+ * Patch de troca MANUAL de status, feita pelo menu do card.
+ *
+ * ⚠️ Trocar só o `status` deixa o cadastro travado: a saída zera o
+ * `estoqueAtual` e prende o `eventoAtual`, então o card volta a dizer
+ * "Disponível" enquanto a Saída recusa o material (ela exige estoque > 0).
+ * Foi o que aconteceu em produção com o Cabo terra 95/72/11m.
+ *
+ * O contado (fita, alambrado) administra a própria quantidade: forçar 1 aqui
+ * transformaria 17 rolos de fita em 1. Por isso ele só troca de status.
+ */
+export function patchStatusManual(material, novoStatus) {
+  if (materialContado(material)) return { status: novoStatus }
+  if (novoStatus !== 'disponivel') return { status: novoStatus, estoqueAtual: 0 }
+  return { status: 'disponivel', eventoAtual: null, estoqueAtual: 1 }
+}
+
+/**
+ * Quanto gravar em `estoqueAtual` ao SALVAR a edição de um material.
+ *
+ * O formulário abre com `material.estoqueAtual ?? 0`, então material antigo sem
+ * o campo era salvo com zero — e ficava "disponível" sem poder sair, do nada,
+ * só por alguém ter corrigido o nome. Unidade disponível tem no mínimo 1.
+ */
+export function estoqueAoEditar(material, novoStatus, valorDigitado) {
+  const n = Number(valorDigitado)
+  const valor = Number.isFinite(n) ? n : 0
+  if (materialContado(material)) return valor
+  if (novoStatus !== 'disponivel') return valor
+  return valor > 0 ? valor : 1
+}

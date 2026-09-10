@@ -7,7 +7,7 @@ import { useCollection } from '../../hooks/useFirestore'
 // Valor sentinela da opcao "criar categoria nova" no select de categoria.
 const NOVA_CATEGORIA = '__nova__'
 import { materialPorQuantidade } from '../../utils/formatters'
-import { materialContado } from '../estoque/contagem'
+import { materialContado, patchStatusManual, estoqueAoEditar } from '../estoque/contagem'
 
 const CATEGORIAS = ['Cabos 4x', 'Cabos 5x', 'Cabos Terra', 'Cabos (Geral)', 'Jogos de Cabo', 'Rabichos', 'Outros Materiais']
 
@@ -234,11 +234,7 @@ function ModalEditarStatus({ material, onFechar }) {
     if (novoStatus === material.status) { onFechar(); return }
     setSalvando(true)
     try {
-      await updateDoc(doc(db, 'materiais', material.id), {
-        status: novoStatus,
-        estoqueAtual: novoStatus === 'disponivel' ? 1 : 0,
-        eventoAtual: novoStatus === 'disponivel' ? null : material.eventoAtual,
-      })
+      await updateDoc(doc(db, 'materiais', material.id), patchStatusManual(material, novoStatus))
       onFechar()
     } catch (e) {
       console.error(e)
@@ -451,7 +447,7 @@ function ModalEditarMaterial({ material, onFechar }) {
         tipo: form.tipo,
         bitola: form.bitola.trim() || null,
         metragem: form.metragem.trim() || null,
-        estoqueAtual: Number(form.estoqueAtual),
+        estoqueAtual: estoqueAoEditar(material, form.status, form.estoqueAtual),
         estoqueMin: Number(form.estoqueMin),
         status: form.status,
       })
