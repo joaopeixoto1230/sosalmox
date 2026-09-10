@@ -258,6 +258,17 @@ service cloud.firestore {
       allow write: if ehGestorDiesel();
     }
 
+    // PIN legivel, para o gestor consultar quando alguem esquecer o dele.
+    //
+    // ⚠️ Colecao separada de `abast_operadores` justamente por causa desta
+    // regra: o documento do operador precisa ser lido por qualquer aparelho
+    // (e o hash que valida a identificacao no patio), e o numero legivel NAO.
+    // Juntos, qualquer pessoa logada leria os PINs da equipe inteira pelo
+    // console do navegador e passaria a lancar em nome de quem quisesse.
+    match /abast_operadores_pins/{docId} {
+      allow read, write: if ehGestorDiesel();
+    }
+
     match /abast_fornecedores/{docId} {
       allow read: if podeLancar();
       allow write: if ehGestorDiesel();
