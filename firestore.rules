@@ -169,5 +169,114 @@ service cloud.firestore {
                         && request.resource.data.entregouAssinatura == resource.data.entregouAssinatura);
       allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
-  }
+  
+    // ============================================================
+    // SOS ABASTECIMENTO — controle de combustivel
+    //
+    // ⚠️ ESTE BLOCO PERTENCE AO `firestore.rules` DO sosalmox.
+    // Os dois sistemas dividem o MESMO projeto Firebase (`sos-almox`), e as
+    // regras do Firestore sao do PROJETO, nao do app. Publicar regras a partir
+    // do repositorio do Abastecimento apagaria as do Almoxarifado.
+    //
+    // Fluxo correto: manter este bloco dentro do firestore.rules do sosalmox e
+    // publicar de la, com `firebase deploy --only firestore:rules`.
+    //
+    // Perfis: o usuario e o MESMO do Almoxarifado. O perfil daqui vive no campo
+    // `perfilAbastecimento`; quem ainda nao tem o campo herda o equivalente do
+    // perfil do Almoxarifado — igual a `src/utils/permissions.js`.
+    // ============================================================
+
+    function perfilAbastecimento() {
+      return getUserData().get('perfilAbastecimento', '');
+    }
+
+    function ehGestorDiesel() {
+      return isAuthenticated() && isActive() && (
+        perfilAbastecimento() == 'gestor_diesel'
+        || (perfilAbastecimento() == '' && getUserData().perfil in ['admin', 'gerente'])
+      );
+    }
+
+    // Qualquer funcionario ativo pode LANCAR abastecimento. E deliberado: se
+    // registrar exigisse cargo, o operador do sol contornaria o sistema, e o
+    // controle morreria em silencio. A protecao nao esta em quem escreve, e sim
+    // em nada poder ser apagado e na cadeia do perpetuo se validar sozinha.
+    function podeLancar() {
+      return isAuthenticated() && isActive();
+    }
+
+    match /abast_reservatorios/{docId} {
+      allow read: if podeLancar();
+      // Update liberado porque TODO abastecimento atualiza o saldo e o
+      // totalizador do reservatorio de origem. Criar e desativar tanque, nao.
+      allow update: if podeLancar();
+      allow create, delete: if ehGestorDiesel();
+    }
+
+    match /abast_ativos/{docId} {
+      allow read: if podeLancar();
+      allow write: if podeLancar();
+    }
+
+    match /abast_movimentacoes/{docId} {
+      allow read: if podeLancar();
+      allow create: if podeLancar();
+      // Update cobre estorno, conferencia e pedido de correcao.
+      allow update: if podeLancar();
+      // ⛔ NENHUM registro e apagado, por ninguem, nunca. Correcao e feita por
+      // estorno, que preserva o original com autor e horario (secao 12.1).
+      allow delete: if false;
+    }
+
+    match /abast_leituras/{docId} {
+      allow read: if podeLancar();
+      allow create: if podeLancar();
+      allow update, delete: if false;
+    }
+
+    match /abast_fotos/{docId} {
+      allow read: if podeLancar();
+      allow create: if podeLancar();
+      allow update: if false;
+      allow delete: if ehGestorDiesel();
+    }
+
+    match /abast_amostras/{docId} {
+      allow read: if podeLancar();
+      allow create: if podeLancar();
+      allow update, delete: if ehGestorDiesel();
+    }
+
+    match /abast_medicoes/{docId} {
+      allow read: if podeLancar();
+      allow create: if podeLancar();
+      allow update, delete: if ehGestorDiesel();
+    }
+
+    match /abast_operadores/{docId} {
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_fornecedores/{docId} {
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_transportadoras/{docId} {
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_contratos/{docId} {
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_config/{docId} {
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+}
 }
