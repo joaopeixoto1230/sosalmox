@@ -197,32 +197,69 @@ service cloud.firestore {
       );
     }
 
-    // Qualquer funcionario ativo pode LANCAR abastecimento. E deliberado: se
-    // registrar exigisse cargo, o operador do sol contornaria o sistema, e o
-    // controle morreria em silencio. A protecao nao esta em quem escreve, e sim
-    // em nada poder ser apagado e na cadeia do perpetuo se validar sozinha.
+    // Quem escaneou o QR da bomba e nao fez login (secao 12.2).
+    //
+    // O celular abre uma sessao ANONIMA do Firebase — sem conta, sem senha, sem
+    // instalar nada. Isso e o coracao da adesao em campo: exigir login ali
+    // significaria, na pratica, o operador contornar o sistema.
+    //
+    // ⚠️ `isActive()` le `usuarios/{uid}`, que NAO existe para o anonimo. Por
+    // isso toda regra testa `ehAnonimo()` ANTES — as regras avaliam `||` da
+    // esquerda para a direita e param no primeiro verdadeiro.
+    function ehAnonimo() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // Qualquer funcionario ativo, mais o celular do QR. E deliberado: se
+    // registrar exigisse cargo ou conta, o operador do sol contornaria o
+    // sistema, e o controle morreria em silencio. A protecao nao esta em quem
+    // escreve — esta em nada poder ser apagado, na identificacao por PIN e na
+    // cadeia do perpetuo, que se valida sozinha.
     function podeLancar() {
-      return isAuthenticated() && isActive();
+      return ehAnonimo() || (isAuthenticated() && isActive());
+    }
+
+    // Campos que o registro de campo atualiza no reservatorio: o cache do saldo
+    // e a leitura da bomba. O anonimo NAO mexe em nome, capacidade, arqueacao
+    // nem em nada de cadastro.
+    function soCacheDoReservatorio() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['saldoTeoricoLitros', 'totalizadorAtual', 'ultimaMovimentacaoEm']);
+    }
+
+    function soLeituraDoAtivo() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['ultimoHorimetro', 'ultimoOdometro', 'ultimoAbastecimentoEm']);
     }
 
     match /abast_reservatorios/{docId} {
       allow read: if podeLancar();
-      // Update liberado porque TODO abastecimento atualiza o saldo e o
-      // totalizador do reservatorio de origem. Criar e desativar tanque, nao.
-      allow update: if podeLancar();
+      allow update: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && soCacheDoReservatorio());
       allow create, delete: if ehGestorDiesel();
     }
 
     match /abast_ativos/{docId} {
       allow read: if podeLancar();
-      allow write: if podeLancar();
+      allow create: if isAuthenticated() && isActive();
+      allow update: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && soLeituraDoAtivo());
+      allow delete: if ehGestorDiesel();
     }
 
     match /abast_movimentacoes/{docId} {
       allow read: if podeLancar();
-      allow create: if podeLancar();
-      // Update cobre estorno, conferencia e pedido de correcao.
-      allow update: if podeLancar();
+      // O anonimo so cria ABASTECIMENTO. Compra, transferencia, ajuste e
+      // devolucao mexem em dinheiro e em estoque e continuam exigindo conta.
+      allow create: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && request.resource.data.tipo == 'abastecimento');
+      // Update cobre estorno e conferencia (conta de verdade). O anonimo so
+      // consegue PEDIR correcao — que e o que a secao 12.1 manda: o lancador
+      // nunca edita nem exclui, ele pede, e vira pendencia do gestor.
+      allow update: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['correcaoSolicitada']));
       // ⛔ NENHUM registro e apagado, por ninguem, nunca. Correcao e feita por
       // estorno, que preserva o original com autor e horario (secao 12.1).
       allow delete: if false;
@@ -235,52 +272,54 @@ service cloud.firestore {
     }
 
     match /abast_fotos/{docId} {
-      allow read: if podeLancar();
+      // A foto do totalizador e a prova do registro. O celular do QR precisa
+      // GRAVAR, mas nao precisa ler o album da empresa inteira.
+      allow read: if isAuthenticated() && isActive();
       allow create: if podeLancar();
       allow update: if false;
       allow delete: if ehGestorDiesel();
     }
 
-    match /abast_amostras/{docId} {
+    match /abast_operadores/{docId} {
+      // Le nome e HASH do PIN — e o que a tela de identificacao precisa. O
+      // numero legivel do PIN mora em outra colecao, so para o gestor.
       allow read: if podeLancar();
-      allow create: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_operadores_pins/{docId} {
+      // ⚠️ Colecao separada de `abast_operadores` justamente por causa desta
+      // regra: o documento do operador precisa ser lido por qualquer aparelho
+      // (e o hash que valida a identificacao no patio), e o numero legivel NAO.
+      // Juntos, qualquer pessoa logada — e agora tambem o celular anonimo do
+      // QR — leria os PINs da equipe inteira pelo console do navegador.
+      allow read, write: if ehGestorDiesel();
+    }
+
+    match /abast_amostras/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if isAuthenticated() && isActive();
       allow update, delete: if ehGestorDiesel();
     }
 
     match /abast_medicoes/{docId} {
-      allow read: if podeLancar();
-      allow create: if podeLancar();
+      allow read: if isAuthenticated() && isActive();
+      allow create: if isAuthenticated() && isActive();
       allow update, delete: if ehGestorDiesel();
     }
 
-    match /abast_operadores/{docId} {
-      allow read: if podeLancar();
-      allow write: if ehGestorDiesel();
-    }
-
-    // PIN legivel, para o gestor consultar quando alguem esquecer o dele.
-    //
-    // ⚠️ Colecao separada de `abast_operadores` justamente por causa desta
-    // regra: o documento do operador precisa ser lido por qualquer aparelho
-    // (e o hash que valida a identificacao no patio), e o numero legivel NAO.
-    // Juntos, qualquer pessoa logada leria os PINs da equipe inteira pelo
-    // console do navegador e passaria a lancar em nome de quem quisesse.
-    match /abast_operadores_pins/{docId} {
-      allow read, write: if ehGestorDiesel();
-    }
-
     match /abast_fornecedores/{docId} {
-      allow read: if podeLancar();
+      allow read: if isAuthenticated() && isActive();
       allow write: if ehGestorDiesel();
     }
 
     match /abast_transportadoras/{docId} {
-      allow read: if podeLancar();
+      allow read: if isAuthenticated() && isActive();
       allow write: if ehGestorDiesel();
     }
 
     match /abast_contratos/{docId} {
-      allow read: if podeLancar();
+      allow read: if isAuthenticated() && isActive();
       allow write: if ehGestorDiesel();
     }
 
