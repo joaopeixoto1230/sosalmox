@@ -169,5 +169,42 @@ service cloud.firestore {
                         && request.resource.data.entregouAssinatura == resource.data.entregouAssinatura);
       allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
     }
+
+    // Termos de entrega/devolução da locação (capability URL, igual às
+    // assinaturas da saída). Quem abre o link é o cliente ou o colaborador que
+    // foi recolher o material — sem login. Por isso:
+    //  - get público pelo token, mas sem poder LISTAR a coleção;
+    //  - update anônimo só UMA vez (pendente -> assinado), e sem poder mexer no
+    //    evento, no tipo nem na LISTA DE ITENS: é justamente essa lista que as
+    //    duas partes estão assinando.
+    //  - na entrega, a assinatura da SOS já veio gravada e não pode ser trocada.
+    match /termos_locacao/{token} {
+      allow get: if true;
+      allow list: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow update: if (hasRole(['admin', 'gerente', 'almoxarife']) && isActive())
+                    || (resource.data.status != 'assinado'
+                        && request.resource.data.status == 'assinado'
+                        && request.resource.data.clienteAssinatura is string
+                        && request.resource.data.eventoId == resource.data.eventoId
+                        && request.resource.data.tipo == resource.data.tipo
+                        && request.resource.data.itens == resource.data.itens
+                        && request.resource.data.geradores == resource.data.geradores
+                        && (resource.data.tipo != 'entrega'
+                            || request.resource.data.sosAssinatura == resource.data.sosAssinatura));
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    // Fotos da conferência do termo. Quem tira é o colaborador no local, pelo
+    // link e sem login, então o create é anônimo — mas só para um termo que
+    // EXISTE e ainda não foi assinado, o que fecha a porta depois do aceite.
+    match /fotos_termo/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if request.resource.data.dataUrl is string
+                    && request.resource.data.termoId is string
+                    && exists(/databases/$(database)/documents/termos_locacao/$(request.resource.data.termoId))
+                    && get(/databases/$(database)/documents/termos_locacao/$(request.resource.data.termoId)).data.status != 'assinado';
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
   }
 }

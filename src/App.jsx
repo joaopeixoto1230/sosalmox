@@ -27,6 +27,7 @@ import Relatorios from './components/relatorios/Relatorios'
 import Eventos from './components/eventos/Eventos'
 import RootRedirect from './components/shared/RootRedirect'
 import AssinaturaPublica from './components/saida/AssinaturaPublica'
+import TermoPublico from './components/locacao/TermoPublico'
 import { MODULOS } from './utils/permissions'
 
 export default function App() {
@@ -37,6 +38,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/assinar/:token" element={<AssinaturaPublica />} />
+          <Route path="/termo/:token" element={<TermoPublico />} />
 
           <Route
             path="/"

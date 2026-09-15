@@ -281,6 +281,31 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   - Botões de filtro mudam por porta (`FILTROS_PORTA`): Tudo/Eventos/Locações em `/eventos`;
     Todas/Mensais/Sublocações em `/locacoes`. Título, subtítulo, vazio e botão vêm de `TITULOS`.
   - `daCategoria`: 'evento' = documento SEM `tipo`; 'locacoes' = mensal + sublocação.
+- **TERMOS DO CLIENTE** (`src/components/locacao/`, 15/09/2026) — só locação mensal e
+  sublocação, onde o material **dorme no cliente**. Em evento a equipe volta com o material no
+  mesmo fim de semana; não há a quem cobrar depois. Motivo real: faltou um cabo num shopping e
+  não havia papel dizendo o que tinha sido deixado lá nem quem recebeu.
+  - Menu ⋯ do card e botão roxo no detalhe → `TermosModal.jsx`: gera o link, acompanha quem
+    assinou e emite o documento (`utils/termoLocacao.js`, com timbre, cláusula e as duas
+    assinaturas — mesma diagramação da declaração de sublocação).
+  - **Entrega**: o link já sai com a assinatura da SOS — vem do `entregouAssinatura` do doc de
+    `assinaturas_saida` da ordem (o id do doc É o `tokenAssinatura` da ordem, busca direta).
+    Sem ela, dá para assinar na hora. O cliente abre, confere a lista, digita nome por extenso
+    e **CPF**, e assina.
+  - **Devolução**: nasce sem assinatura nenhuma. Quem recolhe abre o link no local, marca cada
+    item como **Voltou / Faltou**, tira foto, escreve observação, e colhe nome + **RG** e
+    assinatura de quem devolve — mais a dele. O que faltou sai em destaque no documento.
+  - ⚠️ `pendenciasDoTermo` exige resposta em TODO item da devolução. Item em branco sairia como
+    devolvido no documento — exatamente o buraco que o termo veio tapar. Coberto por teste
+    (`termos.test.js`), junto com a soma de itens de várias ordens e o nome atual do cadastro.
+  - Coleções `termos_locacao/<token>` (capability URL, rota pública `/termo/:token`) e
+    `fotos_termo` (uma foto por doc, como `fotos_saida`). **A regra do Firestore só deixa o
+    anônimo fazer pendente→assinado uma vez, e trava `itens`, `geradores`, `eventoId`, `tipo`
+    e — na entrega — a assinatura da SOS**: é essa lista que as duas partes estão assinando.
+    ⚠️ Mexeu em `firestore.rules`? **Tem que publicar as regras**, senão o link dá erro de
+    permissão: `firebase deploy --only firestore:rules` (separado do `--only hosting`).
+  - Excluir a locação apaga os termos e as fotos deles junto — link de pé apontando para
+    locação que não existe mais é pior que não ter link.
 - **Converter modalidade** na edição do evento (seletor Modalidade). A conversão move junto,
   por batch, os geradores presos àquele evento para o status correspondente
   (`STATUS_GG_POR_TIPO`) — sem isso a frota mostraria "Em Evento" para uma locação.

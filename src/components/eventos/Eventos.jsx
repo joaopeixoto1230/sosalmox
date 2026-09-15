@@ -8,6 +8,7 @@ import { linkWhatsApp } from '../../utils/whatsapp'
 import { useAuth } from '../../contexts/AuthContext'
 import { statusEventoCor, statusEventoLabel, statusGeradorLabel } from '../../utils/formatters'
 import { gerarDeclaracaoSublocacao } from '../../utils/declaracaoSublocacao'
+import TermosModal from '../locacao/TermosModal'
 import DatePicker from '../ui/DatePicker'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -167,6 +168,17 @@ export default function Eventos({ filtroInicial = 'evento' }) {
         if (token) batch.delete(doc(db, 'assinaturas_saida', token))
       })
 
+      // remove os termos do cliente e as fotos da conferência deles — os links
+      // ficariam de pé apontando para uma locação que não existe mais
+      const termosSnap = await getDocs(query(collection(db, 'termos_locacao'), where('eventoId', '==', excluindo.id)))
+      const termoIds = termosSnap.docs.map(d => d.id)
+      termosSnap.forEach(d => batch.delete(d.ref))
+      for (let i = 0; i < termoIds.length; i += 10) {
+        const lote = termoIds.slice(i, i + 10)
+        const fSnap = await getDocs(query(collection(db, 'fotos_termo'), where('termoId', 'in', lote)))
+        fSnap.forEach(d => batch.delete(d.ref))
+      }
+
       batch.delete(doc(db, 'eventos', excluindo.id))
       await batch.commit()
       setExcluindo(null)
@@ -308,6 +320,11 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
   const [editandoMaterial, setEditandoMaterial] = useState(false)
   const [editandoGerador, setEditandoGerador] = useState(false)
   const [concluindoEvento, setConcluindoEvento] = useState(false)
+  const [termosAberto, setTermosAberto] = useState(false)
+  // O termo existe porque o material DORME no cliente: locação mensal e
+  // sublocação. Em evento a equipe da SOS fica junto do material e volta com
+  // ele no mesmo fim de semana — não há a quem cobrar depois.
+  const temTermos = ehLocacao(evento) || ehSublocacao(evento)
 
   useEffect(() => {
     async function buscar() {
@@ -330,6 +347,9 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
     )}
     {concluindoEvento && (
       <ModalConcluirEvento evento={evento} onFechar={() => setConcluindoEvento(false)} onConcluido={() => setConcluindoEvento(false)} />
+    )}
+    {termosAberto && (
+      <TermosModal evento={evento} onFechar={() => setTermosAberto(false)} />
     )}
     <div
       className="card hover:border-brand-red hover:shadow-md transition-all cursor-pointer"
@@ -410,6 +430,17 @@ function EventoCard({ evento, podeGerenciar, onClick, onEditar, onExcluir }) {
                     </svg>
                     Editar geradores
                   </button>
+                  {temTermos && (
+                    <button
+                      onClick={() => { setMenuAberto(false); setTermosAberto(true) }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Termos do cliente
+                    </button>
+                  )}
                   {evento.status !== 'concluido' && (
                     <button
                       onClick={() => { setMenuAberto(false); setConcluindoEvento(true) }}
@@ -459,6 +490,7 @@ function ModalDetalheEvento({ evento, onFechar }) {
   const [assinaturas, setAssinaturas] = useState({}) // { ordemId: { id, ...doc } }
   const [versaoAss, setVersaoAss] = useState(0) // recarrega assinaturas apos assinar
   const [coletando, setColetando] = useState(null) // { ass, papel } no modal presencial
+  const [termosAberto, setTermosAberto] = useState(false)
   const { dados: materiais } = useCollection('materiais')
 
   // A OS guarda um retrato do material (nome/codigo da epoca). Para refletir
@@ -885,6 +917,18 @@ function ModalDetalheEvento({ evento, onFechar }) {
 
         <div className="px-5 pb-5 pt-3 border-t border-gray-100 flex-shrink-0 flex gap-3 flex-wrap">
           <button onClick={onFechar} className="btn-secondary flex-1">Fechar</button>
+          {(ehLocacao(evento) || ehSublocacao(evento)) && (
+            <button
+              onClick={() => setTermosAberto(true)}
+              className="btn-secondary flex-1 justify-center gap-2 border-purple-300 text-purple-700"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13l2 2 4-4" />
+              </svg>
+              Termos do cliente
+            </button>
+          )}
           {ehSublocacao(evento) && (
             <button
               onClick={() => gerarDeclaracaoSublocacao(
@@ -925,6 +969,10 @@ function ModalDetalheEvento({ evento, onFechar }) {
             </svg>
           </button>
         </div>
+      )}
+
+      {termosAberto && (
+        <TermosModal evento={evento} onFechar={() => setTermosAberto(false)} />
       )}
 
       {coletando && (

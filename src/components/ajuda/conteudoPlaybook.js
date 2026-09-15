@@ -7,7 +7,7 @@
 // Linguagem: o leitor é o almoxarife, o operador e o mecânico — não o
 // programador. Frase curta, palavra do dia a dia, nada de jargão de sistema.
 
-export const VERSAO = '1.0'
+export const VERSAO = '1.1'
 
 /**
  * Blocos aceitos em cada seção:
@@ -194,6 +194,56 @@ export const SECOES = [
             ['Parcial', 'Ainda falta voltar. Use quando parte do item ficou no evento.'],
           ],
         },
+      },
+    ],
+  },
+
+  {
+    id: 'termos',
+    titulo: 'Locação mensal: termo de entrega e de devolução',
+    blocos: [
+      {
+        p: 'Na locação mensal e na sublocação o material DORME no cliente — shopping, obra, '
+          + 'condomínio. Semanas depois alguém vai recolher, e sem papel não há como provar o que '
+          + 'ficou lá nem quem recebeu. Já aconteceu de faltar cabo e não haver de quem cobrar.',
+      },
+      {
+        p: 'Por isso a locação tem dois termos, cada um assinado pelos dois lados: um na entrega '
+          + 'e outro na devolução. Os dois saem pelo celular, por link.',
+      },
+      {
+        p: 'Onde fica: no menu ⋯ do card da locação, em "Termos do cliente" — ou dentro da '
+          + 'locação, no botão roxo com o mesmo nome.',
+      },
+      {
+        passos: [
+          'Abra Termos do cliente e toque em "+ Entrega".',
+          'Confira a lista de material que vai no termo.',
+          'Sua assinatura já vem preenchida, da assinatura que você deu no lançamento da saída.',
+          'Toque em "Gerar link do termo" e mande no WhatsApp para o cliente.',
+          'Ele abre, confere a lista, escreve o nome por extenso e o CPF, e assina com o dedo.',
+          'Assinado, aparece o botão "Documento" — é a via que você envia para o cliente.',
+        ],
+      },
+      {
+        p: 'Na hora de recolher, gere o termo de DEVOLUÇÃO e mande o link para quem vai buscar. '
+          + 'Ele abre no local e faz a conferência ali mesmo, item por item.',
+      },
+      {
+        lista: [
+          'Cada item tem dois botões: Voltou e Faltou.',
+          'Dá para tirar foto do que faltou e do estado do material.',
+          'Tem campo de observação para explicar o que aconteceu.',
+          'Quem devolve assina com nome e RG; quem recolhe assina também.',
+        ],
+      },
+      {
+        atencao: 'Na devolução TODO item precisa de resposta — Voltou ou Faltou. O sistema não '
+          + 'deixa fechar com item em branco, senão o que sumiu passaria batido no documento.',
+      },
+      {
+        dica: 'O que ficou marcado como Faltou sai em destaque no documento assinado pelos dois. '
+          + 'É esse papel que sustenta a cobrança depois.',
       },
     ],
   },
