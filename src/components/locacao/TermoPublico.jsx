@@ -38,7 +38,11 @@ export default function TermoPublico() {
         if (!snap.exists()) { setEstado('naoencontrado'); return }
         const d = { id: snap.id, ...snap.data() }
         setTermo(d)
-        setSosNome(d.sosNome || '')
+        // ⚠️ Só a ENTREGA reaproveita o nome gravado — ali ele é de quem já
+        // entregou, e a tela só exibe. Na devolução o campo abre EM BRANCO:
+        // quem recolhe raramente é quem gerou o link, e o nome de outra pessoa
+        // esperando no campo é assinado sem ninguém reparar.
+        setSosNome(d.tipo === 'entrega' ? (d.sosNome || '') : '')
         if (d.status === 'assinado') { setEstado('pronto'); return }
         setEstado('ok')
       } catch (e) {
@@ -304,7 +308,7 @@ export default function TermoPublico() {
                 {ehDevolucao ? 'Quem está devolvendo o material' : 'Quem está recebendo o material'}
               </p>
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Nome por extenso *</label>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Nome (cliente) *</label>
                 <input
                   value={clienteNome}
                   onChange={e => setClienteNome(e.target.value)}

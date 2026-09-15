@@ -93,7 +93,7 @@ export function pendenciasDoTermo(tipo, form = {}) {
   const texto = v => String(v ?? '').trim()
   const faltando = []
 
-  if (!texto(form.clienteNome)) faltando.push('o nome por extenso')
+  if (!texto(form.clienteNome)) faltando.push('o nome do cliente')
   if (!texto(form.clienteDocumento)) {
     faltando.push(tipo === 'devolucao' ? 'o RG de quem está devolvendo' : 'o CPF')
   }

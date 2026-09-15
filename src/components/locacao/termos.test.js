@@ -98,7 +98,7 @@ describe('pendenciasDoTermo', () => {
   it('nome só com espaços não vale', () => {
     expect(pendenciasDoTermo('entrega', {
       clienteNome: '   ', clienteDocumento: '1', clienteAssinatura: 'x',
-    })).toEqual(['o nome por extenso'])
+    })).toEqual(['o nome do cliente'])
   })
 })
 

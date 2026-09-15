@@ -97,7 +97,7 @@ export default function TermosModal({ evento, onFechar }) {
       setNomeSOS(assinaturaDaOrdem?.entregouNome || nome || '')
     } else {
       setAssinaturaSOS('')
-      setNomeSOS(nome || '')
+      setNomeSOS('')
     }
   }
 
@@ -124,8 +124,10 @@ export default function TermosModal({ evento, onFechar }) {
         numeroFormatado: ordens.map(o => o.numeroFormatado).filter(Boolean).join(', ') || null,
         itens,
         geradores,
-        // Na entrega a SOS já assinou; na devolução quem recolhe assina no link.
-        sosNome: nomeSOS.trim() || null,
+        // Na entrega a SOS já assinou e o nome vai gravado. Na devolução os dois
+        // ficam NULOS de propósito: quem recolhe preenche e assina no local, e
+        // deixar aqui o nome de quem gerou o link faria a pessoa errada assinar.
+        sosNome: criando === 'entrega' ? (nomeSOS.trim() || null) : null,
         sosAssinatura: criando === 'entrega' ? assinaturaSOS : null,
         clienteNome: null,
         clienteDocumento: null,
