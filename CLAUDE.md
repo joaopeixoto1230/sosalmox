@@ -515,6 +515,24 @@ o briefing diário por e-mail do João — `onSchedule` às 7h, segredos `GMAIL_
 o `--only` tentaria republicar a automação junto com o site. Publicar a função é assunto
 separado, e só quando o João pedir: `firebase deploy --only functions`.
 
+⚠️ **`firestore.rules` é dividido com o SOS ABASTECIMENTO** — e foi assim que quase se
+perdeu trabalho em 15/09/2026. Os dois sistemas usam o MESMO projeto Firebase, e as regras
+são do PROJETO, não do app; por isso o bloco do Abastecimento mora neste repositório. O João
+cola nele o que a sessão do Abastecimento produz, **direto na máquina, sem commit** — e o
+`git reset --hard` do `deploy.sh` descartaria tudo em silêncio. Foi o que quase aconteceu com
+as regras do QR anônimo (seção 12.2).
+- Quando o `deploy.sh` avisar `M firestore.rules`, **NUNCA mandar responder `s` de primeira.**
+  Conferir antes o que existe só na máquina dele:
+  `cd ~/Projetos/sosalmox && git --no-pager diff origin/claude/laughing-carson-FcEmu -- firestore.rules | grep '^+' | grep -v '^+++'`
+  Saiu vazio = a cópia local só está atrasada, pode descartar. Saiu alguma linha = é trabalho
+  que só existe ali.
+- Para salvar sem pedir ao João que resolva conflito na máquina dele: ele commita e empurra
+  para um **branch temporário** (`git push origin HEAD:<nome>`), e a mesclagem é feita aqui,
+  onde dá para conferir bloco a bloco. É a exceção justificada à regra de branch único — ela
+  existe para não espalhar trabalho, e aqui serve para não perder o dele.
+- Depois de mexer nas regras: `npx firebase-tools deploy --only firestore:rules --project sos-almox`,
+  separado do `--only hosting`.
+
 Regras ao instruir o usuário:
 - **PowerShell NÃO aceita `&&`** — sempre dar os comandos um por linha (no zsh do Mac aceita,
   mas separar ajuda a ver onde falhou)
