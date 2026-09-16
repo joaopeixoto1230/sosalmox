@@ -363,6 +363,13 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   ficam até a confirmação final e NÃO têm lançamento individual (dupla contagem). Com tudo
   lançado um a um, o botão vira "Encerrar devolução do evento" (fecha ordens/geradores/evento).
   Status "Parcial" não lança sozinho — parcial significa que ainda falta voltar.
+  - ⚠️ **Material APAGADO do cadastro NÃO trava a devolução** (16/09/2026). Era um `throw`
+    (`Material X não encontrado`), e bastava um item excluído do estoque — o João
+    repadronizou os protetores de cabo e apagou os antigos — para o evento NA PRAIA inteiro
+    ficar sem poder ser devolvido: nenhum dos outros materiais voltava à prateleira. Agora os
+    dois caminhos (lançar item e confirmar devolução) registram o item com `semCadastro: true`
+    e seguem; não há doc para movimentar, então nada de estoque muda. A tela avisa ANTES de
+    confirmar, listando os itens. **Não voltar a lançar erro por material inexistente.**
 - ⚠️ **MATERIAL PRESO EM EVENTO** (bug de produção corrigido em 09/09/2026 — não reintroduzir).
   Sintoma: material devolvido no papel continuava `em_evento` no estoque, e a Saída recusava
   com "X não está mais disponível" mesmo com o card mostrando "Disponível".

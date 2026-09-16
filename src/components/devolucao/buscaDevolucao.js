@@ -64,8 +64,11 @@ export function filtrarEventosDevolucao(eventos, mapaItens, busca) {
  * lançado individualmente ou voltou por outro caminho; mantê-lo faria a
  * confirmação final registrá-lo de novo. Contado (alambrado) e por-quantidade
  * (protetor) não deixam esse rastro no status, então ficam até o fim.
- * Material que sumiu do banco também fica: a transaction acusa o erro na hora
- * certa, com mensagem — melhor que sumir da lista em silêncio.
+ * Material que sumiu do banco também fica — some da lista seria pior, porque a
+ * saída registrou que ele foi para o evento. Ele é registrado na devolução com
+ * `semCadastro: true` e não movimenta estoque (não há doc para movimentar);
+ * a tela avisa antes de confirmar. **Não voltar a travar a devolução por causa
+ * dele**: um item excluído segurava o evento inteiro fora da prateleira.
  */
 export function itensPendentesDevolucao(itens, materiaisMap) {
   return (itens || []).filter(item => {

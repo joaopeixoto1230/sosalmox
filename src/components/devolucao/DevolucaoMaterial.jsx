@@ -60,6 +60,14 @@ export default function DevolucaoMaterial() {
     [todosItens, materiaisMap],
   )
 
+  // Itens cujo material foi APAGADO do estoque. Não somem da lista (a saída
+  // registrou que eles foram para o evento), mas não há doc para movimentar —
+  // então a tela avisa antes, em vez de a confirmação estourar no fim.
+  const semCadastro = useMemo(
+    () => pendentes.filter(i => !materialPorQuantidade(i) && !materiaisMap.has(i.id)),
+    [pendentes, materiaisMap],
+  )
+
   const geradoresDoEvento = useMemo(() => {
     if (!eventoSelecionado) return []
     return geradores.filter(g => g.eventoAtual === eventoSelecionado.id)
@@ -134,21 +142,33 @@ export default function DevolucaoMaterial() {
       await runTransaction(db, async (tx) => {
         const matRef = doc(db, 'materiais', item.id)
         const snap = await tx.get(matRef)
-        if (!snap.exists()) throw new Error(`Material ${item.nome} não encontrado.`)
-        if (snap.data().status !== 'em_evento') throw new Error(`${item.nome} já não está mais no evento.`)
+        // Material apagado do cadastro: registra a baixa e segue. Travar aqui
+        // deixaria o item pendurado no evento para sempre — ver a nota do
+        // `confirmarDevolucao`.
+        const semCadastro = !snap.exists()
+        if (!semCadastro && snap.data().status !== 'em_evento') {
+          throw new Error(`${item.nome} já não está mais no evento.`)
+        }
         // Registro próprio em devolucoes, com a marca de parcial — o relatório
         // continua enxergando tudo.
         tx.set(doc(collection(db, 'devolucoes')), {
           eventoId: eventoSelecionado.id,
           eventoNome: eventoSelecionado.nome,
           parcial: true,
-          itens: [{ ...item, statusDevolucao: s, descricao: descricoes[item.id] || null }],
+          itens: [{
+            ...item,
+            statusDevolucao: s,
+            descricao: descricoes[item.id] || null,
+            ...(semCadastro ? { semCadastro: true } : {}),
+          }],
           operadorUid: uid,
           operadorNome: nome,
           criadoEm: serverTimestamp(),
         })
-        const patch = patchDevolucaoEvento(snap.data(), item.quantidade || 1, s)
-        if (patch) tx.update(matRef, patch)
+        if (!semCadastro) {
+          const patch = patchDevolucaoEvento(snap.data(), item.quantidade || 1, s)
+          if (patch) tx.update(matRef, patch)
+        }
       })
       // O listener de materiais tira o item da lista; limpa o estado dele.
       setStatusItens(prev => { const p = { ...prev }; delete p[item.id]; return p })
@@ -176,7 +196,14 @@ export default function DevolucaoMaterial() {
           if (materialPorQuantidade(item)) continue
           const matRef = doc(db, 'materiais', item.id)
           const snap = await tx.get(matRef)
-          if (!snap.exists()) throw new Error(`Material ${item.nome} não encontrado.`)
+          // ⚠️ Material APAGADO do cadastro não trava mais a devolução inteira.
+          // Antes isto era um `throw`, e um item excluído do estoque (o João
+          // padronizou os protetores de cabo e apagou os antigos) segurava o
+          // evento NA PRAIA por completo: nenhum dos outros materiais voltava
+          // para a prateleira. Não há estoque para devolver num doc que não
+          // existe — então registra e segue, com a marca `semCadastro` para o
+          // relatório mostrar por que aquele item não movimentou nada.
+          if (!snap.exists()) continue
           statusAtualMat[item.id] = snap.data().status
           lidos[item.id] = snap.data()
         }
@@ -207,6 +234,10 @@ export default function DevolucaoMaterial() {
               ...item,
               statusDevolucao: statusItens[item.id] || 'aguardando',
               descricao: descricoes[item.id] || null,
+              // Marca o item cujo material não existe mais no estoque: ele fica
+              // no registro (o romaneio da saída o menciona), mas não moveu
+              // quantidade nenhuma, porque não há doc para mover.
+              ...(!materialPorQuantidade(item) && !lidos[item.id] ? { semCadastro: true } : {}),
             })),
             operadorUid: uid,
             operadorNome: nome,
@@ -218,6 +249,9 @@ export default function DevolucaoMaterial() {
           // Consumível por quantidade: não prende estoque, nada a alterar aqui.
           if (materialPorQuantidade(item)) continue
           const dados = lidos[item.id]
+          // Material apagado do cadastro: já foi registrado acima com
+          // `semCadastro`. Não há doc para atualizar.
+          if (!dados) continue
           const s = statusItens[item.id] || 'aguardando'
           // ⚠️ Material CONTADO (alambrado) nunca fica "em_evento" — ele só
           // perdeu quantidade. Checar o status aqui o faria ser pulado calado,
@@ -534,6 +568,26 @@ export default function DevolucaoMaterial() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {semCadastro.length > 0 && (
+            <div className="border border-amber-200 bg-amber-50 text-amber-800 text-sm rounded-lg px-3 py-2
+              dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+              <p>
+                <b>{semCadastro.length}</b>{' '}
+                {semCadastro.length === 1
+                  ? 'item não existe mais no estoque'
+                  : 'itens não existem mais no estoque'} — provavelmente foram
+                excluídos ou repadronizados depois desta saída.
+              </p>
+              <p className="mt-1 text-xs">
+                {semCadastro.map(i => i.nome).filter(Boolean).join(', ')}
+              </p>
+              <p className="mt-1 text-xs">
+                A devolução segue normalmente: eles ficam registrados, mas não devolvem
+                quantidade nenhuma, porque o cadastro não existe mais.
+              </p>
             </div>
           )}
 
