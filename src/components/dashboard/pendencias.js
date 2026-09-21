@@ -96,6 +96,44 @@ function comprasNaFila(solicitacoes) {
   return solicitacoes.filter(s => (s.status || 'pendente') === 'pendente')
 }
 
+// Quantos dias antes do vencimento a preventiva já aparece no painel. Uma
+// semana dá tempo de encaixar na agenda; menos que isso o aviso chega junto
+// com o atraso e não serve para planejar nada.
+export const PREVENTIVA_AVISO_DIAS = 7
+
+/**
+ * Equipamentos com a preventiva vencida ou a vencer.
+ *
+ * ⚠️ O dado SEMPRE existiu (`proximaPreventiva` no doc do gerador e do
+ * caminhão, preenchido na conclusão da OS), mas só aparecia no card do próprio
+ * equipamento — nenhum alerta, nenhum e-mail. Na prática o GG passava da
+ * preventiva e ninguém ficava sabendo até ele quebrar num evento (16/09/2026).
+ *
+ * Fica de fora:
+ *  - equipamento inativo/vendido — não se faz preventiva no que saiu da frota;
+ *  - equipamento que JÁ tem OS aberta — a manutenção está encaminhada, repetir
+ *    aqui só empurraria o aviso de verdade para fora da tela.
+ * @returns {{equipamento, codigo, atraso}[]} atraso > 0 vencida, <= 0 a vencer
+ */
+export function preventivasVencidas(equipamentos, ordensServico, hoje, avisoDias = PREVENTIVA_AVISO_DIAS) {
+  const comOSAberta = new Set(
+    (ordensServico || [])
+      .filter(o => o.status !== 'concluida' && o.equipamentoId)
+      .map(o => o.equipamentoId),
+  )
+
+  return (equipamentos || [])
+    .filter(e => e?.ativo !== false && e?.status !== 'inativo' && e?.proximaPreventiva)
+    .filter(e => !comOSAberta.has(e.id))
+    .map(e => ({
+      equipamento: e,
+      codigo: e.codigo || e.placa || '',
+      atraso: diasDeAtraso(e.proximaPreventiva, hoje),
+    }))
+    .filter(x => x.atraso !== null && x.atraso >= -avisoDias)
+    .sort((a, b) => b.atraso - a.atraso)
+}
+
 const plural = (n, um, muitos) => `${n} ${n === 1 ? um : muitos}`
 
 /**
@@ -109,7 +147,7 @@ export function calcularPendencias(dados, opcoes = {}) {
 
   const {
     eventos = [], ordensSaida = [], ordensServico = [], solicitacoes = [],
-    filtros = [], baixasFiltro = [],
+    filtros = [], baixasFiltro = [], geradores = [], caminhoes = [],
   } = dados
 
   const itens = []
@@ -137,6 +175,27 @@ export function calcularPendencias(dados, opcoes = {}) {
       n: paradas.length,
       texto: `${paradas.length === 1 ? 'OS aberta' : 'OS abertas'} há mais de 2 dias`,
       detalhe: paradas.slice(0, 3).map(o => o.numero).filter(Boolean).join(', '),
+      para: '/manutencao',
+      acao: 'Manutenção',
+    })
+  }
+
+  const preventivas = preventivasVencidas([...geradores, ...caminhoes], ordensServico, hoje)
+  if (preventivas.length) {
+    const pior = preventivas[0]
+    const vencidas = preventivas.filter(p => p.atraso > 0)
+    itens.push({
+      chave: 'preventiva',
+      modulo: MODULOS.MANUTENCAO,
+      // Vencida é ação atrasada; a que ainda vai vencer é só planejamento.
+      nivel: vencidas.length > 0 ? 'critico' : 'aviso',
+      n: preventivas.length,
+      texto: vencidas.length === preventivas.length
+        ? `${preventivas.length === 1 ? 'equipamento com preventiva vencida' : 'equipamentos com preventiva vencida'}`
+        : `${preventivas.length === 1 ? 'equipamento com preventiva' : 'equipamentos com preventiva'} vencendo`,
+      detalhe: pior.atraso > 0
+        ? `${pior.codigo} está ${plural(pior.atraso, 'dia', 'dias')} atrasado`
+        : `${pior.codigo} vence em ${plural(Math.abs(pior.atraso), 'dia', 'dias')}`,
       para: '/manutencao',
       acao: 'Manutenção',
     })

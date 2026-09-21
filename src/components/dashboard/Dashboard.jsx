@@ -97,6 +97,8 @@ export default function Dashboard() {
   const { dados: materiais, carregando: carregandoMat } = useCollection('materiais')
   const { dados: filtros } = useCollection('filtros')
   const { dados: geradores } = useCollection('geradores')
+  // Caminhão também tem preventiva — a pendência junta os dois.
+  const { dados: caminhoes } = useCollection('caminhoes')
   const { dados: ordensSaida } = useCollection('ordens_saida')
   const { dados: ordensServico } = useCollection('ordens_servico')
   const { dados: solicitacoes } = useCollection('solicitacoes_compra')
@@ -235,9 +237,9 @@ export default function Dashboard() {
   }, [ordensSaida, ordensServico, frota, abertoEm])
 
   const pendencias = useMemo(() => calcularPendencias(
-    { eventos, ordensSaida, ordensServico, solicitacoes, filtros, baixasFiltro },
+    { eventos, ordensSaida, ordensServico, solicitacoes, filtros, baixasFiltro, geradores, caminhoes },
     { podeVer: modulo => temPermissao(tipoPerfil, modulo) },
-  ), [eventos, ordensSaida, ordensServico, solicitacoes, filtros, baixasFiltro, tipoPerfil])
+  ), [eventos, ordensSaida, ordensServico, solicitacoes, filtros, baixasFiltro, geradores, caminhoes, tipoPerfil])
 
   const hora = new Date().getHours()
   const saudacao = hora < 12 ? 'Bom dia' : hora < 18 ? 'Boa tarde' : 'Boa noite'

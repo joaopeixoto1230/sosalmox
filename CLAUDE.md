@@ -322,6 +322,18 @@ Saídas internas sem vínculo a evento. Gravadas em `ordens_saida` com `tipo:'us
   (crítico com ≤10 dias) e consumo fora do padrão (última semana ≥ 2× a média de 4 semanas,
   mínimo 4 un.). Agrupado por REFERÊNCIA (estoque compartilhado). O painel carrega
   `baixas_filtro` só dos últimos 60 dias (`RESTRICAO_BAIXAS_60D`).
+  - **Preventiva vencida ou a vencer** (`preventivasVencidas`, 21/09/2026): o campo
+    `proximaPreventiva` existia desde sempre em `geradores` e `caminhoes` — preenchido na
+    conclusão da OS —, mas só aparecia no card do próprio equipamento. Nenhum alerta, nenhum
+    e-mail: o GG passava da preventiva e ninguém sabia até quebrar num evento. Agora entra no
+    painel e no briefing das 7h, com janela de **7 dias antes** (`PREVENTIVA_AVISO_DIAS`).
+    Vencida é `critico`; só a vencer é `aviso`.
+    ⚠️ Fica de fora o equipamento **inativo/vendido** e o que **já tem OS aberta** — a
+    manutenção dele está encaminhada, e repetir empurraria para fora da tela o aviso de quem
+    ainda não foi atendido. Coberto por teste.
+    ⚠️ A regra existe DUAS vezes: `pendencias.js` (app, com teste) e `functions/index.js`
+    (e-mail), porque `functions/` é pacote Node próprio e não importa do `src`. **Mudou uma,
+    mudar a outra.** O Dashboard passou a carregar `caminhoes` para isso.
 - **Briefing das 7h com "Leitura do agente"**: `gerarLeituraIA` em `functions/index.js`
   escreve 3-5 frases via Haiku EM CIMA dos números do buildBriefing (nunca inventa número);
   se a chamada falhar, o e-mail sai sem o parágrafo. Usa o secret `ANTHROPIC_API_KEY`.

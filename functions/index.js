@@ -42,6 +42,9 @@ async function buildBriefing() {
     entradasFiltroSnap,
     baixasFiltroSnap,
     materiaisBaixoSnap,
+    geradoresSnap,
+    caminhoesSnap,
+    osEmAbertoSnap,
   ] = await Promise.all([
     db.collection('ordens_saida').where('criadoEm', '>=', tsInicio).get(),
     db.collection('ordens_servico').where('criadoEm', '>=', tsInicio).get(),
@@ -50,6 +53,11 @@ async function buildBriefing() {
     db.collection('entradas_filtro').where('criadoEm', '>=', tsInicio).get(),
     db.collection('baixas_filtro').where('criadoEm', '>=', tsInicio).get(),
     db.collection('materiais').where('status', '==', 'disponivel').get(),
+    // Preventiva olha a frota INTEIRA, nao so as ultimas 24h: o que interessa
+    // e a data marcada no equipamento, que pode ter vencido semanas atras.
+    db.collection('geradores').get(),
+    db.collection('caminhoes').get(),
+    db.collection('ordens_servico').where('status', 'in', ['pendente', 'em_andamento']).get(),
   ])
 
   // Saídas de material (Evento + Uso Interno)
@@ -83,6 +91,35 @@ async function buildBriefing() {
       return minimo > 0 && atual <= minimo
     })
 
+  // Preventiva vencida ou a vencer em ate 7 dias.
+  //
+  // ⚠️ MESMA regra de `preventivasVencidas` em src/components/dashboard/
+  // pendencias.js, que tem teste. As duas vivem separadas porque functions/ e
+  // um pacote Node proprio e nao importa do src — ao mudar uma, mudar a outra.
+  // Fora: equipamento inativo/vendido e o que ja tem OS aberta.
+  const comOSAberta = new Set(
+    osEmAbertoSnap.docs.map(d => d.data().equipamentoId).filter(Boolean),
+  )
+  const hojeISO = (() => {
+    const p = n => String(n).padStart(2, '0')
+    return `${agora.getFullYear()}-${p(agora.getMonth() + 1)}-${p(agora.getDate())}`
+  })()
+  const diasDeAtraso = (iso) => {
+    const [a1, m1, d1] = String(iso).split('-').map(Number)
+    const [a2, m2, d2] = hojeISO.split('-').map(Number)
+    if (!a1 || !m1 || !d1) return null
+    const alvo = new Date(a1, m1 - 1, d1).getTime()
+    const ref = new Date(a2, m2 - 1, d2).getTime()
+    return Math.round((ref - alvo) / 86400000)
+  }
+  const preventivas = [...geradoresSnap.docs, ...caminhoesSnap.docs]
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(e => e.ativo !== false && e.status !== 'inativo' && e.proximaPreventiva)
+    .filter(e => !comOSAberta.has(e.id))
+    .map(e => ({ codigo: e.codigo || e.placa || '', data: e.proximaPreventiva, atraso: diasDeAtraso(e.proximaPreventiva) }))
+    .filter(x => x.atraso !== null && x.atraso >= -7)
+    .sort((a, b) => b.atraso - a.atraso)
+
   const houveMovimento =
     saidasEvento.length + saidasUsoInterno.length + osAbertas.length + osConcluidas.length +
     solicitacoes.length + entradasFiltroSnap.size + baixasFiltroSnap.size > 0
@@ -99,6 +136,7 @@ async function buildBriefing() {
     solicitacoes,
     solicitacoesUrgentes,
     materiaisBaixo,
+    preventivas,
     houveMovimento,
   }
 }
@@ -139,12 +177,21 @@ function renderHtml(b, leitura) {
       <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">🧯 Filtros — movimentação</h2>
       <p style="margin:4px 0 12px;">${b.entradasFiltro} entrada(s) · ${b.baixasFiltro} baixa(s) nas últimas 24h.</p>
 
+      <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">🗓️ Preventivas vencidas ou vencendo (${b.preventivas.length})</h2>
+      ${b.preventivas.length
+        // O "Nada nas ultimas 24h" do helper nao serve aqui: preventiva nao e
+        // movimentacao do dia, e a data marcada no equipamento.
+        ? `<ul style="margin:4px 0 12px;padding-left:20px;">${b.preventivas.map(p => `<li style="margin-bottom:4px;">${p.atraso > 0
+            ? `<strong>${p.codigo}</strong> — venceu há ${p.atraso} dia(s) (${p.data})`
+            : `<strong>${p.codigo}</strong> — vence em ${Math.abs(p.atraso)} dia(s) (${p.data})`}</li>`).join('')}</ul>`
+        : '<p style="margin:4px 0 12px;color:#888;">Nenhuma preventiva vencida ou vencendo nos próximos 7 dias.</p>'}
+
       <h2 style="font-size:16px;border-bottom:2px solid #CC0000;padding-bottom:4px;">⚠️ Consumíveis abaixo do mínimo (${b.materiaisBaixo.length})</h2>
       ${li(b.materiaisBaixo, m => `${m.nome || m.codigo || 'item'} — ${m.estoqueAtual ?? '?'} / min ${m.estoqueMin ?? '?'}`)}
       <p style="font-size:11px;color:#999;margin-top:-6px;">Cabos e itens de unidade não entram aqui: a regra deles é por espécie e está no painel do sistema.</p>
 
       <p style="font-size:12px;color:#999;margin-top:24px;border-top:1px solid #eee;padding-top:10px;">
-        Gerado automaticamente todo dia às 07h pelo sistema SOS Almoxarifado. · regras v2
+        Gerado automaticamente todo dia às 07h pelo sistema SOS Almoxarifado. · regras v3 (preventivas)
       </p>
     </div>
   </div>`
@@ -164,6 +211,8 @@ async function gerarLeituraIA(b) {
       `OS concluidas: ${b.osConcluidas.length}`,
       `Solicitacoes de compra novas: ${b.solicitacoes.length} (${b.solicitacoesUrgentes.length} urgentes)`,
       `Movimentacao de filtros: ${b.entradasFiltro} entradas, ${b.baixasFiltro} baixas`,
+      `Preventivas vencidas ou vencendo em ate 7 dias: ${b.preventivas.length}` +
+        (b.preventivas.length ? ` (${b.preventivas.slice(0, 8).map(p => `${p.codigo} ${p.atraso > 0 ? `atrasada ha ${p.atraso}d` : `vence em ${Math.abs(p.atraso)}d`}`).join('; ')})` : ''),
       `Consumiveis (fita, parafuso etc.) abaixo do minimo: ${b.materiaisBaixo.length}` +
         (b.materiaisBaixo.length ? ` (${b.materiaisBaixo.slice(0, 8).map(m => m.nome || m.codigo).join('; ')})` : ''),
     ].join('\n')

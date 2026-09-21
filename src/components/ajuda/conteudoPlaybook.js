@@ -7,7 +7,7 @@
 // Linguagem: o leitor é o almoxarife, o operador e o mecânico — não o
 // programador. Frase curta, palavra do dia a dia, nada de jargão de sistema.
 
-export const VERSAO = '1.1'
+export const VERSAO = '1.2'
 
 /**
  * Blocos aceitos em cada seção:
@@ -352,6 +352,16 @@ export const SECOES = [
       {
         dica: 'A OS concluída gera um relatório em PDF pelo botão Imprimir. O arquivo já sai '
           + 'com o nome certo, ex.: "Relatório Manutenção - GG-045".',
+      },
+      {
+        p: 'Quando você conclui a OS e preenche a data da próxima preventiva, o sistema passa a '
+          + 'cobrar sozinho: o equipamento aparece nos avisos do Painel uma semana antes de '
+          + 'vencer, e continua aparecendo enquanto estiver atrasado. O mesmo aviso sai no '
+          + 'e-mail das 7h.',
+      },
+      {
+        dica: 'Equipamento que já tem OS aberta sai do aviso — a manutenção dele já está '
+          + 'encaminhada, não adianta cobrar duas vezes.',
       },
       {
         atencao: 'Gerador que está com cliente NÃO volta para o pátio ao abrir OS — ele fica onde '

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   diaSeguinte, proximaSegunda, previsaoDoEvento, diasDeAtraso, eventosACobrar, calcularPendencias,
+  preventivasVencidas,
 } from './pendencias'
 import { MODULOS } from '../../utils/permissions'
 
@@ -112,5 +113,97 @@ describe('lista de pendências', () => {
       ordensServico: [{ status: 'concluida', dataAbertura: new Date(2026, 6, 1) }],
     }, { hoje: HOJE, agora: AGORA })
     expect(r).toEqual([])
+  })
+})
+
+describe('preventivasVencidas', () => {
+  const hoje = '2026-09-16'
+
+  it('acusa a vencida e a que vence dentro de uma semana', () => {
+    const equipamentos = [
+      { id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-10' }, // 6 dias atrasada
+      { id: 'b', codigo: 'GG-020', proximaPreventiva: '2026-09-20' }, // vence em 4
+      { id: 'c', codigo: 'GG-030', proximaPreventiva: '2026-10-30' }, // longe
+      { id: 'd', codigo: 'GG-040' },                                   // sem data
+    ]
+    const r = preventivasVencidas(equipamentos, [], hoje)
+    expect(r.map(x => x.codigo)).toEqual(['GG-015', 'GG-020'])
+    // a mais atrasada primeiro — é por ela que o painel resume
+    expect(r[0].atraso).toBe(6)
+    expect(r[1].atraso).toBe(-4)
+  })
+
+  it('caminhão entra pela placa, que é o código dele', () => {
+    const r = preventivasVencidas([{ id: 'c1', placa: 'JIL-0122', proximaPreventiva: '2026-09-01' }], [], hoje)
+    expect(r[0].codigo).toBe('JIL-0122')
+  })
+
+  it('equipamento vendido ou inativo não alerta', () => {
+    // Não se faz preventiva no que saiu da frota.
+    const equipamentos = [
+      { id: 'a', codigo: 'GG-001', proximaPreventiva: '2026-01-01', ativo: false },
+      { id: 'b', codigo: 'GG-002', proximaPreventiva: '2026-01-01', status: 'inativo' },
+    ]
+    expect(preventivasVencidas(equipamentos, [], hoje)).toEqual([])
+  })
+
+  it('equipamento com OS ABERTA sai da lista', () => {
+    // A manutenção já está encaminhada; repetir aqui empurraria para fora da
+    // tela o aviso de quem ainda não foi atendido.
+    const equipamentos = [
+      { id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-01' },
+      { id: 'b', codigo: 'GG-020', proximaPreventiva: '2026-09-01' },
+    ]
+    const os = [
+      { equipamentoId: 'a', status: 'em_andamento' },
+      { equipamentoId: 'b', status: 'concluida' },
+    ]
+    expect(preventivasVencidas(equipamentos, os, hoje).map(x => x.codigo)).toEqual(['GG-020'])
+  })
+
+  it('a janela de aviso é configurável e nunca pega o futuro distante', () => {
+    const equipamentos = [{ id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-25' }]
+    expect(preventivasVencidas(equipamentos, [], hoje, 7)).toEqual([])
+    expect(preventivasVencidas(equipamentos, [], hoje, 15)).toHaveLength(1)
+  })
+
+  it('aguenta lista vazia e campo ausente', () => {
+    expect(preventivasVencidas()).toEqual([])
+    expect(preventivasVencidas([], undefined, hoje)).toEqual([])
+  })
+})
+
+describe('pendência de preventiva no painel', () => {
+  const hoje = '2026-09-16'
+
+  it('vencida é crítica; só a vencer é aviso', () => {
+    const vencida = calcularPendencias(
+      { geradores: [{ id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-10' }] }, { hoje },
+    ).find(p => p.chave === 'preventiva')
+    expect(vencida.nivel).toBe('critico')
+    expect(vencida.detalhe).toContain('atrasado')
+
+    const aVencer = calcularPendencias(
+      { geradores: [{ id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-20' }] }, { hoje },
+    ).find(p => p.chave === 'preventiva')
+    expect(aVencer.nivel).toBe('aviso')
+    expect(aVencer.detalhe).toContain('vence em')
+  })
+
+  it('junta gerador e caminhão na mesma pendência', () => {
+    const p = calcularPendencias({
+      geradores: [{ id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-10' }],
+      caminhoes: [{ id: 'c', placa: 'JIL-0122', proximaPreventiva: '2026-09-11' }],
+    }, { hoje }).find(x => x.chave === 'preventiva')
+    expect(p.n).toBe(2)
+  })
+
+  it('quem não vê Manutenção não recebe o alerta', () => {
+    // Ninguém deve levar cobrança que não consegue resolver.
+    const p = calcularPendencias(
+      { geradores: [{ id: 'a', codigo: 'GG-015', proximaPreventiva: '2026-09-10' }] },
+      { hoje, podeVer: m => m !== MODULOS.MANUTENCAO },
+    )
+    expect(p.find(x => x.chave === 'preventiva')).toBeUndefined()
   })
 })
