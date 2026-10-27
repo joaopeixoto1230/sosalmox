@@ -1,0 +1,9 @@
+{
+  "name": "sosalmox-regras",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Regras de negocio puras do SOS Almoxarifado, com os testes que as definem.",
+  "scripts": { "test": "vitest run" },
+  "devDependencies": { "vitest": "^4.1.7" }
+}

@@ -1,0 +1,762 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "especificacao": {
+    "nome": "SOS Almoxarifado (SOSALMOX)",
+    "versao": "1.0",
+    "data": "2026-10-27",
+    "proposito": "Especificação funcional e de dados do SOSALMOX para ser implementado como módulo do ERP da SOS Energia.",
+    "empresa": "SOS Energia — locação de geradores",
+    "escopo": "Controle de almoxarifado: estoque de materiais elétricos, saída e devolução para eventos e locações, patrimônio de geradores e veículos, manutenção, estoque de filtros, compras e documentos assinados.",
+    "porte_atual": {
+      "geradores": "GG-001 a GG-107",
+      "veiculos": "~20 caminhões + carros + 2 empilhadeiras",
+      "materiais": "~300 documentos (cada cabo é um documento)",
+      "usuarios": "5 perfis, equipe pequena, operação diária"
+    },
+    "implementacao_atual": {
+      "frontend": "React 19 + Vite + React Router + Tailwind",
+      "backend": "Firebase (Firestore NoSQL + Auth + Hosting + Cloud Functions)",
+      "observacao": "A modelagem abaixo é descrita em termos de coleções/documentos (NoSQL). A seção `migracao.modelagem_relacional` traz as decisões necessárias para mapear em banco relacional."
+    },
+    "como_ler": [
+      "`entidades` = o modelo de dados. É o mínimo para o sistema funcionar.",
+      "`regras_de_negocio` = o mais importante deste arquivo. São regras aprendidas com erro em produção, cada uma com o prejuízo que causou. Reimplementar sem elas repete o prejuízo.",
+      "`fluxos` = a sequência de telas e o que cada passo grava.",
+      "`convencoes_criticas` = decisões de modelagem que parecem detalhe e não são."
+    ]
+  },
+
+  "glossario": {
+    "GG": "Grupo Gerador. Identificado por código GG-001..GG-107.",
+    "evento": "Locação de curta duração (um fim de semana). A equipe da SOS vai junto e volta com o material.",
+    "locacao_mensal": "Locação de longa duração. O material FICA na posse do cliente por semanas.",
+    "sublocacao": "Aluguel do equipamento para OUTRA empresa do ramo.",
+    "romaneio": "Lista de materiais que saem numa entrega. Historicamente era manuscrito em papel.",
+    "ordem_de_saida": "Documento que registra uma saída de material. Numeração OM-AAAA-NNN.",
+    "OS": "Ordem de Serviço de manutenção. Numeração OS-AAAA-NNN.",
+    "material_de_unidade": "Material em que 1 documento = 1 unidade física (cada cabo é um registro próprio).",
+    "material_contado": "Material controlado por quantidade dentro de um mesmo registro (fita, parafuso, alambrado).",
+    "espécie": "Agrupamento de materiais de unidade por categoria + bitola, usado para calcular estoque baixo.",
+    "capability_URL": "Link público com token no caminho, que dá acesso a um único documento sem exigir login."
+  },
+
+  "perfis": [
+    { "id": "admin", "label": "Administrador", "descricao": "Acesso total, incluindo gestão de usuários." },
+    { "id": "gerente", "label": "Gerente", "descricao": "Tudo exceto gestão de usuários." },
+    { "id": "almoxarife", "label": "Almoxarife", "descricao": "Operação diária: saída, devolução, estoque, eventos, manutenção, compras." },
+    { "id": "franca", "label": "Mecânico", "descricao": "Só manutenção, filtros, frota e relatórios. Não enxerga estoque de materiais nem compras." },
+    { "id": "compras", "label": "Compras", "descricao": "Só o painel de compras e a fila de solicitações." }
+  ],
+
+  "modulos": [
+    { "id": "dashboard", "label": "Painel", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "saida", "label": "Saída de Material", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "eventos", "label": "Eventos", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "locacoes", "label": "Locações e Sublocações", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "devolucao", "label": "Devolução", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "transferencia", "label": "Transferência entre eventos", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "estoque", "label": "Estoque de Materiais", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "uso_interno", "label": "Uso Interno (empréstimo e consumo)", "perfis": ["admin", "gerente", "almoxarife"] },
+    { "id": "filtros", "label": "Estoque de Filtros", "perfis": ["admin", "gerente", "almoxarife", "franca"] },
+    { "id": "geradores", "label": "Patrimônio — Geradores", "perfis": ["admin", "gerente", "almoxarife", "franca"] },
+    { "id": "caminhoes", "label": "Patrimônio — Veículos", "perfis": ["admin", "gerente", "almoxarife", "franca"] },
+    { "id": "manutencao", "label": "Manutenção (OS)", "perfis": ["admin", "gerente", "almoxarife", "franca"] },
+    { "id": "relatorios", "label": "Relatórios", "perfis": ["admin", "gerente", "almoxarife", "franca"] },
+    { "id": "dashboard_compras", "label": "Painel de Compras", "perfis": ["admin", "gerente", "almoxarife", "compras"] },
+    { "id": "fila_solicitacoes", "label": "Fila de Solicitações", "perfis": ["admin", "gerente", "almoxarife", "compras"] },
+    { "id": "agente_ia", "label": "Agente IA", "perfis": ["admin", "gerente", "almoxarife", "franca"] },
+    { "id": "gestao_usuarios", "label": "Usuários", "perfis": ["admin"] },
+    { "id": "playbook", "label": "Playbook (guia da equipe)", "perfis": ["admin", "gerente", "almoxarife", "franca", "compras"], "nota": "Liberado para TODOS de propósito: quem menos usa o sistema é quem mais precisa do guia." }
+  ],
+
+  "convencoes_criticas": [
+    {
+      "id": "ausencia_de_campo_como_valor_padrao",
+      "regra": "A AUSÊNCIA de um campo é um valor com significado, nunca um dado faltando.",
+      "casos": [
+        "`eventos.tipo` ausente = Evento. Presente = `locacao_mensal` ou `sublocacao`.",
+        "`ordens_saida.tipo` ausente = saída de Evento. Presente = `uso_interno`.",
+        "`materiais.grupo` ausente = grupo `eventos`. Presente = `uso_interno`."
+      ],
+      "motivo": "Permitiu introduzir locação, uso interno e grupos de estoque SEM migrar base em produção. Num banco relacional isso vira DEFAULT na coluna — e o default tem que ser exatamente esse.",
+      "cuidado": "Ao converter uma locação de volta para Evento, o campo é gravado como NULL explicitamente."
+    },
+    {
+      "id": "um_documento_uma_unidade",
+      "regra": "Para material de unidade (cabos, jogos, rabichos, ferramentas), cada unidade física é um registro próprio, com código próprio. Não existe campo 'quantidade' útil: é sempre 0 ou 1.",
+      "motivo": "Cada cabo tem comprimento e bitola próprios e precisa ser rastreado individualmente — saber QUAL cabo está em QUAL evento.",
+      "excecao": "Material 'contado' (fita, parafuso, EPI, alambrado) usa quantidade no mesmo registro. Ver `regras_de_negocio.estoque_tres_naturezas`."
+    },
+    {
+      "id": "transacao_leituras_antes_de_escritas",
+      "regra": "Toda operação que mexe em estoque roda em transação, e no Firestore TODAS as leituras vêm antes de TODAS as escritas.",
+      "nota_para_sql": "Em banco relacional isso vira transação normal com SELECT ... FOR UPDATE. A restrição de ordem some, mas a atomicidade continua obrigatória."
+    }
+  ],
+
+  "entidades": {
+    "usuarios": {
+      "descricao": "Usuário do sistema. A chave é o UID da autenticação.",
+      "chave": "uid",
+      "campos": {
+        "nome": { "tipo": "string", "obrigatorio": true },
+        "email": { "tipo": "string", "obrigatorio": true, "unico": true },
+        "perfil": { "tipo": "enum", "ref": "enumeracoes.perfil", "obrigatorio": true },
+        "ativo": { "tipo": "boolean", "default": true, "nota": "Usuário inativo não acessa nada." },
+        "criadoEm": { "tipo": "timestamp" }
+      }
+    },
+
+    "materiais": {
+      "descricao": "Item de estoque. O coração do sistema.",
+      "chave": "id",
+      "campos": {
+        "grupo": { "tipo": "enum", "valores": ["eventos", "uso_interno"], "default_na_ausencia": "eventos", "nota": "`uso_interno` aparece na tela como 'Material Interno'. O VALOR gravado nunca muda." },
+        "nome": { "tipo": "string", "obrigatorio": true },
+        "codigo": { "tipo": "string", "obrigatorio": true, "nota": "Sempre em maiúsculas." },
+        "categoria": { "tipo": "string", "obrigatorio": true, "nota": "Lista pré-definida por grupo + categorias livres criadas pelo usuário." },
+        "subcategoria": { "tipo": "string", "derivado": "categoria em minúsculas com espaços trocados por _" },
+        "tipo": { "tipo": "string", "nota": "Lista depende da categoria. Ver enumeracoes.tipos_por_categoria." },
+        "bitola": { "tipo": "string|null", "exemplo": "4x50, 35mm²", "nota": "Usado para agrupar em espécie no cálculo de estoque baixo." },
+        "metragem": { "tipo": "string|null", "exemplo": "28m" },
+        "numero": { "tipo": "string|null" },
+        "status": { "tipo": "enum", "ref": "enumeracoes.status_material", "default": "disponivel" },
+        "eventoAtual": { "tipo": "id|null", "ref": "eventos", "nota": "CRÍTICO: material contado NUNCA recebe este campo. Ver regras_de_negocio.contado_sem_vinculo." },
+        "estoqueAtual": { "tipo": "number", "nota": "Material de unidade: 1 disponível / 0 fora. Material contado: a quantidade real." },
+        "estoqueMin": { "tipo": "number", "default": 0 },
+        "porQuantidade": { "tipo": "boolean", "default": false, "nota": "Marcador EXPLÍCITO de material contado. Vale em qualquer grupo — é assim que o alambrado, material de evento, sai por quantidade." },
+        "observacao": { "tipo": "string|null" },
+        "criadoEm": { "tipo": "timestamp" }
+      },
+      "indices_necessarios": ["status", "eventoAtual", "grupo", "categoria"]
+    },
+
+    "eventos": {
+      "descricao": "Evento, locação mensal ou sublocação. As três modalidades vivem na MESMA entidade.",
+      "chave": "id",
+      "campos": {
+        "nome": { "tipo": "string", "obrigatorio": true, "nota": "Na locação/sublocação é o nome do cliente." },
+        "local": { "tipo": "string|null" },
+        "data": { "tipo": "date (ISO yyyy-mm-dd)", "nota": "ATENÇÃO: é o dia em que a SAÍDA foi lançada, NÃO o dia do evento. Ver regras_de_negocio.data_nao_e_data_do_evento." },
+        "tipo": { "tipo": "enum|null", "valores": [null, "locacao_mensal", "sublocacao"], "nota": "null/ausente = Evento." },
+        "status": { "tipo": "enum", "ref": "enumeracoes.status_evento", "default": "ativo" },
+        "previsaoDevolucao": { "tipo": "date|null", "nota": "SÓ no fluxo de Evento. Locação e sublocação ficam com o cliente por prazo indeterminado." },
+        "retiradoPor": { "tipo": "string|null", "nota": "Só sublocação. Texto livre — quem retira é de outra empresa." },
+        "retiradoDocumento": { "tipo": "string|null", "nota": "Obrigatório na sublocação." },
+        "retiradoTelefone": { "tipo": "string|null", "nota": "Obrigatório na sublocação. Alimenta o link de WhatsApp da assinatura." },
+        "empresaCnpj": { "tipo": "string|null", "nota": "Obrigatório na sublocação." },
+        "criadoEm": { "tipo": "timestamp" }
+      },
+      "indices_necessarios": ["status", "tipo"]
+    },
+
+    "ordens_saida": {
+      "descricao": "Registro de uma saída de material. Cobre saída para Evento/Locação/Sublocação e saída de Uso Interno.",
+      "chave": "id",
+      "campos": {
+        "numero": { "tipo": "number", "nota": "Sequencial global, vindo de `contadores/ordens_saida`." },
+        "numeroFormatado": { "tipo": "string", "formato": "OM-AAAA-NNN" },
+        "tipo": { "tipo": "enum|null", "valores": [null, "uso_interno"], "nota": "Ausente = saída de Evento." },
+        "subtipo": { "tipo": "enum|null", "valores": ["emprestimo", "consumo"], "nota": "Só quando tipo = uso_interno." },
+        "eventoId": { "tipo": "id|null", "ref": "eventos" },
+        "eventoNome": { "tipo": "string|null", "nota": "Desnormalizado de propósito: o histórico precisa sobreviver à exclusão do evento." },
+        "itens": {
+          "tipo": "array<item>",
+          "item": {
+            "id": "id do material (null se avulso)",
+            "nome": "string",
+            "codigo": "string",
+            "categoria": "string",
+            "quantidade": "number — presente SÓ para material contado/por-quantidade",
+            "avulso": "boolean — item digitado livremente, não mexe em estoque"
+          }
+        },
+        "geradores": { "tipo": "array<{id, codigo}>" },
+        "geradorCodigo": { "tipo": "string|null", "nota": "LEGADO: ordens antigas tinham só 1 gerador. Ler sempre com fallback." },
+        "responsavelNome": { "tipo": "string|null" },
+        "observacoes": { "tipo": "string|null" },
+        "previsaoDevolucao": { "tipo": "date|null" },
+        "dataPrevistaDevolucao": { "tipo": "date|null", "nota": "Só empréstimo de uso interno." },
+        "destinoMotivo": { "tipo": "string|null", "nota": "Só uso interno." },
+        "motivo": { "tipo": "string|null", "nota": "Só consumo." },
+        "statusEmprestimo": { "tipo": "enum|null", "valores": ["pendente", "devolvido", "parcial"] },
+        "devolucao": { "tipo": "object|null", "nota": "Só uso interno: a devolução do empréstimo é gravada NO PRÓPRIO documento, não cria registro em `devolucoes`." },
+        "tokenAssinatura": { "tipo": "string|null", "ref": "assinaturas_saida.id" },
+        "assinaturaStatus": { "tipo": "enum", "valores": ["pendente", "assinada"] },
+        "qtdFotos": { "tipo": "number", "default": 0 },
+        "status": { "tipo": "enum", "valores": ["ativo", "devolvida"], "default": "ativo" },
+        "operadorUid": { "tipo": "id", "ref": "usuarios" },
+        "operadorNome": { "tipo": "string" },
+        "criadoEm": { "tipo": "timestamp" }
+      },
+      "indices_necessarios": ["eventoId", "status", "tipo", "criadoEm"]
+    },
+
+    "devolucoes": {
+      "descricao": "Registro de devolução de material de evento.",
+      "chave": "id",
+      "campos": {
+        "eventoId": { "tipo": "id", "ref": "eventos" },
+        "eventoNome": { "tipo": "string" },
+        "parcial": { "tipo": "boolean", "default": false, "nota": "true quando um item foi lançado sozinho, sem fechar o evento." },
+        "itens": {
+          "tipo": "array<item>",
+          "item": {
+            "id": "id do material",
+            "nome": "string",
+            "statusDevolucao": "enum — ref enumeracoes.status_devolucao",
+            "descricao": "string|null — obrigatória quando status = problema ou cortado",
+            "semCadastro": "boolean — material foi apagado do estoque; registrado mas sem movimentar quantidade"
+          }
+        },
+        "operadorUid": { "tipo": "id" },
+        "operadorNome": { "tipo": "string" },
+        "criadoEm": { "tipo": "timestamp" }
+      }
+    },
+
+    "geradores": {
+      "descricao": "Patrimônio — grupo gerador.",
+      "chave": "id",
+      "campos": {
+        "codigo": { "tipo": "string", "formato": "GG-NNN", "unico": true, "nota": "Código NUNCA é reaproveitado, nem de equipamento vendido." },
+        "potencia": { "tipo": "string", "exemplo": "110kVA" },
+        "marca": { "tipo": "string" },
+        "modelo": { "tipo": "string" },
+        "motor": { "tipo": "string" },
+        "ano": { "tipo": "string" },
+        "status": { "tipo": "enum", "ref": "enumeracoes.status_gerador" },
+        "localizacao": { "tipo": "string", "default": "Pátio SOS" },
+        "horimetroAtual": { "tipo": "number|null" },
+        "semHorimetro": { "tipo": "boolean", "nota": "Alguns equipamentos não têm horímetro. Sem este marcador, o campo vazio viraria 0 e falsearia a manutenção." },
+        "eventoAtual": { "tipo": "id|null", "ref": "eventos" },
+        "eventoNome": { "tipo": "string|null" },
+        "ultimaManutencao": { "tipo": "date|null" },
+        "proximaPreventiva": { "tipo": "date|null", "nota": "Preenchida na conclusão da OS. Alimenta o alerta automático de preventiva." },
+        "temDefeito": { "tipo": "boolean", "default": false },
+        "defeito": { "tipo": "string" },
+        "fichaTecnica": { "tipo": "object|null", "campos": ["motor", "alternador", "tensao", "frequencia", "fatorPotencia", "numerosSerie"], "nota": "Dados das placas físicas." },
+        "ativo": { "tipo": "boolean", "default": true, "nota": "false = vendido. Some das listas, mantém o histórico." },
+        "criadoEm": { "tipo": "timestamp" }
+      },
+      "indices_necessarios": ["status", "eventoAtual", "ativo"]
+    },
+
+    "caminhoes": {
+      "descricao": "Patrimônio — veículos (caminhões, carros, empilhadeiras).",
+      "chave": "id",
+      "campos": {
+        "tipo": { "tipo": "enum", "valores": ["caminhao", "carro"], "nota": "LEGADO: veículos antigos não têm o campo; infere-se pelo modelo (Strada e Fiorino = carro)." },
+        "placa": { "tipo": "string", "unico": true, "nota": "Sempre maiúscula. É o identificador do veículo." },
+        "marca": { "tipo": "string" },
+        "modelo": { "tipo": "string" },
+        "ano": { "tipo": "string" },
+        "status": { "tipo": "enum", "ref": "enumeracoes.status_gerador", "nota": "Mesmo conjunto dos geradores." },
+        "localizacao": { "tipo": "string", "default": "Pátio SOS" },
+        "kmAtual": { "tipo": "number|null" },
+        "semKm": { "tipo": "boolean" },
+        "proximaPreventiva": { "tipo": "date|null" },
+        "ativo": { "tipo": "boolean", "default": true }
+      }
+    },
+
+    "ordens_servico": {
+      "descricao": "Ordem de Serviço de manutenção.",
+      "chave": "id",
+      "campos": {
+        "numero": { "tipo": "string", "formato": "OS-AAAA-NNN", "nota": "Sequencial de `contadores/ordens_servico`." },
+        "equipamentoId": { "tipo": "id", "ref": "geradores|caminhoes" },
+        "equipamentoTipo": { "tipo": "enum", "valores": ["gerador", "caminhao", "empilhadeira"] },
+        "equipamentoLabel": { "tipo": "string", "nota": "Desnormalizado para o histórico." },
+        "tipo": { "tipo": "enum", "valores": ["preventiva", "corretiva"] },
+        "localTipo": { "tipo": "enum", "valores": ["patio", "locacao"], "nota": "Em `locacao` o equipamento NÃO volta para o pátio: o serviço é feito no cliente." },
+        "clienteNome": { "tipo": "string|null", "nota": "Só quando localTipo = locacao." },
+        "localObra": { "tipo": "string|null" },
+        "descricao": { "tipo": "string", "obrigatorio": true },
+        "mecanicoNome": { "tipo": "string" },
+        "mecanicoUid": { "tipo": "id|null" },
+        "status": { "tipo": "enum", "valores": ["pendente", "em_andamento", "concluida"] },
+        "prioridade": { "tipo": "enum", "valores": ["normal", "maxima"], "nota": "`maxima` automática quando o equipamento está em evento ativo." },
+        "eventoAtivo": { "tipo": "boolean" },
+        "origem": { "tipo": "string|null", "valores": ["saida_filtros"], "nota": "OS que nasceu já com filtros baixados." },
+        "filtrosUsados": { "tipo": "array<{filtroId, nome, quantidade}>" },
+        "horimetroAbertura": { "tipo": "number|null" },
+        "horimetroConclusao": { "tipo": "number|null", "nota": "Obrigatório na conclusão, exceto equipamento sem horímetro." },
+        "relatorioServico": { "tipo": "string|null" },
+        "problemasEncontrados": { "tipo": "string|null" },
+        "proximaPreventiva": { "tipo": "date|null" },
+        "assinaturaTecnico": { "tipo": "string (imagem base64)|null" },
+        "assinaturaCliente": { "tipo": "string (imagem base64)|null", "nota": "Opcional, só em locação." },
+        "dataAbertura": { "tipo": "timestamp" },
+        "dataConclusao": { "tipo": "timestamp|null" }
+      },
+      "indices_necessarios": ["status", "equipamentoId", "tipo", "dataAbertura"]
+    },
+
+    "filtros": {
+      "descricao": "Estoque de filtros, organizado por potência de gerador.",
+      "chave": "id",
+      "campos": {
+        "potenciaGG": { "tipo": "string", "exemplo": "30kVA, 750kVA, Caminhão, Empilhadeira" },
+        "tipo": { "tipo": "enum", "ref": "enumeracoes.tipo_filtro" },
+        "nome": { "tipo": "string" },
+        "referencia": { "tipo": "string", "nota": "CRÍTICO: filtros de potências diferentes podem ter a MESMA referência e compartilham estoque físico. Alertas são agrupados por referência." },
+        "fornecedor": { "tipo": "string" },
+        "quantidadeAtual": { "tipo": "number" },
+        "estoqueMin": { "tipo": "number", "default": 1 },
+        "unidade": { "tipo": "string", "default": "un" },
+        "validade": { "tipo": "date|null" },
+        "ativo": { "tipo": "boolean", "default": true }
+      }
+    },
+
+    "entradas_filtro": {
+      "descricao": "Entrada de filtro no estoque (compra recebida).",
+      "campos": {
+        "filtroId": { "tipo": "id", "ref": "filtros" },
+        "quantidade": { "tipo": "number" },
+        "nf": { "tipo": "string|null" },
+        "fornecedor": { "tipo": "string|null" },
+        "dataEntrada": { "tipo": "date" },
+        "validade": { "tipo": "date|null" },
+        "operadorUid": { "tipo": "id" },
+        "criadoEm": { "tipo": "timestamp" }
+      }
+    },
+
+    "baixas_filtro": {
+      "descricao": "Saída de filtro do estoque. Base do cálculo de consumo e previsão de ruptura.",
+      "campos": {
+        "filtroId": { "tipo": "id", "ref": "filtros" },
+        "filtroNome": { "tipo": "string" },
+        "potenciaGG": { "tipo": "string" },
+        "quantidade": { "tipo": "number" },
+        "motivo": { "tipo": "string" },
+        "ordemServicoId": { "tipo": "id|null", "ref": "ordens_servico" },
+        "operadorUid": { "tipo": "id" },
+        "criadoEm": { "tipo": "timestamp" }
+      },
+      "indices_necessarios": ["criadoEm", "filtroId"]
+    },
+
+    "solicitacoes_compra": {
+      "descricao": "Pedido de compra, manual ou gerado automaticamente por estoque baixo.",
+      "campos": {
+        "tipo": { "tipo": "string", "exemplo": "filtro, material" },
+        "itemId": { "tipo": "id|null" },
+        "itemNome": { "tipo": "string" },
+        "referencia": { "tipo": "string" },
+        "fornecedor": { "tipo": "string" },
+        "quantidadeAtual": { "tipo": "number" },
+        "estoqueMin": { "tipo": "number" },
+        "quantidadeSugerida": { "tipo": "number" },
+        "urgente": { "tipo": "boolean", "default": false },
+        "status": { "tipo": "enum", "valores": ["pendente", "em_cotacao", "comprado", "entregue"], "nota": "Fluxo linear, sem volta." },
+        "valor": { "tipo": "number|null" },
+        "dataEntrega": { "tipo": "date|null" },
+        "criadoEm": { "tipo": "timestamp" }
+      }
+    },
+
+    "assinaturas_saida": {
+      "descricao": "Documento de assinatura de uma ordem de saída. O ID do documento É o token do link público.",
+      "chave": "token (= id do documento)",
+      "acesso": "capability URL — leitura pública pelo token, sem login.",
+      "campos": {
+        "ordemId": { "tipo": "id", "ref": "ordens_saida" },
+        "numeroFormatado": { "tipo": "string" },
+        "eventoNome": { "tipo": "string|null" },
+        "tipo": { "tipo": "string|null" },
+        "local": { "tipo": "string|null" },
+        "dataEvento": { "tipo": "date|null" },
+        "itens": { "tipo": "array<{nome, codigo, quantidade?}>" },
+        "entregouNome": { "tipo": "string" },
+        "entregouAssinatura": { "tipo": "string (PNG base64)" },
+        "recebeuNome": { "tipo": "string|null" },
+        "recebeuAssinatura": { "tipo": "string|null" },
+        "status": { "tipo": "enum", "valores": ["pendente", "assinada"] },
+        "criadoEm": { "tipo": "timestamp" },
+        "assinadoEm": { "tipo": "timestamp|null" }
+      }
+    },
+
+    "termos_locacao": {
+      "descricao": "Termo de ENTREGA ou DEVOLUÇÃO do material que fica na posse do cliente. Só locação mensal e sublocação.",
+      "chave": "token (= id do documento)",
+      "acesso": "capability URL — rota pública /termo/:token.",
+      "campos": {
+        "tipo": { "tipo": "enum", "valores": ["entrega", "devolucao"] },
+        "eventoId": { "tipo": "id", "ref": "eventos" },
+        "eventoNome": { "tipo": "string" },
+        "eventoTipo": { "tipo": "string" },
+        "local": { "tipo": "string|null" },
+        "dataEvento": { "tipo": "date|null" },
+        "numeroFormatado": { "tipo": "string|null" },
+        "itens": { "tipo": "array<{id, chave, nome, codigo, categoria, quantidade}>", "nota": "Retrato congelado no momento da geração. É esta lista que as duas partes assinam — NÃO pode mudar depois." },
+        "geradores": { "tipo": "array<{id, codigo}>" },
+        "sosNome": { "tipo": "string|null" },
+        "sosAssinatura": { "tipo": "string|null", "nota": "Entrega: já vem preenchida, reaproveitada da assinatura da ordem de saída. Devolução: colhida no local pelo link." },
+        "clienteNome": { "tipo": "string|null" },
+        "clienteDocumento": { "tipo": "string|null", "nota": "CPF na entrega, RG na devolução." },
+        "clienteAssinatura": { "tipo": "string|null" },
+        "conferencia": { "tipo": "map<chaveItem, 'ok'|'faltou'>", "nota": "Só devolução. TODO item precisa de resposta." },
+        "faltantes": { "tipo": "array<{nome, codigo}>" },
+        "observacoes": { "tipo": "string|null" },
+        "qtdFotos": { "tipo": "number" },
+        "status": { "tipo": "enum", "valores": ["pendente", "assinado"] },
+        "criadoEm": { "tipo": "timestamp" },
+        "assinadoEm": { "tipo": "timestamp|null" }
+      }
+    },
+
+    "fotos_saida": {
+      "descricao": "Uma foto por registro, imagem em base64. Vinculada a uma ordem de saída.",
+      "campos": {
+        "ordemId": { "tipo": "id", "ref": "ordens_saida" },
+        "ordem": { "tipo": "number", "nota": "Posição no álbum." },
+        "momento": { "tipo": "enum", "valores": ["saida", "devolucao"] },
+        "dataUrl": { "tipo": "string (base64)" },
+        "criadoEm": { "tipo": "timestamp" }
+      },
+      "nota_arquitetural": "Fotos ficam em registros SEPARADOS, nunca dentro do documento principal, por causa do limite de 1 MB por documento do Firestore. Num ERP com storage de arquivos, trocar por URL de objeto — ver migracao."
+    },
+
+    "fotos_os": { "descricao": "Idem fotos_saida, vinculada a `ordensServicoId`." },
+    "fotos_termo": { "descricao": "Idem, vinculada a `termoId`. Fotos da conferência da devolução." },
+    "fotos_solicitacao": { "descricao": "Idem, vinculada à solicitação de compra." },
+
+    "contadores": {
+      "descricao": "Sequenciais. Um documento por sequência, lido e incrementado dentro da transação que cria o registro.",
+      "documentos": {
+        "ordens_saida": { "ultimo": "number" },
+        "ordens_servico": { "ultimo": "number" }
+      },
+      "nota_para_sql": "Em banco relacional vira SEQUENCE, mas a formatação OM-AAAA-NNN reinicia a leitura por ano — o número em si é global e contínuo."
+    },
+
+    "transferencias": { "descricao": "Transferência de material/gerador entre eventos.", "campos": { "origemEventoId": "id", "destinoEventoId": "id", "itens": "array", "criadoEm": "timestamp" } },
+    "notificacoes": { "descricao": "Notificações do sino. Filtro de destinatário feito na aplicação (uid, 'all' ou lista de perfis)." },
+    "conversas_agente": { "descricao": "Histórico do chat com o agente IA. Privado por usuário (`uid`)." },
+    "fornecedores": { "descricao": "Cadastro de fornecedores para compras." },
+    "tipos_solicitacao": { "descricao": "Lista de tipos de material padronizados para a solicitação." }
+  },
+
+  "enumeracoes": {
+    "perfil": ["admin", "gerente", "almoxarife", "franca", "compras"],
+    "status_material": {
+      "disponivel": "Na prateleira, pronto para sair.",
+      "em_evento": "Fora do almoxarifado, vinculado a um evento/locação/sublocação.",
+      "emprestado": "Uso interno — ferramenta que vai voltar.",
+      "consumido": "Uso interno — baixa definitiva.",
+      "manutencao": "Em reparo.",
+      "perdido": "Não localizado.",
+      "inativo": "Fora do acervo."
+    },
+    "status_evento": ["ativo", "agendado", "concluido", "encerrado", "cancelado"],
+    "status_gerador": {
+      "disponivel": "No pátio.",
+      "em_evento": "Em evento de curta duração.",
+      "locacao": "Em locação mensal.",
+      "sublocado": "Alugado para outra empresa.",
+      "manutencao": "Em serviço.",
+      "defeito": "Parado com defeito.",
+      "inativo": "Vendido."
+    },
+    "status_devolucao": {
+      "ok": "Voltou em ordem — retorna ao estoque como disponível.",
+      "problema": "Voltou com defeito — vai para manutenção. Exige descrição.",
+      "cortado": "Cabo cortado — exige descrição. Material contado: a quantidade volta.",
+      "perdido": "Não voltou — não retorna ao estoque.",
+      "nao_devolvido": "Só uso interno — ferramenta não devolvida, vira perdido.",
+      "parcial": "Ainda falta voltar — NÃO pode ser lançado individualmente.",
+      "aguardando": "Sem decisão ainda."
+    },
+    "tipo_filtro": ["Filtro de Combustível 1", "Filtro de Combustível 2", "Filtro Separador de Água", "Filtro de Óleo 1", "Filtro de Óleo 2", "Filtro de Ar"],
+    "grupos_estoque": { "eventos": "Materiais de Evento", "uso_interno": "Material Interno" },
+    "categorias_por_grupo": {
+      "eventos": ["Cabos 4x", "Cabos 5x", "Cabos Terra", "Cabos (Geral)", "Jogos de Cabo", "Rabichos", "Outros Materiais"],
+      "uso_interno": ["Ferramentas", "Ferramentas Elétricas", "Fitas", "Fixação", "EPI", "Consumíveis"]
+    },
+    "nota": "Categorias NÃO são lista fechada: o usuário cria categorias novas, derivadas dos materiais já cadastrados no mesmo grupo. Modelar como tabela, não como CHECK constraint."
+  },
+
+  "regras_de_negocio": [
+    {
+      "id": "estoque_tres_naturezas",
+      "titulo": "Material tem TRÊS naturezas de controle, e elas não podem ser unificadas",
+      "severidade": "crítica",
+      "regra": [
+        "1. MATERIAL DE UNIDADE (cabo, jogo, rabicho, ferramenta): 1 registro = 1 unidade física. A saída zera o registro e prende o evento. Tem rastro individual.",
+        "2. MATERIAL CONTADO (fita, parafuso, EPI, alambrado): quantidade dentro do mesmo registro. A saída DESCONTA a quantidade e só troca o status quando zera. NUNCA recebe `eventoAtual`.",
+        "3. MATERIAL POR QUANTIDADE / protetor de cabo: não prende estoque de forma alguma, sai em várias unidades e continua disponível para outros eventos."
+      ],
+      "como_identificar": "O campo `porQuantidade: true` marca o contado EXPLICITAMENTE e vale em qualquer grupo. Sem o marcador, conta por categoria apenas dentro do grupo `uso_interno`.",
+      "prejuizo_se_ignorar": "Tratar fita como unidade fazia o rolo sumir dos disponíveis tendo ainda 17 unidades. Tratar cabo como quantidade perde a rastreabilidade individual, que é a razão de o sistema existir."
+    },
+    {
+      "id": "contado_sem_vinculo",
+      "titulo": "Material contado NÃO tem vínculo com o evento no próprio registro",
+      "severidade": "crítica",
+      "regra": "O vínculo do contado com o evento são os ITENS DA ORDEM DE SAÍDA, com a quantidade. Prender o registro ao evento tiraria o resto da prateleira de circulação.",
+      "consequencia": "Toda tela que devolve material ao fim do evento precisa buscar o contado pelas ordens, não por `eventoAtual`. São três: concluir evento, excluir evento e editar material do evento.",
+      "prejuizo_se_ignorar": "Quem procurar só por `eventoAtual = X` deixa a quantidade fora da prateleira para sempre, sem erro nenhum na tela.",
+      "detalhe": "Na EXCLUSÃO do evento, devolver a quantidade ANTES de apagar as ordens — ela só existe lá."
+    },
+    {
+      "id": "estoque_baixo_por_especie",
+      "titulo": "Estoque baixo de material de unidade é por ESPÉCIE, não por registro",
+      "severidade": "alta",
+      "regra": [
+        "Espécie = categoria + bitola normalizada ('35mm²' = '35'). O comprimento NÃO separa espécies.",
+        "Alerta se: 0 disponíveis; OU sobrou 1 tendo mais de 1 no acervo; OU ≤20% do total.",
+        "Bitola de unidade única parada no pátio NÃO alerta: 'se está na empresa, não é estoque baixo'.",
+        "CABO NUNCA ALERTA, em hipótese alguma. Vale pela categoria (contém 'cabo', 'cable' ou 'rabicho').",
+        "Consumíveis mantêm a regra clássica quantidadeAtual <= estoqueMin."
+      ],
+      "prejuizo_se_ignorar": "A regra ingênua `estoqueAtual <= estoqueMin` marcou 290 de 290 itens como estoque baixo, porque cada cabo é um registro 1/1. Num e-mail automático isso virou '301 itens em falta' e gerou recomendação de compra errada.",
+      "nota": "As duas regras (espécie e clássica) NÃO podem ser unificadas."
+    },
+    {
+      "id": "data_nao_e_data_do_evento",
+      "titulo": "O campo `data` do evento é o dia do LANÇAMENTO, não o dia do evento",
+      "severidade": "alta",
+      "regra": "A cobrança de material atrasado só pode usar `previsaoDevolucao`, preenchida explicitamente. Sem ela, NÃO há cobrança.",
+      "prejuizo_se_ignorar": "A primeira versão estimou `data + 1 dia` e acusou atraso em 11 de 11 eventos que estavam no prazo.",
+      "default_util": "A previsão sugere a próxima segunda-feira — o evento é no fim de semana e o material volta na segunda. Sempre editável."
+    },
+    {
+      "id": "assinatura_nunca_trava",
+      "titulo": "A assinatura de quem recebe NUNCA bloqueia a saída de material",
+      "severidade": "alta",
+      "regra": "Em nenhuma modalidade. O material precisa poder sair enquanto o recebedor está a caminho ou já está no evento. Sem assinatura a saída fica `pendente` e um link público cobra a regularização.",
+      "origem": "Regra explícita do dono da operação, revogando a regra anterior que travava a sublocação."
+    },
+    {
+      "id": "confirmacao_idempotente",
+      "titulo": "Confirmar a saída precisa ser repetível sem estrago",
+      "severidade": "crítica",
+      "regra": "Os identificadores da ordem, da assinatura e do evento são gerados UMA vez por tela, não a cada clique. A transação começa verificando se a ordem já existe: se existe, não refaz nada.",
+      "prejuizo_se_ignorar": "A gravação tem três etapas (fotos → transação com baixa de estoque → documento de assinatura). Quando a rede caía DEPOIS da transação, o app mostrava erro e reabilitava o botão, mas o estoque já tinha sido baixado. O segundo toque criava uma SEGUNDA ordem e falhava com 'material não está mais disponível'. Operação em galpão com 4G instável reproduz isso toda semana."
+    },
+    {
+      "id": "material_apagado_nao_trava_devolucao",
+      "titulo": "Material excluído do cadastro não pode travar a devolução do evento inteiro",
+      "severidade": "alta",
+      "regra": "Se o material referenciado pela ordem não existe mais, registrar o item com a marca `semCadastro` e seguir. Não há estoque a devolver num registro que não existe.",
+      "prejuizo_se_ignorar": "Um item excluído do estoque segurou um evento inteiro: nenhum dos outros materiais voltava à prateleira."
+    },
+    {
+      "id": "devolucao_enxerga_alem_das_ordens",
+      "titulo": "A devolução precisa enxergar material que não está em ordem nenhuma",
+      "severidade": "crítica",
+      "regra": "Material entra no evento por DOIS caminhos: a saída de material (grava na ordem) e o 'editar material do evento' (mexe só no registro do material). A devolução deve somar os dois.",
+      "prejuizo_se_ignorar": "O segundo grupo ficava invisível na devolução e, como a devolução conclui o evento, o material ficava preso 'em evento' para sempre. Levou meses para ser notado."
+    },
+    {
+      "id": "par_status_estoque",
+      "titulo": "Status e quantidade do material são um PAR — nunca gravar um sem o outro",
+      "severidade": "alta",
+      "regra": [
+        "Voltando a `disponivel`: limpar o vínculo com o evento E devolver a unidade (quantidade 1). Material contado administra a própria quantidade e só troca de status.",
+        "Material de unidade `disponivel` NUNCA pode ser salvo com quantidade zero."
+      ],
+      "prejuizo_se_ignorar": "O card mostrava 'Disponível' e a saída recusava com 'não está mais disponível', porque a validação exige quantidade > 0. Também: um formulário que abria com quantidade 0 zerava o estoque de material antigo só por alguém corrigir o nome."
+    },
+    {
+      "id": "material_em_evento_nas_tres_modalidades",
+      "titulo": "O MATERIAL fica com status `em_evento` nas três modalidades",
+      "severidade": "alta",
+      "regra": "A separação entre evento, locação e sublocação é feita no GERADOR e no registro do evento, nunca no status do material.",
+      "prejuizo_se_ignorar": "Um status novo faria a devolução pular os itens em silêncio e eles nunca voltariam ao estoque."
+    },
+    {
+      "id": "filtros_estoque_compartilhado",
+      "titulo": "Filtros de potências diferentes compartilham estoque pela REFERÊNCIA",
+      "severidade": "média",
+      "regra": "Alertas de ruptura e consumo anormal são agrupados por referência, não por registro de filtro.",
+      "calculo_ruptura": "Consumo dos últimos 60 dias projeta os dias restantes. Crítico com ≤10 dias.",
+      "calculo_consumo_anormal": "Última semana ≥ 2× a média de 4 semanas, com mínimo de 4 unidades."
+    },
+    {
+      "id": "preventiva_alerta",
+      "titulo": "Preventiva vencida precisa alertar sozinha",
+      "severidade": "média",
+      "regra": "Equipamento com `proximaPreventiva` vencida ou a vencer em 7 dias entra nos alertas. Vencida é crítico; a vencer é aviso.",
+      "excecoes": ["Equipamento inativo/vendido não alerta.", "Equipamento que já tem OS aberta sai do alerta — repetir empurraria para fora da tela quem ainda não foi atendido."],
+      "prejuizo_se_ignorar": "O dado existia desde sempre mas só aparecia no card do equipamento. O gerador passava da preventiva e ninguém sabia até ele quebrar dentro de um evento."
+    },
+    {
+      "id": "alerta_por_permissao",
+      "titulo": "Ninguém recebe alerta que não consegue resolver",
+      "severidade": "média",
+      "regra": "Cada pendência declara o módulo a que pertence, e a lista é filtrada pela permissão do usuário."
+    },
+    {
+      "id": "termo_devolucao_exige_resposta",
+      "titulo": "Na conferência de devolução, TODO item precisa de resposta",
+      "severidade": "alta",
+      "regra": "Não se fecha o termo com item em branco. Item sem resposta sairia no documento como devolvido.",
+      "origem": "Faltou um cabo numa locação em shopping e não havia papel dizendo o que tinha sido deixado lá nem quem recebeu."
+    },
+    {
+      "id": "os_em_locacao_nao_volta",
+      "titulo": "Equipamento em locação não volta ao pátio ao abrir OS",
+      "severidade": "média",
+      "regra": "Quando a OS é aberta com local = locação, o status e a localização do equipamento NÃO são alterados: o serviço é feito no cliente."
+    },
+    {
+      "id": "historico_desnormalizado",
+      "titulo": "Nome do evento, do material e do equipamento são copiados para o registro histórico",
+      "severidade": "média",
+      "regra": "Ordens e OSs guardam o nome na hora do lançamento. Ao EXIBIR, cruzar pelo id e preferir o cadastro atual; se o cadastro sumiu, cair no que estava gravado.",
+      "motivo": "O histórico precisa sobreviver à exclusão e à renomeação do cadastro."
+    }
+  ],
+
+  "fluxos": [
+    {
+      "id": "saida_material",
+      "nome": "Saída de Material",
+      "passos": [
+        "0. Tipo de saída: Evento | Locação Mensal | Sublocação | Uso Interno.",
+        "1. Evento/cliente: nome, local, data, previsão de devolução (SÓ em Evento). Sublocação exige CNPJ, documento e telefone de quem retira.",
+        "2. Geradores (multi-seleção).",
+        "3. Romaneio: seleção dos materiais. Material contado pede quantidade.",
+        "4. Conferência.",
+        "5. Confirmação: fotos, assinatura de quem entrega e de quem recebe, observações."
+      ],
+      "grava": ["eventos (se novo)", "ordens_saida", "assinaturas_saida", "fotos_saida", "atualiza materiais", "atualiza geradores", "incrementa contador"],
+      "efeito_no_estoque": {
+        "material_de_unidade": "status = em_evento, quantidade = 0, vincula o evento",
+        "material_contado": "desconta a quantidade; NÃO marca em_evento nem vincula evento",
+        "por_quantidade": "não mexe em estoque"
+      },
+      "efeito_no_gerador": { "evento": "em_evento", "locacao_mensal": "locacao", "sublocacao": "sublocado" }
+    },
+    {
+      "id": "devolucao",
+      "nome": "Devolução de Evento",
+      "passos": [
+        "Escolher o evento (busca por nome do evento OU por nome/código do material).",
+        "Para cada item, marcar o status de devolução. Problema e cortado exigem descrição.",
+        "Opcional: lançar UM item sozinho, sem fechar o evento (gera registro parcial).",
+        "Definir o destino de cada gerador: devolver ao pátio, transferir para outro evento, ou ir para locação.",
+        "Confirmar: fecha ordens, geradores e o evento."
+      ],
+      "regras_ligadas": ["devolucao_enxerga_alem_das_ordens", "contado_sem_vinculo", "material_apagado_nao_trava_devolucao"]
+    },
+    {
+      "id": "uso_interno",
+      "nome": "Uso Interno",
+      "subtipos": {
+        "emprestimo": "Ferramenta que volta. Tem responsável, data prevista e status. A devolução é gravada no próprio registro da saída, não cria registro em `devolucoes`.",
+        "consumo": "Não volta. Baixa definitiva."
+      },
+      "itens_avulsos": "Nome livre + quantidade + unidade. NÃO mexem em estoque. Podem ser promovidos a material cadastrado depois.",
+      "anexar_ao_dia": "Se o mesmo responsável já tem saída do mesmo subtipo hoje, o fluxo oferece anexar os itens à ordem existente em vez de criar outra."
+    },
+    {
+      "id": "manutencao",
+      "nome": "Ordem de Serviço",
+      "passos": [
+        "1. Equipamento + local (pátio ou locação) + cliente/obra + mecânico responsável.",
+        "2. Filtros usados — baixa automática no estoque de filtros.",
+        "Conclusão: relatório do serviço, problemas encontrados, horímetro/KM, próxima preventiva, fotos e assinaturas."
+      ],
+      "regras": ["OS com filtros nasce em_andamento.", "Prioridade máxima automática se o equipamento estiver em evento ativo.", "OS concluída não pode ser editada, só visualizada.", "Alerta se ficar 2 dias sem conclusão."]
+    },
+    {
+      "id": "termos_locacao",
+      "nome": "Termos de Entrega e Devolução (locação/sublocação)",
+      "entrega": "Link gerado já com a assinatura da SOS. O cliente abre, confere a lista, digita nome e CPF, assina. Gera o comprovante.",
+      "devolucao": "Link enviado a quem vai recolher. No local: marca cada item como Voltou/Faltou, tira fotos, escreve observação, colhe nome, RG e assinatura de quem devolve, e assina também. O que faltou sai em destaque no documento.",
+      "motivo": "Material que dorme na posse do cliente por semanas, sem papel nenhum dizendo o que ficou lá."
+    }
+  ],
+
+  "automacoes": [
+    {
+      "id": "briefing_diario",
+      "gatilho": "Agendado, todo dia às 07:00 (America/Sao_Paulo)",
+      "acao": "E-mail para o gestor com movimentação das últimas 24h: saídas, OSs abertas e concluídas, solicitações de compra, movimentação de filtros, consumíveis abaixo do mínimo e preventivas vencidas.",
+      "ia": "Um parágrafo de leitura escrito por IA EM CIMA dos números já apurados. A IA nunca inventa número; se a chamada falhar, o e-mail sai sem o parágrafo."
+    },
+    {
+      "id": "pendencias_do_painel",
+      "gatilho": "Calculado a cada carregamento do painel",
+      "itens": ["material a cobrar (previsão vencida)", "OS parada há mais de 2 dias", "ferramenta emprestada em atraso", "saída sem assinatura de quem recebeu", "solicitação de compra na fila", "previsão de ruptura de filtro", "consumo de filtro fora do padrão", "preventiva vencida ou a vencer"]
+    },
+    {
+      "id": "solicitacao_automatica",
+      "gatilho": "Filtro atinge o estoque mínimo",
+      "acao": "Cria solicitação de compra com quantidade sugerida."
+    },
+    {
+      "id": "agente_ia",
+      "descricao": "Chat com ferramentas de ação: registrar baixa de filtro, abrir OS, preparar saída de material.",
+      "regra_de_seguranca": "NADA é gravado sem o usuário clicar em Confirmar num cartão de ação. A escrita roda com a credencial do usuário, respeitando as permissões. O proxy de IA não escreve nada."
+    }
+  ],
+
+  "documentos_gerados": [
+    { "id": "romaneio", "descricao": "Lista de materiais da saída." },
+    { "id": "relatorio_os", "descricao": "Relatório da ordem de serviço, com fotos e assinaturas." },
+    { "id": "declaracao_sublocacao", "descricao": "Declaração de entrega para a empresa sublocatária, com cláusula de conservação." },
+    { "id": "termo_entrega", "descricao": "Comprovante assinado pelo cliente na entrega da locação." },
+    { "id": "termo_devolucao", "descricao": "Conferência item a item no recolhimento, com destaque do que não foi devolvido." },
+    { "id": "relatorio_uso_interno", "descricao": "Comprovante de empréstimo/consumo interno." },
+    { "id": "playbook", "descricao": "Guia operacional do sistema para a equipe, em versão tela e versão impressa." }
+  ],
+
+  "requisitos_nao_funcionais": {
+    "mobile": {
+      "prioridade": "CRÍTICA — toda a operação de campo roda em celular Android (Samsung Galaxy).",
+      "requisitos": [
+        "Usar altura dinâmica da viewport (100dvh), nunca 100vh: com vh o último botão da tela fica embaixo da barra do navegador, fora de alcance.",
+        "Alvo de toque mínimo de 44px em qualquer elemento clicável.",
+        "Fonte de campo de formulário com no mínimo 16px: abaixo disso o navegador móvel dá zoom sozinho ao focar e o layout pula.",
+        "Evitar área rolável dentro de página rolável: o dedo prende na área interna.",
+        "Campo de assinatura: o canvas precisa se dimensionar ao espaço real multiplicado pela densidade de pixels do aparelho. Tamanho fixo esticado por CSS deformou a assinatura em 37% num aparelho comum."
+      ]
+    },
+    "conectividade": "A rede do galpão é instável. Toda operação que grava precisa ser segura para repetir — ver regra `confirmacao_idempotente`.",
+    "offline": "Não implementado hoje. É uma lacuna conhecida e seria uma melhoria real no ERP.",
+    "impressao": "Relatórios são gerados em HTML e impressos pelo navegador. Imagens precisam estar decodificadas antes de disparar a impressão, senão saem em branco no PDF.",
+    "acessibilidade_de_cor": "A paleta dos gráficos foi verificada para daltonismo. Roxo e azul ficam indistinguíveis se aproximados; por isso a frota é agrupada em 3 blocos e não nos 6 status."
+  },
+
+  "migracao": {
+    "modelagem_relacional": {
+      "arrays_embutidos": "Os campos `itens`, `geradores` e `filtrosUsados` são arrays dentro do documento. Em SQL viram tabelas filhas (ordem_saida_item, ordem_saida_gerador, os_filtro). ATENÇÃO: o item guarda nome e código copiados — manter essas colunas, não substituir por FK pura.",
+      "campos_opcionais_com_significado": "Ver `convencoes_criticas.ausencia_de_campo_como_valor_padrao`. Os defaults das colunas têm que reproduzir exatamente a semântica da ausência.",
+      "fotos_e_assinaturas": "Hoje são base64 em registros separados, por limitação da plataforma. Num ERP com storage de arquivos, substituir por URL do objeto — mas manter a assinatura acessível pelo documento, porque ela é prova legal.",
+      "capability_urls": "Os links públicos de assinatura e de termo precisam continuar existindo: o cliente e o colaborador em campo assinam SEM login. O token é o identificador do registro. Regra de acesso: leitura pública pelo token, escrita anônima UMA única vez (pendente → assinado), e a lista de itens assinada NÃO pode ser alterada.",
+      "categorias": "Não modelar como enum/CHECK: o usuário cria categorias novas em uso."
+    },
+    "dados_existentes": {
+      "volume": "Pequeno — algumas centenas de registros por coleção.",
+      "observacao": "Este arquivo é a ESPECIFICAÇÃO, não contém dados. A exportação dos dados reais é um passo separado e deve ser feita quando o modelo do ERP estiver definido, para já sair no formato de destino.",
+      "legados_a_tratar": [
+        "Ordens antigas com um único gerador usam `geradorCodigo` em vez do array `geradores`.",
+        "Veículos antigos não têm o campo `tipo` (caminhão/carro); hoje é inferido pelo modelo.",
+        "Materiais antigos podem não ter o campo de quantidade — ausente não é zero."
+      ]
+    },
+    "ordem_sugerida_de_implementacao": [
+      "1. Usuários, perfis e permissões.",
+      "2. Materiais + estoque (as três naturezas de controle). É a fundação; errar aqui contamina tudo.",
+      "3. Patrimônio (geradores e veículos).",
+      "4. Eventos + saída de material + devolução. O ciclo completo.",
+      "5. Manutenção + filtros.",
+      "6. Documentos assinados e links públicos.",
+      "7. Compras.",
+      "8. Painel, alertas e automações."
+    ]
+  },
+
+  "avisos_ao_implementador": [
+    "As regras em `regras_de_negocio` não são preferências de interface: cada uma corrigiu um prejuízo real na operação. Reimplementar sem elas repete o prejuízo, e o sintoma costuma aparecer semanas depois, em silêncio.",
+    "O padrão de falha mais comum neste domínio é o estoque desandar SEM erro na tela. Material que não volta para a prateleira não gera exceção — ele simplesmente some do inventário disponível. Priorize testes nas funções de movimentação de estoque.",
+    "A operação é diária e não pode parar. Qualquer corte de funcionalidade na migração precisa ser combinado com a operação antes, não descoberto depois."
+  ]
+}

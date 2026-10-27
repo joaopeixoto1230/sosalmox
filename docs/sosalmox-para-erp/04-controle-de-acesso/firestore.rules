@@ -1,0 +1,368 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    function hasRole(roles) {
+      return isAuthenticated() && getUserData().perfil in roles;
+    }
+
+    function isActive() {
+      return getUserData().ativo != false;
+    }
+
+    match /usuarios/{uid} {
+      allow read: if isAuthenticated() && (request.auth.uid == uid || hasRole(['admin']));
+      allow write: if hasRole(['admin']) && isActive();
+    }
+
+    match /eventos/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /geradores/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
+
+    match /caminhoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
+
+    match /materiais/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /ordens_saida/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow update: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /devolucoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /transferencias/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /contadores/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if isAuthenticated() && isActive();
+    }
+
+    // Notificações do sininho. Leitura/escrita para qualquer usuário ativo;
+    // o filtro de quem vê o quê é feito no app (uid, 'all' ou paraPerfis).
+    match /notificacoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if isAuthenticated() && isActive();
+      allow update: if isAuthenticated() && isActive();
+      allow delete: if hasRole(['admin', 'gerente']) && isActive();
+    }
+
+    // Fase 3 — Compras (todos menos o franca/mecanico)
+    match /solicitacoes_compra/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+    }
+
+    match /fornecedores/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+    }
+
+    // Tipos de material da solicitação (lista de padrões criada pelos colaboradores)
+    match /tipos_solicitacao/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'compras']) && isActive();
+    }
+
+    // Assinatura do solicitante (fora do doc da solicitação, p/ não pesar a fila)
+    match /assinaturas_solicitacao/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+    }
+
+    // Fotos da solicitação de compra (uma foto por documento, base64 no campo dataUrl)
+    match /fotos_solicitacao/{docId} {
+      allow read: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife', 'compras']) && isActive();
+    }
+
+    // Histórico de conversas do Agente IA. Cada conversa é privada do usuário que
+    // conversou: só o dono lê, escreve e apaga (admin também, para suporte).
+    match /conversas_agente/{docId} {
+      allow read, update, delete: if isAuthenticated() && isActive()
+                                  && (resource.data.uid == request.auth.uid || hasRole(['admin']));
+      allow create: if isAuthenticated() && isActive()
+                    && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Fase 2 — Filtros
+    match /filtros/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /entradas_filtro/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    match /baixas_filtro/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+    }
+
+    // Fase 2 — Manutenção
+    match /ordens_servico/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+      allow update: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    // Fotos do serviço das OS (uma foto por documento, base64 no campo dataUrl)
+    match /fotos_os/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife', 'franca']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    // Fotos da saída de material (uma foto por documento, base64 no campo dataUrl)
+    match /fotos_saida/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    // Assinaturas da saída (capability URL). O recebedor assina por link sem login:
+    // get publico por token (sem listar a colecao), e update anonimo so para
+    // preencher a assinatura do recebedor UMA vez (sem alterar o resto).
+    match /assinaturas_saida/{token} {
+      allow get: if true;
+      allow list: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow update: if (hasRole(['admin', 'gerente', 'almoxarife']) && isActive())
+                    || (resource.data.recebeuAssinatura == null
+                        && request.resource.data.recebeuAssinatura is string
+                        && request.resource.data.ordemId == resource.data.ordemId
+                        && request.resource.data.entregouAssinatura == resource.data.entregouAssinatura);
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    // Termos de entrega/devolução da locação (capability URL, igual às
+    // assinaturas da saída). Quem abre o link é o cliente ou o colaborador que
+    // foi recolher o material — sem login. Por isso:
+    //  - get público pelo token, mas sem poder LISTAR a coleção;
+    //  - update anônimo só UMA vez (pendente -> assinado), e sem poder mexer no
+    //    evento, no tipo nem na LISTA DE ITENS: é justamente essa lista que as
+    //    duas partes estão assinando.
+    //  - na entrega, a assinatura da SOS já veio gravada e não pode ser trocada.
+    match /termos_locacao/{token} {
+      allow get: if true;
+      allow list: if isAuthenticated() && isActive();
+      allow create: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+      allow update: if (hasRole(['admin', 'gerente', 'almoxarife']) && isActive())
+                    || (resource.data.status != 'assinado'
+                        && request.resource.data.status == 'assinado'
+                        && request.resource.data.clienteAssinatura is string
+                        && request.resource.data.eventoId == resource.data.eventoId
+                        && request.resource.data.tipo == resource.data.tipo
+                        && request.resource.data.itens == resource.data.itens
+                        && request.resource.data.geradores == resource.data.geradores
+                        && (resource.data.tipo != 'entrega'
+                            || request.resource.data.sosAssinatura == resource.data.sosAssinatura));
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+
+    // Fotos da conferência do termo. Quem tira é o colaborador no local, pelo
+    // link e sem login, então o create é anônimo — mas só para um termo que
+    // EXISTE e ainda não foi assinado, o que fecha a porta depois do aceite.
+    match /fotos_termo/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if request.resource.data.dataUrl is string
+                    && request.resource.data.termoId is string
+                    && exists(/databases/$(database)/documents/termos_locacao/$(request.resource.data.termoId))
+                    && get(/databases/$(database)/documents/termos_locacao/$(request.resource.data.termoId)).data.status != 'assinado';
+      allow delete: if hasRole(['admin', 'gerente', 'almoxarife']) && isActive();
+    }
+  
+    // ============================================================
+    // SOS ABASTECIMENTO — controle de combustivel
+    //
+    // ⚠️ ESTE BLOCO PERTENCE AO `firestore.rules` DO sosalmox.
+    // Os dois sistemas dividem o MESMO projeto Firebase (`sos-almox`), e as
+    // regras do Firestore sao do PROJETO, nao do app. Publicar regras a partir
+    // do repositorio do Abastecimento apagaria as do Almoxarifado.
+    //
+    // Fluxo correto: manter este bloco dentro do firestore.rules do sosalmox e
+    // publicar de la, com `firebase deploy --only firestore:rules`.
+    //
+    // Perfis: o usuario e o MESMO do Almoxarifado. O perfil daqui vive no campo
+    // `perfilAbastecimento`; quem ainda nao tem o campo herda o equivalente do
+    // perfil do Almoxarifado — igual a `src/utils/permissions.js`.
+    // ============================================================
+
+    function perfilAbastecimento() {
+      return getUserData().get('perfilAbastecimento', '');
+    }
+
+    function ehGestorDiesel() {
+      return isAuthenticated() && isActive() && (
+        perfilAbastecimento() == 'gestor_diesel'
+        || (perfilAbastecimento() == '' && getUserData().perfil in ['admin', 'gerente'])
+      );
+    }
+
+    // Quem escaneou o QR da bomba e nao fez login (secao 12.2).
+    //
+    // O celular abre uma sessao ANONIMA do Firebase — sem conta, sem senha, sem
+    // instalar nada. Isso e o coracao da adesao em campo: exigir login ali
+    // significaria, na pratica, o operador contornar o sistema.
+    //
+    // ⚠️ `isActive()` le `usuarios/{uid}`, que NAO existe para o anonimo. Por
+    // isso toda regra testa `ehAnonimo()` ANTES — as regras avaliam `||` da
+    // esquerda para a direita e param no primeiro verdadeiro.
+    function ehAnonimo() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // Qualquer funcionario ativo, mais o celular do QR. E deliberado: se
+    // registrar exigisse cargo ou conta, o operador do sol contornaria o
+    // sistema, e o controle morreria em silencio. A protecao nao esta em quem
+    // escreve — esta em nada poder ser apagado, na identificacao por PIN e na
+    // cadeia do perpetuo, que se valida sozinha.
+    function podeLancar() {
+      return ehAnonimo() || (isAuthenticated() && isActive());
+    }
+
+    // Campos que o registro de campo atualiza no reservatorio: o cache do saldo
+    // e a leitura da bomba. O anonimo NAO mexe em nome, capacidade, arqueacao
+    // nem em nada de cadastro.
+    function soCacheDoReservatorio() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['saldoTeoricoLitros', 'totalizadorAtual', 'ultimaMovimentacaoEm']);
+    }
+
+    function soLeituraDoAtivo() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['ultimoHorimetro', 'ultimoOdometro', 'ultimoAbastecimentoEm']);
+    }
+
+    match /abast_reservatorios/{docId} {
+      allow read: if podeLancar();
+      allow update: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && soCacheDoReservatorio());
+      allow create, delete: if ehGestorDiesel();
+    }
+
+    match /abast_ativos/{docId} {
+      allow read: if podeLancar();
+      allow create: if isAuthenticated() && isActive();
+      allow update: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && soLeituraDoAtivo());
+      allow delete: if ehGestorDiesel();
+    }
+
+    match /abast_movimentacoes/{docId} {
+      allow read: if podeLancar();
+      // O anonimo so cria ABASTECIMENTO. Compra, transferencia, ajuste e
+      // devolucao mexem em dinheiro e em estoque e continuam exigindo conta.
+      allow create: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && request.resource.data.tipo == 'abastecimento');
+      // Update cobre estorno e conferencia (conta de verdade). O anonimo so
+      // consegue PEDIR correcao — que e o que a secao 12.1 manda: o lancador
+      // nunca edita nem exclui, ele pede, e vira pendencia do gestor.
+      allow update: if (isAuthenticated() && isActive())
+                    || (ehAnonimo() && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['correcaoSolicitada']));
+      // ⛔ NENHUM registro e apagado, por ninguem, nunca. Correcao e feita por
+      // estorno, que preserva o original com autor e horario (secao 12.1).
+      allow delete: if false;
+    }
+
+    match /abast_leituras/{docId} {
+      allow read: if podeLancar();
+      allow create: if podeLancar();
+      allow update, delete: if false;
+    }
+
+    match /abast_fotos/{docId} {
+      // A foto do totalizador e a prova do registro. O celular do QR precisa
+      // GRAVAR, mas nao precisa ler o album da empresa inteira.
+      allow read: if isAuthenticated() && isActive();
+      allow create: if podeLancar();
+      allow update: if false;
+      allow delete: if ehGestorDiesel();
+    }
+
+    match /abast_operadores/{docId} {
+      // Le nome e HASH do PIN — e o que a tela de identificacao precisa. O
+      // numero legivel do PIN mora em outra colecao, so para o gestor.
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_operadores_pins/{docId} {
+      // ⚠️ Colecao separada de `abast_operadores` justamente por causa desta
+      // regra: o documento do operador precisa ser lido por qualquer aparelho
+      // (e o hash que valida a identificacao no patio), e o numero legivel NAO.
+      // Juntos, qualquer pessoa logada — e agora tambem o celular anonimo do
+      // QR — leria os PINs da equipe inteira pelo console do navegador.
+      allow read, write: if ehGestorDiesel();
+    }
+
+    match /abast_amostras/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if isAuthenticated() && isActive();
+      allow update, delete: if ehGestorDiesel();
+    }
+
+    match /abast_medicoes/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow create: if isAuthenticated() && isActive();
+      allow update, delete: if ehGestorDiesel();
+    }
+
+    match /abast_fornecedores/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_transportadoras/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_contratos/{docId} {
+      allow read: if isAuthenticated() && isActive();
+      allow write: if ehGestorDiesel();
+    }
+
+    match /abast_config/{docId} {
+      allow read: if podeLancar();
+      allow write: if ehGestorDiesel();
+    }
+  }
+}
